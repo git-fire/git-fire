@@ -52,6 +52,36 @@ You've been working across multiple projects. Some changes committed, some not. 
 
 ---
 
+### 🔐 Scenario 4: Security Research & Pentesting
+**Authorized security assessment. Need to extract git repos from target system.**
+
+During authorized penetration testing, bug bounties, or incident response, you need to quickly extract all git repositories from a compromised or assessed system for analysis.
+
+**Git Fire solution:** Rapid repository discovery and extraction. Preserves commit history, branches, and uncommitted changes for forensic analysis.
+
+**⚠️ IMPORTANT SECURITY NOTICE:**
+
+This tool can be used to extract git repositories from ANY system it runs on. While designed primarily for emergency backup of your own work, we acknowledge its utility in:
+
+- **Authorized pentesting** - Extract repos during security assessments (with permission)
+- **Bug bounty programs** - Analyze git repos found on targets (within scope)
+- **Incident response** - Preserve evidence from compromised systems
+- **Forensics** - Extract repos for analysis
+- **Red team exercises** - Test data exfiltration controls (authorized only)
+
+**Legal & Ethical Use Only:**
+- ✅ Use on YOUR OWN systems
+- ✅ Use during AUTHORIZED security assessments with written permission
+- ✅ Use in CTF competitions and training environments
+- ❌ NEVER use on systems you don't own or have permission to access
+- ❌ Unauthorized access to computer systems is illegal in most jurisdictions
+
+**We are not responsible for misuse of this tool. Use responsibly and legally.**
+
+*Think of git-fire like Metasploit, Burp Suite, or Kali Linux - powerful tools that can be used for good or evil. Choose good.*
+
+---
+
 ## Mission
 
 Build the panic button for developers that the meme promised. Make it:

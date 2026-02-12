@@ -22,6 +22,15 @@
 - DevOps with infrastructure repos
 - Data scientists with notebooks
 
+### Tertiary: Security Professionals (~5M worldwide)
+- **Penetration testers** - Extract repos during authorized assessments
+- **Bug bounty hunters** - Analyze discovered git repos on targets
+- **Red teamers** - Test data exfiltration detection/prevention
+- **Incident responders** - Preserve git repos as evidence
+- **Security researchers** - Analyze repos for secrets, vulns
+
+**Positioning:** Like Metasploit, Burp Suite, or nmap - a dual-use tool that's legitimate in the right hands.
+
 ---
 
 ## Competitive Landscape
