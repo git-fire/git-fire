@@ -14,8 +14,16 @@
 - ✅ Interactive prompt with 10-second countdown + ASCII flame animations
 - ✅ Auto-commit uncommitted changes (git add -A && commit)
 - ✅ Intelligent conflict handling (create fire branches, never force-push)
+- ✅ **Dual modes:**
+  - **Normal Fire:** Push to existing remotes
+  - **Backup Mode:** Push to new remote location (GitHub/GitLab/etc)
+- ✅ **Backup to new remote:**
+  - Auto-create repos on target (API integration)
+  - Repo renaming with templates (hostname, date, etc)
+  - Add new remote to each repo (keeps original remotes)
+  - Generate backup manifest (JSON metadata)
 - ✅ Push to all remotes by default
-- ✅ SSH passphrase collection
+- ✅ SSH passphrase collection with validation
 - ✅ Beautiful TUI (Bubble Tea + Lipgloss)
 - ✅ Fire drill mode (dry-run preview)
 - ✅ Comprehensive logging (JSON format, reversibility)
