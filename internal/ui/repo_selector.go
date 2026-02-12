@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/TBRX103/git-fire/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,28 +13,59 @@ import (
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("205")).
+			Foreground(lipgloss.Color("#FF6600")).
+			Background(lipgloss.Color("#1A1A1A")).
+			Padding(0, 2).
 			MarginBottom(1)
 
 	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("170")).
+			Foreground(lipgloss.Color("#00FF00")).
 			Bold(true)
 
 	unselectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+			Foreground(lipgloss.Color("#888888"))
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
+			Foreground(lipgloss.Color("#666666")).
 			MarginTop(1)
+
+	boxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#FF6600")).
+			Padding(1, 2)
 )
+
+// ASCII fire frames for animation
+var fireFrames = []string{
+	`     (  )   (   )  )
+      ) (   )  (  (
+      ( )  (    ) )`,
+
+	`    (  )  (   )  )
+     )  (  )  (  (
+     (  )  (   ) )`,
+
+	`    )  (  )  (  )
+     (  )  (  ) (
+     )  (  )  ( )`,
+}
+
+type tickMsg time.Time
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
 
 // RepoSelectorModel is the Bubble Tea model for selecting repositories
 type RepoSelectorModel struct {
-	repos    []git.Repository
-	cursor   int
-	selected map[int]bool
-	quitting bool
-	confirmed bool
+	repos      []git.Repository
+	cursor     int
+	selected   map[int]bool
+	quitting   bool
+	confirmed  bool
+	frameIndex int // For fire animation
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -52,11 +84,16 @@ func NewRepoSelectorModel(repos []git.Repository) RepoSelectorModel {
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
-	return nil
+	return tickCmd()
 }
 
 func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tickMsg:
+		// Advance animation frame
+		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
+		return m, tickCmd()
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -131,8 +168,13 @@ func (m RepoSelectorModel) View() string {
 
 	var s strings.Builder
 
+	// Animated fire at top
+	fireStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	s.WriteString(fireStyle.Render(fireFrames[m.frameIndex]))
+	s.WriteString("\n\n")
+
 	// Title
-	s.WriteString(titleStyle.Render("🔥 Select Repositories to Backup"))
+	s.WriteString(titleStyle.Render("                🔥 GIT FIRE - SELECT REPOSITORIES 🔥                "))
 	s.WriteString("\n\n")
 
 	// Repository list
@@ -178,11 +220,16 @@ func (m RepoSelectorModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode\n" +
-			"  a  Select all  |  n  Select none  |  enter  Confirm  |  q  Quit",
+			"  a  Select all  |  n  Select none  |  enter  Confirm  |  q  Quit\n\n" +
+			"Icons:\n" +
+			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
+			"  [✓] = Selected  |  [ ] = Not selected",
 	)
 	s.WriteString(help)
 
-	return s.String()
+	// Wrap everything in a box
+	content := s.String()
+	return boxStyle.Render(content)
 }
 
 // GetSelectedRepos returns the selected repositories
