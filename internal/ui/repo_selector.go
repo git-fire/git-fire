@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/harmonica"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -60,12 +62,17 @@ func tickCmd() tea.Cmd {
 
 // RepoSelectorModel is the Bubble Tea model for selecting repositories
 type RepoSelectorModel struct {
-	repos      []git.Repository
-	cursor     int
-	selected   map[int]bool
-	quitting   bool
-	confirmed  bool
-	frameIndex int // For fire animation
+	repos       []git.Repository
+	cursor      int
+	selected    map[int]bool
+	quitting    bool
+	confirmed   bool
+	frameIndex  int             // For fire animation
+	fireBg      *FireBackground // Animated fire background
+	spring      harmonica.Spring // Smooth cursor animation
+	spinner     spinner.Model   // Loading spinner
+	windowWidth int
+	windowHeight int
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -76,23 +83,56 @@ func NewRepoSelectorModel(repos []git.Repository) RepoSelectorModel {
 		selected[i] = repos[i].Selected
 	}
 
+	// Create spinner
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+
+	// Initialize fire background
+	fireBg := NewFireBackground(70, 5)
+
+	// Initialize spring for smooth cursor movement
+	spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 0.5)
+
 	return RepoSelectorModel{
-		repos:    repos,
-		cursor:   0,
-		selected: selected,
+		repos:        repos,
+		cursor:       0,
+		selected:     selected,
+		fireBg:       fireBg,
+		spring:       spring,
+		spinner:      s,
+		windowWidth:  80,
+		windowHeight: 40,
 	}
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
-	return tickCmd()
+	return tea.Batch(tickCmd(), m.spinner.Tick)
 }
 
 func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
+		m.windowHeight = msg.Height
+		// Resize fire background
+		m.fireBg = NewFireBackground(min(msg.Width-4, 70), 5)
+
 	case tickMsg:
 		// Advance animation frame
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
+		// Update fire background
+		m.fireBg.Update()
+		// Update spring animation
+		m.spring.Update()
 		return m, tickCmd()
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -109,11 +149,15 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				// Animate cursor movement with spring
+				m.spring.SetTarget(float64(m.cursor))
 			}
 
 		case "down", "j":
 			if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				// Animate cursor movement with spring
+				m.spring.SetTarget(float64(m.cursor))
 			}
 
 		case " ":
@@ -149,7 +193,14 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
+	return m, tea.Batch(cmds...)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (m RepoSelectorModel) View() string {
@@ -168,13 +219,22 @@ func (m RepoSelectorModel) View() string {
 
 	var s strings.Builder
 
-	// Animated fire at top
-	fireStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
-	s.WriteString(fireStyle.Render(fireFrames[m.frameIndex]))
+	// Animated fire background at top
+	s.WriteString(m.fireBg.Render())
+	s.WriteString("\n")
+
+	// Animated fire wave separator
+	s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
 	s.WriteString("\n\n")
 
-	// Title
-	s.WriteString(titleStyle.Render("                🔥 GIT FIRE - SELECT REPOSITORIES 🔥                "))
+	// Title with gradient
+	titleText := "🔥 GIT FIRE - SELECT REPOSITORIES 🔥"
+	titleGradient := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ff4500")).
+		Background(lipgloss.Color("#1a1a1a")).
+		Padding(0, 2)
+	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
 
 	// Repository list
