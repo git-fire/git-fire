@@ -10,12 +10,13 @@
 ### Core Dependencies
 ```go
 // go.mod excerpt
-github.com/go-git/go-git/v5 v5.11.0
-github.com/charmbracelet/bubbletea v0.25.0
-github.com/charmbracelet/lipgloss v0.10.0
-github.com/spf13/cobra v1.8.0
-github.com/spf13/viper v1.18.0
+github.com/charmbracelet/bubbletea v0.25.0  // TUI framework
+github.com/charmbracelet/lipgloss v0.10.0   // Terminal styling
+github.com/spf13/cobra v1.8.0               // CLI framework
+github.com/spf13/viper v1.18.0              // Config loading
 ```
+
+**Note:** We shell out to system `git` binary for all git operations (faster and more reliable than go-git for push operations). go-git dependency removed in favor of native git commands.
 
 ---
 
@@ -32,18 +33,22 @@ User runs: git-fire
     └─→ FIRE DRILL → [SCAN] → [DRY RUN REPORT] → [EXIT]
 ```
 
-#### Step 1: Prompt Screen (5-second timeout)
-- Display interactive prompt with countdown
+#### Step 1: Prompt Screen (10-second timeout)
+- Display interactive prompt with countdown and ASCII fire animation
 - Accept user input: YES / NO / FIRE DRILL
-- Timeout after 5 seconds defaults to NO
+- Timeout after 10 seconds defaults to NO
 - Keyboard: ↑↓ to navigate, Enter to select, Ctrl+C to abort
+- ASCII flame animations (2-3 frames) for dramatic effect
 
-#### Step 2: Repository Scanning
-- Scan filesystem for `.git` directories (configurable root path)
-- Respect `scan_exclude` patterns (e.g., `.cache`, `node_modules`)
-- Extract remotes from `.git/config` for each repo
-- Collect branch info (local, remote, tracking status)
+#### Step 2: Repository Scanning (Hybrid Strategy)
+- **Quick scan first:** Check cached repos + common dev paths (`~/projects`, `~/src`, `~/code`)
+- **Background indexing:** Full filesystem scan runs in background on first launch
+- **Incremental updates:** Re-scan only changed paths on subsequent runs
+- Respect `scan_exclude` patterns (e.g., `.cache`, `node_modules`, `/sys`, `/proc`)
+- Extract remotes from each repo's `.git/config`
+- Collect branch info (local, remote, tracking status) via git commands
 - Run in parallel (goroutine pool) with progress indicator
+- Cache results in `~/.config/git-fire/repos-cache.json`
 - Timeout: configurable, default 5 minutes
 
 #### Step 3: Dry-Run Analysis
@@ -61,14 +66,21 @@ User runs: git-fire
 - Exit after user reviews report
 
 #### Step 4B: Panic Mode (EXECUTE)
-- Validate auth credentials (SSH keys, tokens)
-- If auth invalid, abort with clear error
+- **Auto-commit uncommitted changes:**
+  - For each dirty repo (uncommitted/untracked files), run: `git add -A && git commit -m "git-fire emergency backup - {timestamp}"`
+  - Log all auto-commits for reversibility
+  - Never skip dirty repos - we want to save ALL work
+- Validate auth credentials per-repo (not upfront - too slow)
 - For each repo, execute based on configured mode:
   - **Leave Untouched:** Skip entirely
   - **Push Known Branches:** Push only branches that exist on remote
   - **Push All Branches:** Push all local branches, create new on remote
-- On conflict: Create new branch per template, push instead
-- Handle single repo failures gracefully (log, continue)
+- **On branch conflict (local != remote HEAD):**
+  - Create new branch with "fire" in name: `git-fire-backup-{branch}-{iso-timestamp}-{hash}`
+  - Push new branch instead of forcing
+  - Log conflict resolution for later cleanup
+- **Push to remotes:** Push to ALL discovered remotes by default (configurable)
+- Handle single repo failures gracefully (log, continue to next)
 - Show real-time progress per repo and branch
 
 #### Step 5: Completion Report
@@ -86,7 +98,9 @@ User runs: git-fire
 - Fallback: `~/.git-fire/config.toml`
 - Env override: `GIT_FIRE_CONFIG=/path/to/config.toml`
 
-### Default Config (auto-generated on first run)
+**Important:** Config is OPTIONAL. Tool works with zero configuration using safe defaults.
+
+### Default Config (optional, user can generate with `git-fire --init`)
 
 ```toml
 [global]
@@ -97,16 +111,31 @@ default_mode = "push-known-branches"
 conflict_strategy = "new-branch"
 
 # Template for new branch names on conflict
-# Variables: {branch} (original name), {timestamp} (unix), {hash} (commit SHA prefix)
+# Variables: {branch} (original name), {timestamp} (ISO format), {hash} (commit SHA prefix)
+# Example: git-fire-backup-main-2026-02-12T143025-a1b2c3d
 branch_name_template = "git-fire-backup-{branch}-{timestamp}-{hash}"
 
-# Auto-create repos on GitHub (requires GitHub token in auth)
-auto_create_repos = false
+# Push to all discovered remotes by default (not just origin)
+push_to_all_remotes = true
 
-# Consider repo unmaintained if last commit older than N days
-unmaintained_threshold_days = 90
+# Preferred remote order if push_to_all_remotes = false
+preferred_remotes = ["origin", "backup", "upstream"]
 
-# Filesystem scan settings
+# Filesystem scan settings (hybrid strategy)
+# Quick scan paths (checked first, < 5 seconds)
+quick_scan_paths = [
+  "~/projects",
+  "~/src",
+  "~/code",
+  "~/dev",
+  "~/workspace",
+  "~/Documents/projects"
+]
+
+# Full scan root (only used if --full-scan flag or background indexing)
+full_scan_root = "~"  # Home directory, NOT filesystem root "/"
+
+# Exclude patterns (applies to all scans)
 scan_exclude = [
   ".cache",
   "node_modules",
@@ -116,25 +145,37 @@ scan_exclude = [
   "vendor",
   "dist",
   "build",
-  "target"
+  "target",
+  "/sys",    # System dirs (if scanning from /)
+  "/proc",
+  "/dev",
+  "/mnt",
+  "/media"
 ]
 
-# Max directory depth to scan (prevent scanning entire filesystem)
+# Max directory depth to scan
 scan_max_depth = 10
 
-# Default scan root (relative paths expand from home)
-scan_root = "~"
+# Cache discovered repos for fast rescans
+repos_cache_file = "~/.config/git-fire/repos-cache.json"
+cache_ttl_hours = 24  # Rebuild cache after 24 hours
 
 # Auth settings
 [auth]
-# SSH key paths (if left empty, uses default ~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.)
-ssh_keys = []
+# SSH key handling: uses system ssh-agent by default
+# If SSH key has passphrase, user must run `ssh-add` first
+# Passphrase-protected keys without ssh-agent will be skipped
 
-# GitHub token for HTTPS + auto-create (use env var GIT_FIRE_GITHUB_TOKEN instead)
-github_token = ""
+# GitHub/GitLab token for HTTPS auth (use env var instead of config file for security)
+# Env vars: GIT_FIRE_GITHUB_TOKEN, GIT_FIRE_GITLAB_TOKEN
+# Do NOT store tokens in this file (security risk)
 
 # Timeout for each git operation (seconds)
 operation_timeout = 30
+
+# Retry on push failure
+retry_attempts = 3
+retry_backoff_seconds = 2  # Exponential backoff: 2s, 4s, 8s
 
 # Parallel goroutines for scanning and pushing
 parallel_scan_workers = 8
@@ -144,6 +185,8 @@ parallel_push_workers = 4
 [logging]
 log_dir = "~/.config/git-fire/logs"
 log_level = "info"  # "debug" | "info" | "warn" | "error"
+log_retention_days = 30  # Auto-cleanup logs older than 30 days
+log_format = "json"  # "json" | "text"
 
 # Per-repository overrides (matched by path or remote URL)
 [[repos]]
@@ -165,12 +208,14 @@ mode = "push-known-branches"
 conflict_strategy = "skip"  # Don't create new branches for this one
 ```
 
-### Config Loading Rules
+### Config Loading Rules (Zero-Config Friendly)
 1. Try to load from `GIT_FIRE_CONFIG` env var
 2. Try `~/.config/git-fire/config.toml`
 3. Try `~/.git-fire/config.toml`
-4. If none exist, create default at `~/.config/git-fire/config.toml` and exit with message
-5. User must configure, then re-run
+4. **If none exist:** Use safe built-in defaults (works immediately, no setup required)
+5. User can optionally run `git-fire --init` to generate config template for customization
+
+**Emergency mode philosophy:** Tool MUST work with zero configuration for first-time users in actual emergencies.
 
 ### Per-Repo Matching Logic
 - Match by exact `path` first (highest priority)
@@ -293,73 +338,256 @@ git-fire/
 
 ## CLI Interface
 
-### Command: `git-fire [FLAGS]`
+### Command: `git-fire [PATH] [FLAGS]`
 
 ```
+USAGE:
+  git-fire                   # Interactive mode (scan cached + quick paths)
+  git-fire ~/projects        # Scan specific path
+  git-fire /path/to/repo     # Scan single repo
+
 FLAGS:
   -c, --config FILE          Path to config file
                              (default: ~/.config/git-fire/config.toml)
-  
-  -p, --path DIR             Only scan this directory
-                             (default: home directory)
-  
+
   --dry-run                  Run fire drill without interactive prompt
-  
-  --auth-check               Validate auth credentials and exit
-  
+                             (validates SSH auth, shows what would happen)
+
+  --full-scan                Force full filesystem scan (slow)
+
+  --reindex                  Rebuild repo cache
+
+  --init                     Generate default config file and exit
+
+  --auth-check               Validate SSH auth and exit (shows key status)
+
+  --ssh-passphrase PASS      Single passphrase for all SSH keys
+
+  --ssh-passphrase-rsa PASS  Passphrase for ~/.ssh/id_rsa
+
+  --ssh-passphrase-ed25519   Passphrase for ~/.ssh/id_ed25519
+
+  --ssh-passphrase-ecdsa     Passphrase for ~/.ssh/id_ecdsa
+
+  --quiet                    Suppress output (for cron jobs)
+
   -v, --verbose              Enable debug logging
-  
+
   -h, --help                 Show help
-  
+
   --version                  Show version
+
+ENVIRONMENT VARIABLES:
+  GIT_FIRE_CONFIG            Path to config file
+  GIT_FIRE_SSH_PASSPHRASE    Single passphrase for all keys
+  GIT_FIRE_SSH_PASSPHRASE_RSA      For id_rsa
+  GIT_FIRE_SSH_PASSPHRASE_ED25519  For id_ed25519
+  GIT_FIRE_SSH_PASSPHRASE_ECDSA    For id_ecdsa
+  GIT_FIRE_GITHUB_TOKEN      GitHub token for HTTPS auth
+  GIT_FIRE_GITLAB_TOKEN      GitLab token for HTTPS auth
 ```
 
 ### Examples
 
 ```bash
-# Interactive mode (normal usage)
+# Interactive mode (uses cache + quick paths, FAST)
 $ git-fire
 
-# Non-interactive dry-run (useful in scripts)
+# Scan specific path
+$ git-fire ~/projects
+
+# Scan single repo
+$ git-fire ~/projects/my-app
+
+# Non-interactive dry-run (validates auth, shows what would happen)
 $ git-fire --dry-run
 
-# Scan only a specific directory
-$ git-fire --path /home/user/projects
+# With SSH passphrase (all keys use same passphrase)
+$ git-fire --ssh-passphrase "my-passphrase"
 
-# Validate auth before trusting the tool
+# With specific passphrases for different keys
+$ git-fire --ssh-passphrase-rsa "pass1" --ssh-passphrase-ed25519 "pass2"
+
+# Using environment variables (recommended for scripting)
+$ export GIT_FIRE_SSH_PASSPHRASE="my-passphrase"
+$ git-fire
+
+# Check SSH auth status
 $ git-fire --auth-check
 
-# With custom config
-$ git-fire --config ~/my-fire-config.toml
+# Force full filesystem scan (slow, first-time setup)
+$ git-fire --full-scan
+
+# Rebuild repo cache
+$ git-fire --reindex
+
+# Generate config template
+$ git-fire --init
+
+# Quiet mode for cron jobs
+$ git-fire --dry-run --quiet
+
+# Emergency alias (unlock SSH, then fire)
+$ alias emergency-fire='ssh-add ~/.ssh/id_rsa && git-fire'
+$ emergency-fire
 ```
 
 ---
 
 ## User Interface Screens
 
-### Screen 1: Prompt (Initial)
+### Screen 1: Prompt (Initial with SSH Status)
 
+**Scenario A: All SSH keys unlocked (happy path)**
 ```
 ╔════════════════════════════════════════════════════════════════╗
+║     (  )   (   )  )                                            ║
+║      ) (   )  (  (         🔥 GIT FIRE - PANIC MODE 🔥        ║
+║      ( )  (    ) )                                             ║
 ║                                                                ║
-║                  🔥 GIT FIRE - PANIC MODE 🔥                  ║
+║  SSH Keys: ✓ All unlocked (3/3)                               ║
 ║                                                                ║
-║          Is the building on fire? You have 5 seconds...        ║
+║          Is the building on fire? You have 10 seconds...       ║
 ║                                                                ║
 ║                      ► YES, PUSH EVERYTHING                    ║
 ║                        NO, CANCEL                              ║
 ║                        FIRE DRILL (DRY RUN)                    ║
 ║                                                                ║
-║  Timer: [████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 5s         ║
-║                                                                ║
+║  Timer: [████████████████░░░░░░░░░░░░░░░░░░] 10s              ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
+
+**Scenario B: Some SSH keys need attention (shows warnings)**
+```
+╔════════════════════════════════════════════════════════════════╗
+║     (  )   (   )  )                                            ║
+║      ) (   )  (  (         🔥 GIT FIRE - PANIC MODE 🔥        ║
+║      ( )  (    ) )                                             ║
+║                                                                ║
+║  SSH Keys Detected:                                            ║
+║  ✓ id_rsa (unlocked)                                          ║
+║  ✗ id_ed25519 (passphrase FAILED - wrong password?)          ║
+║  ⚠ id_ecdsa (needs passphrase)                               ║
+║                                                                ║
+║  ⚠️ WARNING: Some repos may be skipped due to SSH issues!     ║
+║                                                                ║
+║                      ► YES, PUSH ANYWAY                        ║
+║                        NO, CANCEL                              ║
+║                        FIX PASSPHRASES NOW                     ║
+║                        FIRE DRILL (DRY RUN)                    ║
+║                                                                ║
+║  Timer: [████████████████░░░░░░░░░░░░░░░░░░] 10s              ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**ASCII Flames:** 2-3 frame animation at top (cycles while countdown runs)
 
 **Controls:**
 - ↑↓ arrow keys to navigate
 - Enter to select
 - Ctrl+C to abort
-- Auto-selects NO after 5 seconds
+- Auto-selects NO after 10 seconds
+
+**Options (dynamic based on SSH status):**
+1. **YES, PUSH EVERYTHING/ANYWAY** - Proceed with push (may skip repos with auth failures)
+2. **NO, CANCEL** - Exit without doing anything
+3. **FIX PASSPHRASES NOW** - Enter/correct passphrases interactively (only shown if keys need attention)
+4. **FIRE DRILL (DRY RUN)** - Show what would happen, validate SSH auth
+
+---
+
+### Screen 1B: Fix Passphrases (if "FIX PASSPHRASES NOW" selected)
+
+**Step 1: Show problem keys**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔐 FIX SSH KEY PASSPHRASES                                    ║
+║                                                                ║
+║  Keys that need attention:                                     ║
+║                                                                ║
+║  ✗ id_ed25519 - Passphrase validation FAILED                  ║
+║     (You provided a passphrase but it didn't work)            ║
+║                                                                ║
+║  ⚠ id_ecdsa - Not unlocked                                    ║
+║     (No passphrase provided yet)                              ║
+║                                                                ║
+║  Let's fix these now...                                        ║
+║                                                                ║
+║  [Enter] Continue  |  [Ctrl+C] Cancel                          ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Step 2: Enter passphrase with real-time validation**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔐 FIX SSH KEY PASSPHRASES                                    ║
+║                                                                ║
+║  Enter passphrase for id_ed25519:                             ║
+║  ► ••••••••••••                                                ║
+║                                                                ║
+║  [Enter] Test Passphrase  |  [Ctrl+S] Skip  |  [Ctrl+C] Back  ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Step 3: Validation feedback**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔐 FIX SSH KEY PASSPHRASES                                    ║
+║                                                                ║
+║  Testing passphrase for id_ed25519...                         ║
+║  ⠋ Running: ssh-add ~/.ssh/id_ed25519                        ║
+║                                                                ║
+║  ✓ SUCCESS! Key unlocked and added to ssh-agent.             ║
+║                                                                ║
+║  [Enter] Continue to next key                                  ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Step 4: If validation fails**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔐 FIX SSH KEY PASSPHRASES                                    ║
+║                                                                ║
+║  ✗ FAILED: Passphrase incorrect for id_ed25519               ║
+║                                                                ║
+║  Error from ssh-add:                                           ║
+║  "Bad passphrase, try again for ~/.ssh/id_ed25519"           ║
+║                                                                ║
+║  [Enter] Try Again  |  [Ctrl+S] Skip This Key  |  [Ctrl+C] Back║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Step 5: Summary after fixing**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔐 SSH KEY STATUS UPDATED                                     ║
+║                                                                ║
+║  ✓ id_rsa (already unlocked)                                  ║
+║  ✓ id_ed25519 (just unlocked)                                 ║
+║  ⚠ id_ecdsa (skipped)                                         ║
+║                                                                ║
+║  2/3 keys unlocked. Ready to push!                            ║
+║                                                                ║
+║  [Enter] Return to main prompt                                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Behavior:**
+- Prompt for each locked/failed key individually
+- **Real-time validation:** Test passphrase immediately with `ssh-add`
+- Show success/failure instantly
+- Allow retry if validation fails
+- Allow skipping individual keys
+- Update SSH status table
+- Return to main prompt with updated status
+
+**Security:**
+- Passphrases only held in memory for `ssh-add` call
+- Never logged or written to disk
+- Keys added to ssh-agent (system handles security from there)
+- Failed passphrases cleared from memory immediately
+
+---
 
 ### Screen 2: Scanning Repos
 
@@ -536,6 +764,183 @@ $ git-fire --config ~/my-fire-config.toml
 
 ---
 
+## Special Handling
+
+### Uncommitted Changes
+**Behavior:** Auto-commit ALL uncommitted/untracked files before pushing.
+
+```bash
+# For each dirty repo, execute:
+git add -A  # Stage all changes (tracked + untracked)
+git commit -m "git-fire emergency backup - 2026-02-12T143025"
+```
+
+**Rationale:**
+- In panic mode, we want to save ALL work, not just committed changes
+- Better to have a messy commit than lose work
+- Commit message includes timestamp for easy identification
+- All auto-commits are logged for reversibility
+
+**No exceptions:** Even if repo has unstaged changes, untracked files, or is in weird state - commit it all.
+
+### Branch Conflicts
+**Behavior:** Never force-push. Always create new branch with "fire" in name.
+
+```bash
+# If local branch != remote branch:
+git checkout -b git-fire-backup-main-2026-02-12T143025-a1b2c3d
+git push origin git-fire-backup-main-2026-02-12T143025-a1b2c3d
+```
+
+**Rationale:**
+- Safety first: never risk overwriting remote work
+- Easy to identify fire branches later (grep for "git-fire")
+- Can merge/reconcile conflicts after emergency
+- Long branch names are fine - clarity > brevity
+
+### Submodules
+**Behavior:** Treat submodules as independent repos (MVP approach).
+
+- During scanning, submodule `.git` directories are discovered like any other repo
+- Each submodule is pushed separately to its own remote
+- Parent repo's submodule pointers are pushed as-is (may be out of sync)
+- No special recursive handling in MVP
+
+**Post-emergency cleanup:** User may need to run `git submodule update` to sync pointers.
+
+**Future enhancement (Phase 2):** Proper recursive submodule push with pointer updates.
+
+### Multiple Remotes
+**Behavior:** Push to ALL discovered remotes by default.
+
+```bash
+# If repo has: origin, backup, upstream
+git push origin <branch>
+git push backup <branch>
+git push upstream <branch>
+```
+
+**Rationale:**
+- Maximum redundancy in emergency
+- If one remote is down, others still work
+- Configurable via `push_to_all_remotes = false` if user wants only specific remotes
+
+### SSH Keys with Passphrases
+**Behavior:** Detect passphrase-protected keys and handle them securely.
+
+**Detection strategy:**
+1. Scan common SSH key locations: `~/.ssh/id_rsa`, `~/.ssh/id_ed25519`, `~/.ssh/id_ecdsa`
+2. Check which keys are loaded in ssh-agent: `ssh-add -l`
+3. If key not in agent: mark as "needs passphrase"
+4. Show user upfront warning if passphrases required
+
+**Preconfiguration Options (Recommended):**
+```bash
+# Option 1: Add to ssh-agent before running (most secure)
+ssh-add ~/.ssh/id_rsa
+git-fire
+
+# Option 2: Environment variables (supports multiple keys)
+export GIT_FIRE_SSH_PASSPHRASE_RSA="passphrase-for-rsa"
+export GIT_FIRE_SSH_PASSPHRASE_ED25519="passphrase-for-ed25519"
+git-fire
+
+# Option 3: Single passphrase (if all keys use same one)
+export GIT_FIRE_SSH_PASSPHRASE="same-passphrase-for-all"
+git-fire
+
+# Option 4: Runtime arguments
+git-fire --ssh-passphrase-rsa "pass1" --ssh-passphrase-ed25519 "pass2"
+
+# Option 5: Config file (if you trust your disk encryption)
+# ~/.config/git-fire/config.toml
+[auth.ssh_passphrases]
+id_rsa = "passphrase1"      # WARNING: Plaintext!
+id_ed25519 = "passphrase2"  # Only use if disk is encrypted!
+
+# Recommended alias for emergency use
+alias emergency-fire='ssh-add ~/.ssh/id_rsa && git-fire'
+```
+
+**Passphrase Auto-Detection Mapping:**
+- `GIT_FIRE_SSH_PASSPHRASE_RSA` → `~/.ssh/id_rsa`
+- `GIT_FIRE_SSH_PASSPHRASE_ED25519` → `~/.ssh/id_ed25519`
+- `GIT_FIRE_SSH_PASSPHRASE_ECDSA` → `~/.ssh/id_ecdsa`
+- `GIT_FIRE_SSH_PASSPHRASE` → try for all keys
+
+**Startup Validation Flow (before showing prompt):**
+1. **Detect SSH keys:** Scan `~/.ssh/` for common key types
+2. **Check ssh-agent:** See which keys are already unlocked (`ssh-add -l`)
+3. **Try preconfigured passphrases:** If provided via env/config/args:
+   - Attempt to unlock each key with its passphrase
+   - Validate by testing `ssh-add <key>` with passphrase
+   - Track status: unlocked ✓, failed ✗, needs passphrase ⚠
+4. **Build SSH key status table** for display in prompt
+
+**Enhanced Prompt Screen (shows SSH status):**
+```
+╔════════════════════════════════════════════════════════════════╗
+║  🔥 GIT FIRE - PANIC MODE 🔥                                  ║
+║                                                                ║
+║  SSH Keys Detected:                                            ║
+║  ✓ ~/.ssh/id_rsa (unlocked)                                   ║
+║  ✗ ~/.ssh/id_ed25519 (passphrase FAILED - wrong password?)   ║
+║  ⚠ ~/.ssh/id_ecdsa (locked - needs passphrase)               ║
+║                                                                ║
+║  ⚠️ WARNING: Some keys locked or failed validation!           ║
+║                                                                ║
+║  ► YES, PUSH ANYWAY (may skip some repos)                     ║
+║    NO, CANCEL                                                  ║
+║    FIX PASSPHRASES (enter/correct them now)                   ║
+║    FIRE DRILL (DRY RUN)                                        ║
+║                                                                ║
+║  Timer: [████████████████░░░░░░░░░░░░░░░░░░] 10s              ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Interactive Passphrase Fixing (if "FIX PASSPHRASES" selected):**
+- Show each locked/failed key
+- Prompt for passphrase
+- Validate immediately (try ssh-add)
+- Show success/failure in real-time
+- Allow retry if validation fails
+- Once all fixed, return to main prompt
+
+**Fire Drill Validation (Recommended for Testing):**
+Fire drill mode validates entire workflow without executing pushes:
+- Tests SSH auth by running `git ls-remote` on each remote
+- Validates passphrases work correctly
+- Detects which repos would be skipped due to auth failures
+- Shows detailed report of what would happen
+
+**Automated Testing:**
+```bash
+# Add to crontab: test fire drill weekly to catch broken auth
+0 0 * * 0 /usr/local/bin/git-fire --dry-run --quiet > /tmp/fire-drill.log 2>&1
+
+# Check exit code to detect failures
+0 0 * * 0 /usr/local/bin/git-fire --dry-run && echo "Fire drill: OK" || echo "Fire drill: FAILED - check passphrases!"
+
+# Send email on failure (requires mail command)
+0 0 * * 0 /usr/local/bin/git-fire --dry-run || echo "Git-fire auth broken!" | mail -s "ALERT: Fire Drill Failed" you@example.com
+```
+
+**Why this matters:**
+Passphrases can break due to:
+- SSH keys rotated
+- ssh-agent configuration changed
+- Env vars not set in cron environment
+- Config file moved/deleted
+
+Regular fire drills catch these issues before real emergencies.
+
+**Error Handling:**
+- If passphrase wrong: clear error, offer retry
+- If user skips: attempt push anyway, skip on auth failure
+- Log all auth failures for debugging
+
+---
+
 ## Algorithm Details
 
 ### Scanning Algorithm (Parallel)
@@ -577,19 +982,32 @@ For each local branch B in repo R:
 
 ```
 For each repo in push plan:
-  1. Validate auth for all remotes
+  0. Auto-commit if dirty:
+     - git add -A
+     - git commit -m "git-fire emergency backup - {timestamp}"
+     - Log commit SHA
+
+  1. Validate auth for repo remotes (per-repo, not upfront)
+
   2. For each branch in plan:
      a. If action == SKIP: continue
+
      b. If action == PUSH:
-        - git push origin branch
-        - If fails (conflict): create new branch instead
+        - For each remote in repo (origin, backup, etc.):
+          * git push <remote> <branch>
+          * If fails (conflict detected): create new branch instead
+
      c. If action == NEW_BRANCH:
-        - git branch <new-name> <base>
-        - git push origin <new-name>
-     d. Log result
-     e. Update progress
+        - git checkout -b <new-name>
+        - For each remote in repo:
+          * git push <remote> <new-name>
+
+     d. Log result (success/failure, commit SHA, remote, branch name)
+     e. Update progress UI
+
   3. Aggregate per-repo result
   4. Continue to next repo (don't fail hard on one repo error)
+  5. Retry failed pushes (3 attempts with exponential backoff)
 ```
 
 ---
@@ -638,27 +1056,50 @@ For each repo in push plan:
 
 ## Git Operations Implementation Notes
 
-### Using `go-git`
+### Shell Out to Git Binary (Not go-git)
+
+**Decision:** Use system `git` binary via `os/exec` for all git operations.
+
+**Rationale:**
+- **Performance:** Native git is significantly faster than go-git for push operations
+- **Reliability:** Leverages battle-tested git implementation
+- **Auth:** Inherits system git credentials (SSH keys, credential helpers)
+- **Compatibility:** Works exactly like manual git commands
+
+**Requirement:** git must be installed on system (reasonable expectation for git backup tool).
 
 Key functions to implement:
 ```go
 // Scanner
 func ScanRepositories(scanPath string, excludes []string, maxDepth int) ([]Repository, error)
-func GetRemotes(repo *git.Repository) ([]Remote, error)
-func GetBranches(repo *git.Repository) ([]Branch, error)
+func GetRemotes(repoPath string) ([]Remote, error)  // Parse .git/config or use `git remote -v`
+func GetBranches(repoPath string) ([]Branch, error)  // Use `git branch -a` + `git rev-parse`
 
 // Operations
-func DetectConflict(repo *git.Repository, branchName string) (bool, error)
-func PushBranch(repo *git.Repository, remoteName, branchName string) error
-func CreateBranchAndPush(repo *git.Repository, newBranchName, baseBranch, remoteName string) error
+func AutoCommitDirty(repoPath string) error  // git add -A && git commit -m "..."
+func DetectConflict(repoPath, branchName, remoteName string) (bool, error)  // Compare SHAs
+func PushBranch(repoPath, remoteName, branchName string) error  // git push <remote> <branch>
+func CreateBranchAndPush(repoPath, newBranchName, remoteName string) error  // git checkout -b + git push
 
 // Auth
-func ValidateRemoteAuth(remote *git.Remote) (bool, error)
-func SetupSSHAuth() (transport.AuthMethod, error)
-func SetupHTTPSAuth(token string) (transport.AuthMethod, error)
+func DetectSSHKeys() ([]SSHKey, error)  // Scan ~/.ssh/ for keys
+func UnlockSSHKey(keyPath, passphrase string) error  // ssh-add <key>
+func IsKeyUnlocked(keyPath string) (bool, error)  // ssh-add -l
+func TestRemoteAuth(repoPath, remoteName string) (bool, error)  // git ls-remote <url>
 ```
 
-**Important:** `go-git` is pure Go but slower than `git` CLI for large repos. Consider shelling out to `git` binary for push operations if performance is critical.
+**Example command execution:**
+```go
+func PushBranch(repoPath, remoteName, branchName string) error {
+    cmd := exec.Command("git", "push", remoteName, branchName)
+    cmd.Dir = repoPath
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        return fmt.Errorf("push failed: %w\n%s", err, output)
+    }
+    return nil
+}
+```
 
 ---
 
@@ -735,16 +1176,22 @@ Cobra root command that:
 
 ## Dependencies Summary
 
-```
-go-git/go-git/v5       - Git operations (pure Go)
-charmbracelet/bubbletea - TUI framework
-charmbracelet/lipgloss  - Terminal styling
-spf13/cobra             - CLI framework
-spf13/viper             - Config loading
-fatih/color             - Colored output
+```go
+// External dependencies
+charmbracelet/bubbletea - TUI framework (interactive prompts, progress)
+charmbracelet/lipgloss  - Terminal styling (colors, layout)
+spf13/cobra             - CLI framework (command parsing, flags)
+spf13/viper             - Config loading (TOML parsing)
+
+// Standard library (no external deps needed)
+os/exec                 - Shell out to git binary
+crypto/ssh              - SSH key detection
+path/filepath           - Filesystem scanning
 ```
 
-**Note:** Avoid `os/exec` calls to system `git` in MVP. If needed for performance later, can be added post-MVP.
+**System requirement:** `git` binary must be installed (version 2.0+).
+
+**No go-git dependency:** We shell out to system git for reliability and performance.
 
 ---
 
