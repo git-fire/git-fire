@@ -257,3 +257,56 @@ func splitWhitespace(s string) []string {
 	}
 	return parts
 }
+
+// RunGitCmd runs a git command and fails the test if it errors
+// Exported version of runGit for use in other test packages
+func RunGitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	runGit(t, dir, args...)
+}
+
+// GetCurrentSHA returns the current commit SHA
+func GetCurrentSHA(t *testing.T, repoPath string) string {
+	t.Helper()
+
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("Failed to get current SHA: %v", err)
+	}
+
+	sha := string(output)
+	// Trim newline
+	if len(sha) > 0 && sha[len(sha)-1] == '\n' {
+		sha = sha[:len(sha)-1]
+	}
+
+	return sha
+}
+
+// GetBranches returns all branches in the repo
+func GetBranches(t *testing.T, repoPath string) []string {
+	t.Helper()
+
+	cmd := exec.Command("git", "branch", "--format=%(refname:short)")
+	cmd.Dir = repoPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("Failed to get branches: %v", err)
+	}
+
+	branches := splitLines(string(output))
+
+	// Filter out empty lines
+	var result []string
+	for _, b := range branches {
+		if b != "" {
+			result = append(result, b)
+		}
+	}
+
+	return result
+}
