@@ -4,10 +4,11 @@ import "time"
 
 // Config represents the complete git-fire configuration
 type Config struct {
-	Global GlobalConfig   `mapstructure:"global"`
-	Backup BackupConfig   `mapstructure:"backup"`
-	Auth   AuthConfig     `mapstructure:"auth"`
-	Repos  []RepoOverride `mapstructure:"repos"`
+	Global  GlobalConfig   `mapstructure:"global"`
+	Backup  BackupConfig   `mapstructure:"backup"`
+	Auth    AuthConfig     `mapstructure:"auth"`
+	Plugins PluginsConfig  `mapstructure:"plugins"`
+	Repos   []RepoOverride `mapstructure:"repos"`
 }
 
 // GlobalConfig contains global settings
@@ -73,4 +74,37 @@ type RepoOverride struct {
 
 	// Skip auto-commit for this repo
 	SkipAutoCommit bool `mapstructure:"skip_auto_commit"`
+}
+
+// PluginsConfig contains plugin configuration
+type PluginsConfig struct {
+	// List of enabled plugin names
+	Enabled []string `mapstructure:"enabled"`
+
+	// Command plugins
+	Command []CommandPluginConfig `mapstructure:"command"`
+
+	// Webhook plugins
+	Webhook []WebhookPluginConfig `mapstructure:"webhook"`
+}
+
+// CommandPluginConfig configures a command plugin
+type CommandPluginConfig struct {
+	Name    string            `mapstructure:"name"`
+	Command string            `mapstructure:"command"`
+	Args    []string          `mapstructure:"args"`
+	Env     map[string]string `mapstructure:"env"`
+	When    string            `mapstructure:"when"`
+	Timeout string            `mapstructure:"timeout"`
+}
+
+// WebhookPluginConfig configures a webhook plugin
+type WebhookPluginConfig struct {
+	Name    string            `mapstructure:"name"`
+	URL     string            `mapstructure:"url"`
+	Method  string            `mapstructure:"method"`
+	Headers map[string]string `mapstructure:"headers"`
+	Body    string            `mapstructure:"body"`
+	When    string            `mapstructure:"when"`
+	Timeout string            `mapstructure:"timeout"`
 }
