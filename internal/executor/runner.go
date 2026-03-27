@@ -10,15 +10,20 @@ import (
 
 // Runner executes push plans
 type Runner struct {
-	config   *config.Config
-	progress chan Progress
+	config      *config.Config
+	progress    chan Progress
+	rateLimiter *HostLimiter
 }
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config) *Runner {
+	// Create rate limiter with default config
+	rateLimitConfig := DefaultRateLimitConfig()
+
 	return &Runner{
-		config:   cfg,
-		progress: make(chan Progress, 10),
+		config:      cfg,
+		progress:    make(chan Progress, 10),
+		rateLimiter: NewHostLimiter(rateLimitConfig),
 	}
 }
 
@@ -146,12 +151,27 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 		})
 
 	case ActionPushBranch:
+		// Apply rate limiting for push operations
+		remoteURL := r.getRemoteURL(repo, action.Remote)
+		r.rateLimiter.Acquire(remoteURL)
+		defer r.rateLimiter.Release(remoteURL)
+
 		err = git.PushBranch(repo.Path, action.Remote, action.Branch)
 
 	case ActionPushAll:
+		// Apply rate limiting for push operations
+		remoteURL := r.getRemoteURL(repo, action.Remote)
+		r.rateLimiter.Acquire(remoteURL)
+		defer r.rateLimiter.Release(remoteURL)
+
 		err = git.PushAllBranches(repo.Path, action.Remote)
 
 	case ActionPushKnown:
+		// Apply rate limiting for push operations
+		remoteURL := r.getRemoteURL(repo, action.Remote)
+		r.rateLimiter.Acquire(remoteURL)
+		defer r.rateLimiter.Release(remoteURL)
+
 		err = git.PushKnownBranches(repo.Path, action.Remote)
 
 	case ActionCreateFireBranch:
@@ -246,4 +266,18 @@ func (r *Runner) ProgressChan() <-chan Progress {
 // Close closes the progress channel
 func (r *Runner) Close() {
 	close(r.progress)
+}
+
+
+// getRemoteURL gets the URL for a remote name from the repository
+func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
+	// Find the remote in the repo's remote list
+	for _, remote := range repo.Remotes {
+		if remote.Name == remoteName {
+			return remote.URL
+		}
+	}
+
+	// Fallback: return empty string if remote not found
+	return ""
 }
