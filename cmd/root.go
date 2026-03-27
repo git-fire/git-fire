@@ -161,6 +161,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 		repos = selected
+		for i := range repos {
+			repos[i].Selected = true
+			repos[i].Mode = git.ModePushKnownBranches
+		}
 	} else {
 		for i := range repos {
 			repos[i].Selected = true
