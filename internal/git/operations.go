@@ -34,6 +34,11 @@ type Worktree struct {
 // AutoCommitDirty commits all uncommitted changes in a repo
 // Returns nil if repo is already clean
 func AutoCommitDirty(repoPath string, opts CommitOptions) error {
+	// Refuse to commit in detached HEAD — the commit would be unreachable
+	if _, err := GetCurrentBranch(repoPath); err != nil {
+		return fmt.Errorf("cannot auto-commit: %w", err)
+	}
+
 	// Check if repo is dirty
 	isDirty, err := IsDirty(repoPath)
 	if err != nil {
@@ -46,12 +51,7 @@ func AutoCommitDirty(repoPath string, opts CommitOptions) error {
 	}
 
 	// Add all changes (respects .gitignore)
-	addAll := opts.AddAll
-	if !addAll {
-		addAll = true // Default to adding all
-	}
-
-	if addAll {
+	if opts.AddAll {
 		cmd := exec.Command("git", "add", "-A")
 		cmd.Dir = repoPath
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -591,6 +591,36 @@ func commitChanges(repoPath, message string, addAll bool) error {
 	}
 
 	return nil
+}
+
+// GetUncommittedFiles returns the relative paths of all files that would be
+// staged by git add -A — modified, added, deleted, and untracked files that
+// are not excluded by .gitignore.
+func GetUncommittedFiles(repoPath string) ([]string, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = repoPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git status failed: %w", err)
+	}
+
+	var files []string
+	for _, line := range strings.Split(string(output), "\n") {
+		// porcelain format: "XY filename" where XY is a two-char status code
+		if len(line) < 4 {
+			continue
+		}
+		// Handle renamed files: "R  old -> new" — take only the new path
+		path := strings.TrimSpace(line[3:])
+		if idx := strings.Index(path, " -> "); idx >= 0 {
+			path = path[idx+4:]
+		}
+		if path != "" {
+			files = append(files, path)
+		}
+	}
+	return files, nil
 }
 
 // createBranch creates a new branch at the current HEAD

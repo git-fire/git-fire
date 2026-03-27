@@ -35,6 +35,7 @@ func TestAutoCommitDirty(t *testing.T) {
 			})
 
 			err := AutoCommitDirty(repo, CommitOptions{
+				AddAll:  true,
 				Message: "Emergency backup",
 			})
 
@@ -637,5 +638,44 @@ func TestListWorktrees(t *testing.T) {
 		if featureWorktree.Path != worktreePath {
 			t.Errorf("Expected worktree path %s, got %s", worktreePath, featureWorktree.Path)
 		}
+	}
+}
+
+// TestAutoCommitDirty_DetachedHead validates that AutoCommitDirty fails safely
+// when the repo is in detached HEAD state. The original qw3rtman/git-fire (bash)
+// was known to behave incorrectly in this scenario.
+func TestAutoCommitDirty_DetachedHead(t *testing.T) {
+	_, repo, _ := testutil.CreateDetachedHeadScenario(t)
+
+	// Add an untracked file so the repo is dirty
+	dirtyFile := filepath.Join(repo.Path(), "dirty.txt")
+	if err := os.WriteFile(dirtyFile, []byte("change\n"), 0644); err != nil {
+		t.Fatalf("failed to create dirty file: %v", err)
+	}
+
+	err := AutoCommitDirty(repo.Path(), CommitOptions{AddAll: true})
+	if err == nil {
+		t.Fatal("expected an error for detached HEAD, got nil")
+	}
+	// git commit fails with "not a branch" / "HEAD detached" messaging
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "detached") &&
+		!strings.Contains(errMsg, "not a branch") &&
+		!strings.Contains(errMsg, "HEAD") {
+		t.Errorf("unexpected error message for detached HEAD: %v", err)
+	}
+}
+
+// TestGetCurrentBranch_DetachedHead validates that GetCurrentBranch returns an
+// explicit error (not an empty string) when HEAD is detached.
+func TestGetCurrentBranch_DetachedHead(t *testing.T) {
+	_, repo, _ := testutil.CreateDetachedHeadScenario(t)
+
+	branch, err := GetCurrentBranch(repo.Path())
+	if err == nil {
+		t.Fatalf("expected error for detached HEAD, got branch=%q", branch)
+	}
+	if !strings.Contains(err.Error(), "detached HEAD") && !strings.Contains(err.Error(), "not on any branch") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }

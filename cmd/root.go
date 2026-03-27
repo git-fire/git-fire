@@ -13,6 +13,7 @@ import (
 	"github.com/TBRX103/git-fire/internal/executor"
 	"github.com/TBRX103/git-fire/internal/git"
 	"github.com/TBRX103/git-fire/internal/safety"
+	"github.com/TBRX103/git-fire/internal/ui"
 )
 
 var (
@@ -149,12 +150,18 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Interactive repo selection
-	// For MVP, we'll auto-select all repos
-	// TODO: Use TUI for selection when fireMode is enabled
-	for i := range repos {
-		repos[i].Selected = true
-		repos[i].Mode = git.ModePushKnownBranches // Default mode
+	// Repo selection: TUI when --fire is set, otherwise auto-select all
+	if fireMode {
+		selected, err := ui.RunRepoSelector(repos)
+		if err != nil {
+			return fmt.Errorf("repo selection failed: %w", err)
+		}
+		repos = selected
+	} else {
+		for i := range repos {
+			repos[i].Selected = true
+			repos[i].Mode = git.ModePushKnownBranches
+		}
 	}
 
 	// Show selected repos

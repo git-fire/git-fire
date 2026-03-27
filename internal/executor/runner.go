@@ -2,10 +2,12 @@ package executor
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/safety"
 )
 
 // Runner executes push plans
@@ -146,7 +148,15 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 
 	switch action.Type {
 	case ActionAutoCommit:
+		// Scan for secrets before committing — warn on stderr but always proceed
+		if uncommitted, scanErr := git.GetUncommittedFiles(repo.Path); scanErr == nil && len(uncommitted) > 0 {
+			scanner := safety.NewSecretScanner()
+			if suspicious, scanErr := scanner.ScanFiles(repo.Path, uncommitted); scanErr == nil && len(suspicious) > 0 {
+				fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+			}
+		}
 		err = git.AutoCommitDirty(repo.Path, git.CommitOptions{
+			AddAll:  true,
 			Message: fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
 		})
 

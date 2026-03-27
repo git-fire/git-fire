@@ -153,7 +153,7 @@ See [architecture docs](./docs) for details.
 
 ## ⚠️ Security Notice
 
-Git-fire will auto-commit ALL uncommitted files in emergency mode.
+Git-fire will auto-commit ALL uncommitted files not excluded by `.gitignore` in emergency mode.
 
 **Before using:**
 - ✓ Use `.env` files for secrets (add to `.gitignore`)
@@ -166,7 +166,7 @@ Git-fire includes secret detection to warn you, but **you** are responsible for 
 
 **Note:** There's an old [qw3rtman/git-fire](https://github.com/qw3rtman/git-fire) (Ruby, 2015, archived) with the same name, but this is an independent project with different goals:
 
-| Feature | This (Go, 2026) | qw3rtman (Ruby, 2015) |
+| Feature | This (Go, 2026) | qw3rtman (bash, 2015) |
 |---------|----------------|----------------------|
 | Multi-repo | ✅ Parallel | ❌ Single repo |
 | Secret detection | ✅ Yes | ❌ No |
