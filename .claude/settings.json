@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo:*)",
+      "Bash(go vet:*)",
+      "Bash(./git-fire --dry-run)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(make help:*)"
+    ]
+  }
+}
