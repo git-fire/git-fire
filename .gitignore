@@ -33,3 +33,6 @@ go.work.sum
 
 # Built binary
 git-fire
+
+# Claude Code local settings (contains machine-specific paths and permissions)
+.claude/

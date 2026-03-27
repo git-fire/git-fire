@@ -207,14 +207,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Confirm execution (skip in fire mode or if --yes flag added)
-	fmt.Print("🔥 Proceed with pushing? [y/N]: ")
-	var response string
-	fmt.Scanln(&response)
-
-	if response != "y" && response != "Y" {
-		fmt.Println("Aborted.")
-		return nil
+	// Confirm execution (skip in fire mode — no time to type y in an emergency)
+	if !fireMode {
+		fmt.Print("Proceed with pushing? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Aborted.")
+			return nil
+		}
 	}
 
 	// Setup logging

@@ -1,7 +1,7 @@
 BINARY := git-fire
 MODULE := github.com/TBRX103/git-fire
 
-.PHONY: build run test lint clean install help
+.PHONY: build run test test-race lint clean install help
 
 ## build: compile the binary to ./git-fire
 build:

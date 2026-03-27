@@ -179,9 +179,25 @@ Git-fire includes secret detection to warn you, but **you** are responsible for 
 | Tests | ✅ 43 tests | ❌ No tests |
 | Active | ✅ 2026 | ❌ 2015 (archived) |
 
+## 🌐 Website
+
+[git-fire.com](https://git-fire.com) — coming soon.
+
 ## 📝 License
 
 MIT License
+
+## 😴 End-of-Day Use
+
+git-fire isn't just for emergencies. It's also a perfectly valid end-of-day tool for the days when you don't feel like figuring out which repos you touched:
+
+```bash
+git-fire
+```
+
+One command. Every dirty repo in `~/projects` gets committed and pushed. You leave with a clean slate and nothing left unsaved. No need to context-switch back through eight terminals figuring out what you were working on.
+
+The `--dry-run` flag lets you preview what it would commit before actually doing it.
 
 ## 🐶 Dogfooding
 
