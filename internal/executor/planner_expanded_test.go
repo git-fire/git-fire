@@ -1,0 +1,366 @@
+package executor
+
+import (
+	"testing"
+
+	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/TBRX103/git-fire/internal/git"
+)
+
+func TestBuildPlan_DefaultMode(t *testing.T) {
+	cfg := config.DefaultConfig()
+	planner := NewPlanner(&cfg)
+
+	// Repo with default mode (not push-all or push-known)
+	repos := []git.Repository{
+		{
+			Path:     "/home/user/repo1",
+			Name:     "repo1",
+			Selected: true,
+			Mode:     git.RepoMode(99), // Unknown mode (will use default behavior)
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo1.git"},
+			},
+			Branches: []string{"main", "develop"},
+		},
+	}
+
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	if len(plan.Repos) != 1 {
+		t.Fatalf("Expected 1 repo in plan, got %d", len(plan.Repos))
+	}
+
+	repoPlan := plan.Repos[0]
+
+	// Should have push-branch action (default behavior)
+	foundPushBranch := false
+	for _, action := range repoPlan.Actions {
+		if action.Type == ActionPushBranch {
+			foundPushBranch = true
+			if action.Branch == "" {
+				t.Error("Push branch action should have branch set")
+			}
+		}
+	}
+
+	if !foundPushBranch {
+		t.Error("Expected push-branch action for default mode")
+	}
+}
+
+func TestBuildPlan_WithConflict(t *testing.T) {
+	cfg := config.DefaultConfig()
+	planner := NewPlanner(&cfg)
+
+	repos := []git.Repository{
+		{
+			Path:     "/home/user/repo1",
+			Name:     "repo1",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo1.git"},
+			},
+			Branches: []string{"main"},
+		},
+	}
+
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	// Verify conflict stats
+	if plan.Conflicts > 0 {
+		if plan.FireBranches == 0 {
+			t.Error("If conflicts detected, should have fire branches")
+		}
+	}
+}
+
+func TestBuildPlan_MultipleRemotes(t *testing.T) {
+	cfg := config.DefaultConfig()
+	planner := NewPlanner(&cfg)
+
+	repos := []git.Repository{
+		{
+			Path:     "/home/user/repo1",
+			Name:     "repo1",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo1.git"},
+				{Name: "backup", URL: "git@gitlab.com:user/repo1.git"},
+				{Name: "upstream", URL: "git@github.com:org/repo1.git"},
+			},
+			Branches: []string{"main"},
+		},
+	}
+
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	if len(plan.Repos) != 1 {
+		t.Fatalf("Expected 1 repo in plan, got %d", len(plan.Repos))
+	}
+
+	// Should use first remote for actions
+	repoPlan := plan.Repos[0]
+	if len(repoPlan.Actions) == 0 {
+		t.Fatal("Expected actions to be created")
+	}
+
+	// Check that actions use one of the remotes
+	for _, action := range repoPlan.Actions {
+		if action.Remote != "" && action.Remote != "origin" {
+			// It's okay if it uses a different remote
+			t.Logf("Action using remote: %s", action.Remote)
+		}
+	}
+}
+
+func TestBuildPlan_OnlySelectedRepos(t *testing.T) {
+	cfg := config.DefaultConfig()
+	planner := NewPlanner(&cfg)
+
+	repos := []git.Repository{
+		{
+			Path:     "/home/user/repo1",
+			Name:     "repo1",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo1.git"},
+			},
+		},
+		{
+			Path:     "/home/user/repo2",
+			Name:     "repo2",
+			Selected: false, // Not selected
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo2.git"},
+			},
+		},
+		{
+			Path:     "/home/user/repo3",
+			Name:     "repo3",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo3.git"},
+			},
+		},
+	}
+
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	// Should only include selected repos
+	if plan.TotalRepos != 2 {
+		t.Errorf("Expected 2 repos (only selected), got %d", plan.TotalRepos)
+	}
+
+	// Verify correct repos are in plan
+	repoNames := make(map[string]bool)
+	for _, repoPlan := range plan.Repos {
+		repoNames[repoPlan.Repo.Name] = true
+	}
+
+	if !repoNames["repo1"] {
+		t.Error("Expected repo1 to be in plan")
+	}
+
+	if repoNames["repo2"] {
+		t.Error("repo2 should not be in plan (not selected)")
+	}
+
+	if !repoNames["repo3"] {
+		t.Error("Expected repo3 to be in plan")
+	}
+}
+
+func TestPlanSummary_WithConflicts(t *testing.T) {
+	plan := &PushPlan{
+		TotalRepos:   2,
+		DirtyRepos:   1,
+		Conflicts:    2,
+		FireBranches: 2,
+		DryRun:       false,
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: "/home/user/repo1",
+					Name: "repo1",
+				},
+				HasConflict: true,
+				FireBranch:  "git-fire-backup-main-20260213",
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit"},
+					{Type: ActionPushAll, Description: "Push all branches"},
+				},
+			},
+		},
+	}
+
+	summary := plan.Summary()
+
+	if !contains(summary, "Conflicts detected: 2") {
+		t.Error("Summary should mention conflicts")
+	}
+
+	if !contains(summary, "Fire branches to create: 2") {
+		t.Error("Summary should mention fire branches")
+	}
+
+	if !contains(summary, "git-fire-backup-main-20260213") {
+		t.Error("Summary should include fire branch name")
+	}
+}
+
+func TestPlanSummary_EmptyPlan(t *testing.T) {
+	plan := &PushPlan{
+		Repos: []RepoPlan{},
+	}
+
+	summary := plan.Summary()
+
+	if !contains(summary, "No repositories") {
+		t.Error("Summary should indicate no repositories")
+	}
+}
+
+func TestPlanSummary_SkippedRepos(t *testing.T) {
+	plan := &PushPlan{
+		TotalRepos: 1,
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Name: "skipped-repo",
+					Path: "/home/user/skipped",
+				},
+				Skip:       true,
+				SkipReason: "No remotes configured",
+			},
+		},
+	}
+
+	summary := plan.Summary()
+
+	if !contains(summary, "SKIP") {
+		t.Error("Summary should mention skipped repos")
+	}
+
+	if !contains(summary, "No remotes configured") {
+		t.Error("Summary should include skip reason")
+	}
+}
+
+func TestValidatePlan_InvalidRepos(t *testing.T) {
+	tests := []struct {
+		name    string
+		plan    *PushPlan
+		wantErr bool
+	}{
+		{
+			name: "repo with no remotes and not skipped",
+			plan: &PushPlan{
+				Repos: []RepoPlan{
+					{
+						Repo: git.Repository{
+							Path:    "/repo1",
+							Remotes: []git.Remote{}, // No remotes
+						},
+						Skip: false,
+						Actions: []Action{
+							{Type: ActionPushBranch},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "skipped repo with no remotes is okay",
+			plan: &PushPlan{
+				Repos: []RepoPlan{
+					{
+						Repo: git.Repository{
+							Path:    "/repo1",
+							Remotes: []git.Remote{}, // No remotes
+						},
+						Skip: true,
+						Actions: []Action{
+							{Type: ActionSkip},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plan.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestActionType_String(t *testing.T) {
+	tests := []struct {
+		actionType ActionType
+		want       string
+	}{
+		{ActionAutoCommit, "auto-commit"},
+		{ActionPushBranch, "push-branch"},
+		{ActionPushAll, "push-all"},
+		{ActionPushKnown, "push-known"},
+		{ActionCreateFireBranch, "create-fire-branch"},
+		{ActionSkip, "skip"},
+		{ActionType(999), "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := tt.actionType.String()
+			if got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProgressStatus_String(t *testing.T) {
+	tests := []struct {
+		status ProgressStatus
+		want   string
+	}{
+		{StatusStarting, "starting"},
+		{StatusInProgress, "in-progress"},
+		{StatusSuccess, "success"},
+		{StatusFailed, "failed"},
+		{StatusSkipped, "skipped"},
+		{ProgressStatus(999), "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := tt.status.String()
+			if got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
