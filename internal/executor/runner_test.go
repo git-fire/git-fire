@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -378,9 +379,12 @@ func TestRunner_ProgressTracking(t *testing.T) {
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
 
-	// Collect progress updates
+	// Collect progress updates — use WaitGroup so we don't race on the slice
+	var wg sync.WaitGroup
 	progressUpdates := []Progress{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for progress := range runner.progress {
 			progressUpdates = append(progressUpdates, progress)
 		}
@@ -392,8 +396,9 @@ func TestRunner_ProgressTracking(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	// Give progress channel time to flush
-	time.Sleep(10 * time.Millisecond)
+	// Close the channel so the range loop above exits, then wait for it
+	runner.Close()
+	wg.Wait()
 
 	// Verify progress updates were sent
 	if len(progressUpdates) < 1 {
