@@ -183,10 +183,9 @@ Git-fire includes secret detection to warn you, but **you** are responsible for 
 
 MIT License
 
-## 🙏 Credits
+## 🐶 Dogfooding
 
-- Inspired by the "in case of fire" meme
-- Built with Cobra, Viper, Bubble Tea, Lipgloss
+Git-fire is developed using git-fire. During development, `make run` was accidentally run without `--dry-run` — and git-fire immediately committed and pushed its own source code mid-development. It saved itself. That's the whole pitch.
 
 ---
 
