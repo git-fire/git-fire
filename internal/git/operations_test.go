@@ -284,3 +284,358 @@ func TestGetCurrentBranch(t *testing.T) {
 		})
 	}
 }
+
+func TestHasStagedChanges(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Initially no staged changes
+	hasStaged, err := HasStagedChanges(repo)
+	if err != nil {
+		t.Fatalf("HasStagedChanges() error = %v", err)
+	}
+	if hasStaged {
+		t.Error("Expected no staged changes initially")
+	}
+
+	// Stage a file
+	testFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(testFile, []byte("staged content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	// Now should have staged changes
+	hasStaged, err = HasStagedChanges(repo)
+	if err != nil {
+		t.Fatalf("HasStagedChanges() error = %v", err)
+	}
+	if !hasStaged {
+		t.Error("Expected staged changes after git add")
+	}
+}
+
+func TestHasUnstagedChanges(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+		Files: map[string]string{
+			"test.txt": "initial",
+		},
+	})
+
+	// Initially no unstaged changes
+	hasUnstaged, err := HasUnstagedChanges(repo)
+	if err != nil {
+		t.Fatalf("HasUnstagedChanges() error = %v", err)
+	}
+	if hasUnstaged {
+		t.Error("Expected no unstaged changes initially")
+	}
+
+	// Create an unstaged file
+	testFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(testFile, []byte("unstaged content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now should have unstaged changes
+	hasUnstaged, err = HasUnstagedChanges(repo)
+	if err != nil {
+		t.Fatalf("HasUnstagedChanges() error = %v", err)
+	}
+	if !hasUnstaged {
+		t.Error("Expected unstaged changes after creating file")
+	}
+
+	// Modify an existing tracked file
+	existingFile := filepath.Join(repo, "test.txt")
+	if err := os.WriteFile(existingFile, []byte("modified"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	hasUnstaged, err = HasUnstagedChanges(repo)
+	if err != nil {
+		t.Fatalf("HasUnstagedChanges() error = %v", err)
+	}
+	if !hasUnstaged {
+		t.Error("Expected unstaged changes after modifying file")
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_OnlyStaged(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Stage a file
+	testFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(testFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	// Run with strategy
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false, // Keep the commit for verification
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+
+	// Should create only staged branch
+	if result.StagedBranch == "" {
+		t.Error("Expected staged branch to be created")
+	}
+	if result.FullBranch != "" {
+		t.Errorf("Expected no full branch, got %s", result.FullBranch)
+	}
+	if result.BothCreated {
+		t.Error("Expected BothCreated to be false")
+	}
+
+	// Verify branch exists
+	branches := testutil.GetBranches(t, repo)
+	found := false
+	for _, b := range branches {
+		if b == result.StagedBranch {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Branch %s not found in repo", result.StagedBranch)
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_OnlyUnstaged(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Create an unstaged file
+	testFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(testFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run with strategy
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false,
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+
+	// Should create only full branch
+	if result.StagedBranch != "" {
+		t.Errorf("Expected no staged branch, got %s", result.StagedBranch)
+	}
+	if result.FullBranch == "" {
+		t.Error("Expected full branch to be created")
+	}
+	if result.BothCreated {
+		t.Error("Expected BothCreated to be false")
+	}
+
+	// Verify branch exists
+	branches := testutil.GetBranches(t, repo)
+	found := false
+	for _, b := range branches {
+		if b == result.FullBranch {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Branch %s not found in repo", result.FullBranch)
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_Both(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Stage a file
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	// Create an unstaged file
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run with strategy
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false,
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+
+	// Should create BOTH branches
+	if result.StagedBranch == "" {
+		t.Error("Expected staged branch to be created")
+	}
+	if result.FullBranch == "" {
+		t.Error("Expected full branch to be created")
+	}
+	if !result.BothCreated {
+		t.Error("Expected BothCreated to be true")
+	}
+
+	// Verify both branches exist
+	branches := testutil.GetBranches(t, repo)
+	foundStaged := false
+	foundFull := false
+	for _, b := range branches {
+		if b == result.StagedBranch {
+			foundStaged = true
+		}
+		if b == result.FullBranch {
+			foundFull = true
+		}
+	}
+	if !foundStaged {
+		t.Errorf("Staged branch %s not found", result.StagedBranch)
+	}
+	if !foundFull {
+		t.Errorf("Full branch %s not found", result.FullBranch)
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_Clean(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Repo is clean, no changes
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+
+	// Should create no branches
+	if result.StagedBranch != "" {
+		t.Errorf("Expected no staged branch, got %s", result.StagedBranch)
+	}
+	if result.FullBranch != "" {
+		t.Errorf("Expected no full branch, got %s", result.FullBranch)
+	}
+	if result.BothCreated {
+		t.Error("Expected BothCreated to be false")
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_ReturnToOriginal(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// Get original HEAD
+	originalSHA := testutil.GetCurrentSHA(t, repo)
+
+	// Stage and create unstaged changes
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run with ReturnToOriginal = true (default)
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: true,
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+
+	// Should have created branches
+	if result.StagedBranch == "" || result.FullBranch == "" {
+		t.Error("Expected both branches to be created")
+	}
+
+	// HEAD should be back to original
+	currentSHA := testutil.GetCurrentSHA(t, repo)
+	if currentSHA != originalSHA {
+		t.Errorf("Expected HEAD to return to %s, got %s", originalSHA, currentSHA)
+	}
+
+	// After git reset --soft, all changes become staged (this is expected behavior)
+	// git reset --soft moves HEAD but keeps changes in index
+	hasStaged, _ := HasStagedChanges(repo)
+	if !hasStaged {
+		t.Error("Expected changes to be staged after reset --soft")
+	}
+
+	// Verify both files exist and are staged
+	testutil.RunGitCmd(t, repo, "status", "--porcelain")
+}
+
+func TestListWorktrees(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	// List worktrees - should have just the main one
+	worktrees, err := ListWorktrees(repo)
+	if err != nil {
+		t.Fatalf("ListWorktrees() error = %v", err)
+	}
+
+	if len(worktrees) != 1 {
+		t.Fatalf("Expected 1 worktree, got %d", len(worktrees))
+	}
+
+	if !worktrees[0].IsMain {
+		t.Error("Expected first worktree to be main")
+	}
+
+	if worktrees[0].Path == "" {
+		t.Error("Expected worktree path to be set")
+	}
+
+	// Create an additional worktree
+	worktreePath := filepath.Join(t.TempDir(), "worktree2")
+	testutil.RunGitCmd(t, repo, "worktree", "add", worktreePath, "-b", "feature")
+
+	// List again
+	worktrees, err = ListWorktrees(repo)
+	if err != nil {
+		t.Fatalf("ListWorktrees() error = %v", err)
+	}
+
+	if len(worktrees) != 2 {
+		t.Fatalf("Expected 2 worktrees, got %d", len(worktrees))
+	}
+
+	// Verify second worktree
+	var featureWorktree *Worktree
+	for i := range worktrees {
+		if worktrees[i].Branch == "feature" {
+			featureWorktree = &worktrees[i]
+			break
+		}
+	}
+
+	if featureWorktree == nil {
+		t.Error("Expected to find feature worktree")
+	} else {
+		if featureWorktree.IsMain {
+			t.Error("Expected feature worktree to not be main")
+		}
+		if featureWorktree.Path != worktreePath {
+			t.Errorf("Expected worktree path %s, got %s", worktreePath, featureWorktree.Path)
+		}
+	}
+}
