@@ -34,20 +34,19 @@ type Worktree struct {
 // AutoCommitDirty commits all uncommitted changes in a repo
 // Returns nil if repo is already clean
 func AutoCommitDirty(repoPath string, opts CommitOptions) error {
-	// Refuse to commit in detached HEAD — the commit would be unreachable
-	if _, err := GetCurrentBranch(repoPath); err != nil {
-		return fmt.Errorf("cannot auto-commit: %w", err)
-	}
-
-	// Check if repo is dirty
+	// Check if repo is dirty first — clean repos are a no-op regardless of HEAD state
 	isDirty, err := IsDirty(repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to check repo status: %w", err)
 	}
 
 	if !isDirty {
-		// Repo is clean, nothing to do
 		return nil
+	}
+
+	// Refuse to commit in detached HEAD — the commit would be unreachable
+	if _, err := GetCurrentBranch(repoPath); err != nil {
+		return fmt.Errorf("cannot auto-commit: %w", err)
 	}
 
 	// Add all changes (respects .gitignore)
@@ -596,8 +595,11 @@ func commitChanges(repoPath, message string, addAll bool) error {
 // GetUncommittedFiles returns the relative paths of all files that would be
 // staged by git add -A — modified, added, deleted, and untracked files that
 // are not excluded by .gitignore.
+//
+// Uses --porcelain -z (NUL-delimited) to avoid the quoting that git applies
+// to filenames containing spaces or special characters in plain porcelain output.
 func GetUncommittedFiles(repoPath string) ([]string, error) {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := exec.Command("git", "status", "--porcelain", "-z")
 	cmd.Dir = repoPath
 
 	output, err := cmd.Output()
@@ -606,15 +608,21 @@ func GetUncommittedFiles(repoPath string) ([]string, error) {
 	}
 
 	var files []string
-	for _, line := range strings.Split(string(output), "\n") {
-		// porcelain format: "XY filename" where XY is a two-char status code
-		if len(line) < 4 {
+	// -z output: entries are NUL-terminated; renames produce two NUL-separated tokens
+	entries := strings.Split(string(output), "\x00")
+	i := 0
+	for i < len(entries) {
+		entry := entries[i]
+		i++
+		if len(entry) < 4 {
 			continue
 		}
-		// Handle renamed files: "R  old -> new" — take only the new path
-		path := strings.TrimSpace(line[3:])
-		if idx := strings.Index(path, " -> "); idx >= 0 {
-			path = path[idx+4:]
+		xy := entry[:2]
+		path := entry[3:] // skip "XY " prefix
+		// Rename/copy: status starts with R or C, next NUL token is the new path
+		if (xy[0] == 'R' || xy[0] == 'C') && i < len(entries) {
+			path = entries[i] // new path is the following NUL-delimited token
+			i++
 		}
 		if path != "" {
 			files = append(files, path)

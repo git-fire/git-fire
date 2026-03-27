@@ -156,6 +156,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("repo selection failed: %w", err)
 		}
+		if len(selected) == 0 {
+			fmt.Println("No repositories selected.")
+			return nil
+		}
 		repos = selected
 	} else {
 		for i := range repos {

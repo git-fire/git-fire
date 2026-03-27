@@ -153,7 +153,8 @@ See [architecture docs](./docs) for details.
 
 ## ⚠️ Security Notice
 
-Git-fire will auto-commit ALL uncommitted files not excluded by `.gitignore` in emergency mode.
+Git-fire will auto-commit tracked changes plus untracked files not excluded by `.gitignore` in emergency mode.
+Note: `.gitignore` only prevents *untracked* files from being added. If a secret file was previously committed and is now in `.gitignore`, Git still tracks it — changes to it will be staged and committed.
 
 **Before using:**
 - ✓ Use `.env` files for secrets (add to `.gitignore`)
@@ -164,7 +165,7 @@ Git-fire includes secret detection to warn you, but **you** are responsible for 
 
 ## 🔥 Comparison to Other Tools
 
-**Note:** There's an old [qw3rtman/git-fire](https://github.com/qw3rtman/git-fire) (Ruby, 2015, archived) with the same name, but this is an independent project with different goals:
+**Note:** There's an old [qw3rtman/git-fire](https://github.com/qw3rtman/git-fire) (bash, 2015, archived) with the same name, but this is an independent project with different goals:
 
 | Feature | This (Go, 2026) | qw3rtman (bash, 2015) |
 |---------|----------------|----------------------|

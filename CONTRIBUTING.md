@@ -10,7 +10,10 @@ Thanks for your interest in contributing!
 ## Build & Test
 
 ```bash
-# Build
+# Build all packages (matches what CI checks)
+go build ./...
+
+# Build the CLI binary
 go build -o git-fire .
 
 # Run all tests
