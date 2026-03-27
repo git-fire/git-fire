@@ -5,7 +5,13 @@
       "Bash(go vet:*)",
       "Bash(./git-fire --dry-run)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(make help:*)"
+      "Bash(make help:*)",
+      "Bash(git -C /home/ben/projects/git-fire rm --cached git-fire)",
+      "Bash(git -C /home/ben/projects/git-fire reset --soft 6ecabfb)",
+      "Bash(git -C /home/ben/projects/git-fire status)",
+      "Bash(git -C /home/ben/projects/git-fire add .gitignore)",
+      "Bash(git -C:*)",
+      "Bash(git -C /home/ben/projects/git-fire push --force-with-lease origin fix/launch-blockers)"
     ]
   }
 }
