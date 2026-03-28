@@ -124,23 +124,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build KnownPaths for the scanner: active entries only.
-	// Resolve the global rescan_submodules default for entries that don't
-	// override it.
-	knownPaths := make(map[string]bool)
-	for _, entry := range reg.Repos {
-		if entry.Status != registry.StatusActive {
-			continue
-		}
-		absPath, absErr := filepath.Abs(entry.Path)
-		if absErr != nil {
-			continue
-		}
-		rescan := cfg.Global.RescanSubmodules
-		if entry.RescanSubmodules != nil {
-			rescan = *entry.RescanSubmodules
-		}
-		knownPaths[absPath] = rescan
-	}
+	knownPaths := buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
 	// Background scanning - start immediately
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
@@ -228,7 +212,12 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	// Exclude ignored repos from backup
 	activeRepos := make([]git.Repository, 0, len(repos))
 	for _, repo := range repos {
-		absPath, _ := filepath.Abs(repo.Path)
+		absPath, err := filepath.Abs(repo.Path)
+		if err != nil {
+			// Can't resolve path; include repo to be safe (don't silently drop backups)
+			activeRepos = append(activeRepos, repo)
+			continue
+		}
 		entry := reg.FindByPath(absPath)
 		if entry != nil && entry.Status == registry.StatusIgnored {
 			continue
