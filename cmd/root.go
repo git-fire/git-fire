@@ -418,6 +418,16 @@ func handleStatus() error {
 	// Show repositories
 	opts := git.DefaultScanOptions()
 
+	// Merge registry known paths so --status counts match normal runs.
+	cfg := config.LoadOrDefault()
+	reg := &registry.Registry{}
+	if p, err := registry.DefaultRegistryPath(); err == nil {
+		if loaded, err := registry.Load(p); err == nil {
+			reg = loaded
+		}
+	}
+	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
+
 	repos, err := git.ScanRepositories(opts)
 	if err != nil {
 		return fmt.Errorf("repository scan failed: %w", err)
