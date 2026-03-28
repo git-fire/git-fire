@@ -32,7 +32,7 @@ All tests must pass before submitting a PR.
 
 - Keep PRs focused — one fix or feature per PR.
 - New behaviour must include tests. Bug fixes should include a regression test.
-- Run `go vet ./...` locally before pushing; CI will enforce this too.
+- Run `make lint` locally before pushing (`golangci-lint`); CI will enforce this too. Use `make vet` for a faster but less thorough check.
 - Write a clear PR description explaining *why*, not just *what*.
 
 ## Package Overview

@@ -1,0 +1,103 @@
+# CodeRabbit configuration for git-fire
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit/
+
+language: "en-US"
+
+# Since the developer is learning Go, ask CodeRabbit to explain the "why"
+# behind suggestions rather than just flagging issues.
+tone_instructions: >
+  Developer is a Java engineer learning Go. Frame Go idioms in Java
+  terms (e.g. errors vs exceptions, interfaces, goroutines vs threads).
+  Be direct; prioritize correctness and safety over style.
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  tools:
+    golangci-lint:
+      enabled: true
+    ast-grep:
+      enabled: true
+    shellcheck:
+      enabled: true  # catches issues in fire.sh, scripts/
+
+  path_instructions:
+    - path: "**/*.go"
+      instructions: |
+        Review Go code with the following priorities (in order):
+        1. Correctness — bugs, panics, incorrect logic
+        2. Error handling — all errors must be handled; never silently discard
+        3. Resource leaks — unclosed files, channels left open, goroutines that never exit
+        4. Concurrency safety — race conditions, improper shared-state access
+        5. Security — secret exposure, unsafe file permissions, command injection
+        6. Idiomatic Go — follow effective Go and standard conventions
+        7. Performance — only flag obvious inefficiencies, not micro-optimizations
+
+        This is an emergency backup tool. Prioritize reliability and data safety above all else.
+        A bug here could result in lost work during an incident.
+
+    - path: "internal/safety/**"
+      instructions: |
+        This package detects secrets before committing. Apply extra scrutiny:
+        - Are regex patterns correct and tested against edge cases?
+        - Could any pattern produce false negatives (miss a real secret)?
+        - Are new secret formats (API keys, tokens) covered?
+        A missed secret here could expose credentials in a public commit.
+
+    - path: "internal/executor/**"
+      instructions: |
+        This package runs git operations that modify repositories. Focus on:
+        - Are errors from git commands propagated correctly?
+        - Is there a risk of partial execution leaving repos in a bad state?
+        - Are rollback or recovery paths considered on failure?
+        - Is the rate limiter used correctly to prevent hammering remotes?
+
+    - path: "internal/git/**"
+      instructions: |
+        These wrap system git commands. Check:
+        - Command injection risks (user-controlled input in shell commands)
+        - Are exit codes and stderr handled?
+        - Could any operation silently succeed but produce wrong output?
+
+    - path: "**/*_test.go"
+      instructions: |
+        Review tests for quality, not just coverage:
+        - Do tests actually verify behavior or just execute code paths?
+        - Are table-driven tests used where multiple cases exist?
+        - Are test names descriptive (TestFunctionName_Scenario_ExpectedResult)?
+        - Are test helpers using t.Helper() so failures point to the right line?
+        - Are there tests for error paths, not just happy paths?
+
+    - path: "cmd/**"
+      instructions: |
+        CLI entry point. Check:
+        - Are all flags documented?
+        - Is user-facing error output clear and actionable?
+        - Are destructive operations (commits, pushes) gated behind confirmation?
+
+    - path: "scripts/**"
+      instructions: |
+        Shell scripts used for install and emergency use.
+        Apply shellcheck rules: quote variables, handle errors with set -e,
+        avoid common shell pitfalls.
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"

@@ -1,0 +1,9 @@
+# golangci-lint configuration for git-fire
+# TODO: full linter configuration pending golangci-lint v2 migration
+# See docs/VALIDATION_PROGRESS.md for tracking
+
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.24"  # keep in sync with go.mod
