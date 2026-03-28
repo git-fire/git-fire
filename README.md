@@ -163,6 +163,31 @@ Note: `.gitignore` only prevents *untracked* files from being added. If a secret
 
 Git-fire includes secret detection to warn you, but **you** are responsible for your commits.
 
+## 🔒 Best Practices
+
+Before relying on git-fire in an emergency, make sure your secrets are excluded from git:
+
+**`.gitignore`** — prevents untracked secret files from ever being staged:
+```
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.yaml
+config/secrets.yml
+```
+
+**`.git/info/exclude`** — machine-local exclusions that don't get committed (useful for files you can't add to a shared `.gitignore`):
+```bash
+echo "my-local-secrets.txt" >> .git/info/exclude
+```
+
+Note: neither of these helps if a secret file was already committed. In that case, remove it from history with `git filter-repo` and rotate the secret.
+
+Run `git-fire --dry-run` regularly to see exactly what would be committed before an emergency happens.
+
 ## 🔥 Comparison to Other Tools
 
 **Note:** There's an old [qw3rtman/git-fire](https://github.com/qw3rtman/git-fire) (bash, 2015, archived) with the same name, but this is an independent project with different goals:
