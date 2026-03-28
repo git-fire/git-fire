@@ -43,15 +43,17 @@ func (m RepoMode) String() string {
 }
 
 // ParseMode converts a mode string back to a RepoMode constant.
-// Unrecognised strings return ModePushKnownBranches.
+// Unknown strings return ModeLeaveUntouched to fail closed (no accidental pushes).
 func ParseMode(s string) RepoMode {
 	switch s {
 	case "leave-untouched":
 		return ModeLeaveUntouched
+	case "", "push-known-branches":
+		return ModePushKnownBranches
 	case "push-all":
 		return ModePushAll
 	default:
-		return ModePushKnownBranches
+		return ModeLeaveUntouched
 	}
 }
 

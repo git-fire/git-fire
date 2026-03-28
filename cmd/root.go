@@ -201,7 +201,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 				repos[i].Mode = git.ParseMode(existing.Mode)
 			}
 			existing.LastSeen = now
-			existing.Status = registry.StatusActive
+			if existing.Status != registry.StatusIgnored {
+				existing.Status = registry.StatusActive
+			}
 		} else {
 			// New discovery — add to registry
 			reg.Upsert(registry.RegistryEntry{
@@ -253,9 +255,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		// Seed defaults so the TUI can show current state and the user can override
 		for i := range repos {
 			repos[i].Selected = true
-			if repos[i].Mode == git.ModeLeaveUntouched {
-				repos[i].Mode = git.ModePushKnownBranches
-			}
 		}
 		selected, err := ui.RunRepoSelector(repos, reg, regPath)
 		if err != nil {
@@ -273,9 +272,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	} else {
 		for i := range repos {
 			repos[i].Selected = true
-			if repos[i].Mode == git.ModeLeaveUntouched {
-				repos[i].Mode = git.ModePushKnownBranches
-			}
 		}
 	}
 

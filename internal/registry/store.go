@@ -54,7 +54,7 @@ func Save(reg *Registry, path string) error {
 		return fmt.Errorf("marshaling registry: %w", err)
 	}
 
-	tmp := path + ".tmp"
+	tmp := fmt.Sprintf("%s.%d.tmp", path, os.Getpid())
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("writing registry: %w", err)
 	}

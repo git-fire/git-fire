@@ -156,7 +156,16 @@ func reposScan(_ *cobra.Command, args []string) error {
 		if absErr != nil {
 			continue
 		}
-		if reg.FindByPath(absPath) == nil {
+		if entry := reg.FindByPath(absPath); entry != nil {
+			if entry.Status != registry.StatusIgnored {
+				entry.Status = registry.StatusActive
+				entry.Name = repo.Name
+				entry.LastSeen = now
+				if entry.Mode == "" {
+					entry.Mode = repo.Mode.String()
+				}
+			}
+		} else {
 			reg.Upsert(registry.RegistryEntry{
 				Path:     absPath,
 				Name:     repo.Name,

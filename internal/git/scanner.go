@@ -51,6 +51,10 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 	// (a parent skipped by the walker does not prevent inner repos from being
 	// analyzed, since they were already queued here).
 	for knownPath := range opts.KnownPaths {
+		rel, relErr := filepath.Rel(absRoot, knownPath)
+		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			continue
+		}
 		spawnAnalysis(knownPath)
 	}
 
