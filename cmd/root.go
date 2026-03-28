@@ -153,6 +153,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Repo selection: TUI when --fire is set, otherwise auto-select all
 	if fireMode {
+		// Seed defaults so the TUI can show current state and the user can override
+		for i := range repos {
+			repos[i].Selected = true
+			repos[i].Mode = git.ModePushKnownBranches
+		}
 		selected, err := ui.RunRepoSelector(repos)
 		if err != nil {
 			if errors.Is(err, ui.ErrCancelled) {
@@ -166,10 +171,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 		repos = selected
-		for i := range repos {
-			repos[i].Selected = true
-			repos[i].Mode = git.ModePushKnownBranches
-		}
 	} else {
 		for i := range repos {
 			repos[i].Selected = true

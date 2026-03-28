@@ -73,7 +73,7 @@ go build -o git-fire .
 - 🛡️ **Dry-run validation** - Test before pushing
 - 🛡️ **User confirmation** - Requires confirmation before pushing
 - 🛡️ **Reversible** - Full logs for undoing changes
-- 🛡️ **Respects .gitignore** - Won't commit ignored files
+- 🛡️ **Respects .gitignore for untracked files** - Won't add new ignored files (tracked files in `.gitignore` can still be committed)
 
 ## 📖 Usage
 

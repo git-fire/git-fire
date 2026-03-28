@@ -11,7 +11,7 @@ import (
 // CommitOptions configures auto-commit behavior
 type CommitOptions struct {
 	Message           string // Commit message
-	AddAll            bool   // Run git add -A (default: true)
+	AddAll            bool   // Run git add -A; must be set explicitly (default: false)
 	UseDualBranch     bool   // Use staged/unstaged dual branch strategy (default: true)
 	ReturnToOriginal  bool   // Reset to original state after creating branches (default: true)
 }

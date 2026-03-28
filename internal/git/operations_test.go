@@ -717,6 +717,32 @@ func TestGetUncommittedFiles(t *testing.T) {
 	}
 }
 
+func TestGetUncommittedFiles_SpacesInPath(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	repo.AddFile("normal.txt", "content").Commit("initial")
+
+	// File with spaces in the name — old line-based parsers would split on the space
+	if err := os.WriteFile(filepath.Join(repo.Path(), "file with spaces.txt"), []byte("spaced\n"), 0644); err != nil {
+		t.Fatalf("failed to write spaced file: %v", err)
+	}
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	if !fileSet["file with spaces.txt"] {
+		t.Errorf("expected 'file with spaces.txt' in results, got %v", files)
+	}
+}
+
 func TestGetUncommittedFiles_Rename(t *testing.T) {
 	scenario := testutil.NewScenario(t)
 	repo := scenario.CreateRepo("test")
