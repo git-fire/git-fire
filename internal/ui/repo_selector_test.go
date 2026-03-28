@@ -105,11 +105,8 @@ func TestRepoSelectorLiteModel_View_Confirmed(t *testing.T) {
 	m.confirmed = true
 
 	view := m.View()
-	if !strings.Contains(view, "2") {
-		t.Errorf("confirmed view should mention 2 selected repos, got: %q", view)
-	}
-	if !strings.Contains(view, "Selected") {
-		t.Errorf("confirmed view should contain 'Selected', got: %q", view)
+	if !strings.Contains(view, "Selected 2 repositories for backup") {
+		t.Errorf("confirmed view should contain 'Selected 2 repositories for backup', got: %q", view)
 	}
 }
 
@@ -321,8 +318,8 @@ func TestRepoSelectorModel_View_Confirmed(t *testing.T) {
 	m.confirmed = true
 
 	view := m.View()
-	if !strings.Contains(view, "2") {
-		t.Errorf("confirmed view should mention 2 selected repos, got: %q", view)
+	if !strings.Contains(view, "Selected 2 repositories for backup") {
+		t.Errorf("confirmed view should contain 'Selected 2 repositories for backup', got: %q", view)
 	}
 }
 
