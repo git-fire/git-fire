@@ -138,7 +138,7 @@ args = ["s3", "sync", "{repo_path}", "s3://emergency/{repo_name}"]
 ## 🧪 Testing
 
 ```bash
-# Run all tests (43/43 passing)
+# Run all tests (153/153 passing)
 go test ./...
 
 # With coverage
@@ -168,7 +168,8 @@ Git-fire includes secret detection to warn you, but **you** are responsible for 
 Before relying on git-fire in an emergency, make sure your secrets are excluded from git:
 
 **`.gitignore`** — prevents untracked secret files from ever being staged:
-```
+
+```gitignore
 .env
 .env.*
 !.env.example
@@ -180,6 +181,7 @@ config/secrets.yml
 ```
 
 **`.git/info/exclude`** — machine-local exclusions that don't get committed (useful for files you can't add to a shared `.gitignore`):
+
 ```bash
 echo "my-local-secrets.txt" >> .git/info/exclude
 ```

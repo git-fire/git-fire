@@ -686,7 +686,10 @@ func TestDryRun_SecretWarning(t *testing.T) {
 	}
 
 	// Capture stderr
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
 	old := os.Stderr
 	os.Stderr = w
 

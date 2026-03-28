@@ -149,12 +149,7 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 	switch action.Type {
 	case ActionAutoCommit:
 		// Scan for secrets before committing — warn on stderr but always proceed
-		if uncommitted, scanErr := git.GetUncommittedFiles(repo.Path); scanErr == nil && len(uncommitted) > 0 {
-			scanner := safety.NewSecretScanner()
-			if suspicious, scanErr := scanner.ScanFiles(repo.Path, uncommitted); scanErr == nil && len(suspicious) > 0 {
-				fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
-			}
-		}
+		warnAboutSecrets(repo.Path)
 		err = git.AutoCommitDirty(repo.Path, git.CommitOptions{
 			AddAll:  true,
 			Message: fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
@@ -248,12 +243,7 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 		// surface issues before they become real commits.
 		for _, action := range repoPlan.Actions {
 			if action.Type == ActionAutoCommit {
-				if uncommitted, scanErr := git.GetUncommittedFiles(repoPlan.Repo.Path); scanErr == nil && len(uncommitted) > 0 {
-					scanner := safety.NewSecretScanner()
-					if suspicious, scanErr := scanner.ScanFiles(repoPlan.Repo.Path, uncommitted); scanErr == nil && len(suspicious) > 0 {
-						fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
-					}
-				}
+				warnAboutSecrets(repoPlan.Repo.Path)
 				break
 			}
 		}
@@ -304,4 +294,14 @@ func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
 
 	// Fallback: return empty string if remote not found
 	return ""
+}
+
+// warnAboutSecrets scans uncommitted files for secrets and prints warnings to stderr.
+func warnAboutSecrets(repoPath string) {
+	if uncommitted, scanErr := git.GetUncommittedFiles(repoPath); scanErr == nil && len(uncommitted) > 0 {
+		scanner := safety.NewSecretScanner()
+		if suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted); scanErr == nil && len(suspicious) > 0 {
+			fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+		}
+	}
 }

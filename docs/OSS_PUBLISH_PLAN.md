@@ -9,12 +9,14 @@ When the project is ready to move to the public OSS repository, the entire curre
 1. Create a new public GitHub repo
 2. Check out this repo at the desired state (tip of the release-ready branch)
 3. Create a fresh git history:
+
    ```bash
    git checkout --orphan initial
    git add -A
    git commit -m "Initial commit"
    git push <new-public-remote> initial:main
    ```
+
 4. Add install/release workflow (GoReleaser or similar) for binary distribution
 5. Update install scripts once first tagged release exists
 
