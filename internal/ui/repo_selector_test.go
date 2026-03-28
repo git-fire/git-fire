@@ -336,3 +336,22 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 		t.Errorf("cancelled view should contain 'Cancelled', got: %q", view)
 	}
 }
+
+func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
+	m := NewRepoSelectorModel(nil)
+
+	assertNoPanic := func(msg tea.Msg) {
+		t.Helper()
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("Update panicked for empty repos and msg %T: %v", msg, r)
+			}
+		}()
+		_, _ = m.Update(msg)
+	}
+
+	assertNoPanic(press('m'))
+	assertNoPanic(pressSpecial(tea.KeySpace))
+	assertNoPanic(pressSpecial(tea.KeyUp))
+	assertNoPanic(pressSpecial(tea.KeyDown))
+}
