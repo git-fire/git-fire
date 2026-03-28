@@ -51,7 +51,7 @@ func Execute() error {
 func init() {
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.Flags().BoolVar(&fireDrill, "fire-drill", false, "Alias for --dry-run")
-	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Use fancy fire UI mode")
+	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Fire mode: TUI repo selector, skips confirmation prompt")
 	rootCmd.Flags().StringVar(&scanPath, "path", ".", "Path to scan for repositories")
 	rootCmd.Flags().BoolVar(&skipCommit, "skip-auto-commit", false, "Skip auto-committing dirty repos")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")

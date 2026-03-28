@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-MVP-green" alt="Status: MVP">
-  <img src="https://img.shields.io/badge/tests-43%2F43-brightgreen" alt="Tests: 43/43">
+  <img src="https://img.shields.io/badge/tests-153%2F153-brightgreen" alt="Tests: 153/153">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
 </p>
@@ -98,7 +98,7 @@ git-fire --path ~/projects
 # Skip auto-commit (only push existing commits)
 git-fire --skip-auto-commit
 
-# Use fancy fire UI mode
+# Fire mode: TUI repo selector, skips confirmation prompt
 git-fire --fire
 ```
 
