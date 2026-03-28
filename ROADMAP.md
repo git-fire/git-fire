@@ -1,7 +1,13 @@
 # 🗺️ Git-Fire Implementation Roadmap
 
-**Current Phase:** Phase 2 - Refinement & First Plugins  
+**Current Phase:** Phase 2 - Refinement & First Plugins
 **Target:** Launch git-fire v1.0 with proven extensibility
+
+---
+
+## Backlog
+
+- [ ] **golangci-lint v2 config migration** — CI lint job is stubbed out pending full migration from v1 config format. Key work: add `.golangci.yml` with v2 syntax, rename `linters-settings` → `linters.settings`, move `gofmt`/`goimports` to `formatters` block, remove merged linters (`gosimple`, `stylecheck`), re-tune exclusions. Re-enable the `lint` job in `.github/workflows/ci.yml` when complete.
 
 ---
 
