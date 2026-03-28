@@ -772,6 +772,39 @@ func TestGetUncommittedFiles_Rename(t *testing.T) {
 	}
 }
 
+func TestGetUncommittedFiles_Copy(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Commit a file with enough content for Git's similarity detection
+	content := "copy detection content: this file will be copied to a new path\n"
+	repo.AddFile("old-name.txt", content).StageFile("old-name.txt").Commit("add file")
+
+	// Enable copy detection so git status reports C instead of A for similar new files
+	testutil.RunGitCmd(t, repo.Path(), "config", "status.renames", "copies")
+
+	// Stage a new file with identical content — Git should detect it as a copy
+	repo.AddFile("new-name.txt", content).StageFile("new-name.txt")
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	// Should return the copy destination (new path), not the source
+	if !fileSet["new-name.txt"] {
+		t.Errorf("expected new-name.txt (copy destination) in results, got %v", files)
+	}
+	if fileSet["old-name.txt"] {
+		t.Errorf("old-name.txt (copy source) should not be in results, got %v", files)
+	}
+}
+
 func TestGetUncommittedFiles_Clean(t *testing.T) {
 	_, repo := testutil.CreateCleanRepoScenario(t)
 
