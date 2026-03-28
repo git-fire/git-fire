@@ -23,17 +23,21 @@ jobs:
           fetch-depth: 0
 
       - name: Validate version format
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
-            echo "Invalid version format: ${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
+            echo "Invalid version format: $VERSION"
             echo "Expected: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease"
             exit 1
           fi
 
       - name: Create and push tag
         id: tag
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          TAG="v${{ inputs.version }}"
+          TAG="v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${TAG}" -m "Release ${TAG}"
@@ -51,7 +55,7 @@ jobs:
           # Linux
           - { goos: linux,   goarch: amd64,  name: linux-amd64   }
           - { goos: linux,   goarch: arm64,  name: linux-arm64   }
-          - { goos: linux,   goarch: arm,    goarm: "6", name: linux-armv6 }
+          - { goos: linux,   goarch: arm,    goarm: "6", name: linux-arm   }
           # macOS
           - { goos: darwin,  goarch: amd64,  name: darwin-amd64  }
           - { goos: darwin,  goarch: arm64,  name: darwin-arm64  }
