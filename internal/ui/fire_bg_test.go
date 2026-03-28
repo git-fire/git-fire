@@ -77,6 +77,33 @@ func TestFireBackground_Render_NonEmpty(t *testing.T) {
 	}
 }
 
+func TestFireBackground_BoundaryDimensions_NoPanic(t *testing.T) {
+	cases := []struct {
+		name   string
+		width  int
+		height int
+	}{
+		{name: "zero_zero", width: 0, height: 0},
+		{name: "zero_height", width: 20, height: 0},
+		{name: "zero_width", width: 0, height: 4},
+		{name: "negative_width", width: -1, height: 4},
+		{name: "negative_height", width: 20, height: -1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("panic for width=%d height=%d: %v", tc.width, tc.height, r)
+				}
+			}()
+			fb := NewFireBackground(tc.width, tc.height)
+			fb.Update()
+			_ = fb.Render()
+		})
+	}
+}
+
 func TestRenderFireWave_NonEmpty(t *testing.T) {
 	output := RenderFireWave(40, 0)
 	if output == "" {

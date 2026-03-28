@@ -19,9 +19,14 @@ func pressSpecial(t tea.KeyType) tea.KeyMsg {
 }
 
 // updateLite sends a message to a RepoSelectorLiteModel and returns the updated model.
-func updateLite(m RepoSelectorLiteModel, msg tea.Msg) RepoSelectorLiteModel {
+func updateLite(t *testing.T, m RepoSelectorLiteModel, msg tea.Msg) RepoSelectorLiteModel {
+	t.Helper()
 	updated, _ := m.Update(msg)
-	return updated.(RepoSelectorLiteModel)
+	typed, ok := updated.(RepoSelectorLiteModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorLiteModel", updated)
+	}
+	return typed
 }
 
 // sampleRepos builds a small slice of git.Repository for tests.
@@ -135,12 +140,12 @@ func TestRepoSelectorLiteModel_View_ShowsRepos(t *testing.T) {
 func TestRepoSelectorLiteModel_Key_CursorDown(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
 
-	m = updateLite(m, press('j'))
+	m = updateLite(t, m, press('j'))
 	if m.cursor != 1 {
 		t.Errorf("cursor after 'j' = %d, want 1", m.cursor)
 	}
 
-	m = updateLite(m, pressSpecial(tea.KeyDown))
+	m = updateLite(t, m, pressSpecial(tea.KeyDown))
 	if m.cursor != 2 {
 		t.Errorf("cursor after Down = %d, want 2", m.cursor)
 	}
@@ -150,12 +155,12 @@ func TestRepoSelectorLiteModel_Key_CursorUp(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
 	m.cursor = 2
 
-	m = updateLite(m, press('k'))
+	m = updateLite(t, m, press('k'))
 	if m.cursor != 1 {
 		t.Errorf("cursor after 'k' = %d, want 1", m.cursor)
 	}
 
-	m = updateLite(m, pressSpecial(tea.KeyUp))
+	m = updateLite(t, m, pressSpecial(tea.KeyUp))
 	if m.cursor != 0 {
 		t.Errorf("cursor after Up = %d, want 0", m.cursor)
 	}
@@ -165,14 +170,14 @@ func TestRepoSelectorLiteModel_Key_CursorBounds(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
 
 	// Should not go below 0
-	m = updateLite(m, pressSpecial(tea.KeyUp))
+	m = updateLite(t, m, pressSpecial(tea.KeyUp))
 	if m.cursor != 0 {
 		t.Errorf("cursor should stay at 0, got %d", m.cursor)
 	}
 
 	// Move to last item, then try to go further
 	m.cursor = 2
-	m = updateLite(m, pressSpecial(tea.KeyDown))
+	m = updateLite(t, m, pressSpecial(tea.KeyDown))
 	if m.cursor != 2 {
 		t.Errorf("cursor should stay at 2 (last), got %d", m.cursor)
 	}
@@ -182,12 +187,12 @@ func TestRepoSelectorLiteModel_Key_ToggleSelection(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
 	// Cursor is at 0 (alpha), which starts selected
 
-	m = updateLite(m, pressSpecial(tea.KeySpace))
+	m = updateLite(t, m, pressSpecial(tea.KeySpace))
 	if m.selected[0] {
 		t.Error("space should have deselected repo 0")
 	}
 
-	m = updateLite(m, pressSpecial(tea.KeySpace))
+	m = updateLite(t, m, pressSpecial(tea.KeySpace))
 	if !m.selected[0] {
 		t.Error("second space should have re-selected repo 0")
 	}
@@ -195,7 +200,7 @@ func TestRepoSelectorLiteModel_Key_ToggleSelection(t *testing.T) {
 
 func TestRepoSelectorLiteModel_Key_SelectAll(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
-	m = updateLite(m, press('a'))
+	m = updateLite(t, m, press('a'))
 
 	for i := range m.repos {
 		if !m.selected[i] {
@@ -206,7 +211,7 @@ func TestRepoSelectorLiteModel_Key_SelectAll(t *testing.T) {
 
 func TestRepoSelectorLiteModel_Key_SelectNone(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
-	m = updateLite(m, press('n'))
+	m = updateLite(t, m, press('n'))
 
 	for i := range m.repos {
 		if m.selected[i] {
@@ -221,17 +226,17 @@ func TestRepoSelectorLiteModel_Key_CycleMode(t *testing.T) {
 	}
 	m := NewRepoSelectorLiteModel(repos)
 
-	m = updateLite(m, press('m'))
+	m = updateLite(t, m, press('m'))
 	if m.repos[0].Mode != git.ModePushKnownBranches {
 		t.Errorf("after 'm': mode = %v, want ModePushKnownBranches", m.repos[0].Mode)
 	}
 
-	m = updateLite(m, press('m'))
+	m = updateLite(t, m, press('m'))
 	if m.repos[0].Mode != git.ModePushAll {
 		t.Errorf("after second 'm': mode = %v, want ModePushAll", m.repos[0].Mode)
 	}
 
-	m = updateLite(m, press('m'))
+	m = updateLite(t, m, press('m'))
 	if m.repos[0].Mode != git.ModeLeaveUntouched {
 		t.Errorf("after third 'm': mode = %v, want ModeLeaveUntouched (wraps around)", m.repos[0].Mode)
 	}
@@ -239,7 +244,7 @@ func TestRepoSelectorLiteModel_Key_CycleMode(t *testing.T) {
 
 func TestRepoSelectorLiteModel_Key_Quit(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
-	m = updateLite(m, press('q'))
+	m = updateLite(t, m, press('q'))
 
 	if !m.quitting {
 		t.Error("'q' should set quitting=true")
@@ -251,7 +256,7 @@ func TestRepoSelectorLiteModel_Key_Quit(t *testing.T) {
 
 func TestRepoSelectorLiteModel_Key_Enter(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos())
-	m = updateLite(m, pressSpecial(tea.KeyEnter))
+	m = updateLite(t, m, pressSpecial(tea.KeyEnter))
 
 	if !m.quitting {
 		t.Error("enter should set quitting=true")
@@ -259,6 +264,25 @@ func TestRepoSelectorLiteModel_Key_Enter(t *testing.T) {
 	if !m.confirmed {
 		t.Error("enter should set confirmed=true")
 	}
+}
+
+func TestRepoSelectorLiteModel_Key_EmptyRepos_NoPanic(t *testing.T) {
+	m := NewRepoSelectorLiteModel(nil)
+
+	assertNoPanic := func(msg tea.Msg) {
+		t.Helper()
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("Update panicked for empty repos and msg %T: %v", msg, r)
+			}
+		}()
+		_, _ = m.Update(msg)
+	}
+
+	assertNoPanic(press('m'))
+	assertNoPanic(pressSpecial(tea.KeySpace))
+	assertNoPanic(pressSpecial(tea.KeyUp))
+	assertNoPanic(pressSpecial(tea.KeyDown))
 }
 
 // --- RepoSelectorModel (full, animated) ---
@@ -283,6 +307,11 @@ func TestRepoSelectorModel_GetSelectedRepos(t *testing.T) {
 
 	if len(selected) != 2 {
 		t.Errorf("GetSelectedRepos() returned %d repos, want 2", len(selected))
+	}
+	for _, r := range selected {
+		if r.Name != "alpha" && r.Name != "gamma" {
+			t.Errorf("unexpected repo in selection: %s", r.Name)
+		}
 	}
 }
 

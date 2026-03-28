@@ -84,10 +84,15 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case " ":
-			m.selected[m.cursor] = !m.selected[m.cursor]
-			m.repos[m.cursor].Selected = m.selected[m.cursor]
+			if len(m.repos) > 0 {
+				m.selected[m.cursor] = !m.selected[m.cursor]
+				m.repos[m.cursor].Selected = m.selected[m.cursor]
+			}
 
 		case "m":
+			if len(m.repos) == 0 {
+				break
+			}
 			repo := &m.repos[m.cursor]
 			switch repo.Mode {
 			case git.ModeLeaveUntouched:

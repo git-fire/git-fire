@@ -66,6 +66,9 @@ func (fb *FireBackground) Reset() {
 
 // spawnParticle creates a new fire particle at the bottom
 func (fb *FireBackground) spawnParticle() {
+	if fb.Width <= 0 || fb.Height <= 0 {
+		return
+	}
 	chars := []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "░", "▒", "▓"}
 
 	particle := FireParticle{
@@ -125,14 +128,19 @@ func (fb *FireBackground) Update() {
 	fb.Particles = newParticles
 
 	// Spawn new particles to maintain count
-	targetCount := fb.Width * 2
-	for len(fb.Particles) < targetCount {
-		fb.spawnParticle()
+	if fb.Width > 0 && fb.Height > 0 {
+		targetCount := fb.Width * 2
+		for len(fb.Particles) < targetCount {
+			fb.spawnParticle()
+		}
 	}
 }
 
 // Render returns the fire background as a string
 func (fb *FireBackground) Render() string {
+	if fb.Width <= 0 || fb.Height <= 0 {
+		return ""
+	}
 	// Create 2D grid
 	grid := make([][]string, fb.Height)
 	for i := range grid {

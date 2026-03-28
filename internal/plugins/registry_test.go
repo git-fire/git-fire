@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -20,6 +21,14 @@ func (m *mockPlugin) Cleanup() error            { return nil }
 // newRegistry returns an empty registry for test isolation.
 func newTestRegistry() *Registry {
 	return &Registry{plugins: make(map[string]Plugin)}
+}
+
+// mustRegister registers a plugin or fails the test immediately.
+func mustRegister(t *testing.T, r *Registry, p Plugin) {
+	t.Helper()
+	if err := r.Register(p); err != nil {
+		t.Fatalf("setup: Register(%q) failed: %v", p.Name(), err)
+	}
 }
 
 func TestRegistry_Register(t *testing.T) {
@@ -76,7 +85,7 @@ func TestRegistry_Register_Duplicate(t *testing.T) {
 func TestRegistry_Get(t *testing.T) {
 	r := newTestRegistry()
 	p := &mockPlugin{name: "target"}
-	r.Register(p)
+	mustRegister(t, r, p)
 
 	got, err := r.Get("target")
 	if err != nil {
@@ -97,9 +106,9 @@ func TestRegistry_Get_NotFound(t *testing.T) {
 
 func TestRegistry_List(t *testing.T) {
 	r := newTestRegistry()
-	r.Register(&mockPlugin{name: "alpha"})
-	r.Register(&mockPlugin{name: "beta"})
-	r.Register(&mockPlugin{name: "gamma"})
+	mustRegister(t, r, &mockPlugin{name: "alpha"})
+	mustRegister(t, r, &mockPlugin{name: "beta"})
+	mustRegister(t, r, &mockPlugin{name: "gamma"})
 
 	plugins := r.List()
 	if len(plugins) != 3 {
@@ -117,8 +126,8 @@ func TestRegistry_List_Empty(t *testing.T) {
 
 func TestRegistry_Clear(t *testing.T) {
 	r := newTestRegistry()
-	r.Register(&mockPlugin{name: "a"})
-	r.Register(&mockPlugin{name: "b"})
+	mustRegister(t, r, &mockPlugin{name: "a"})
+	mustRegister(t, r, &mockPlugin{name: "b"})
 	r.Clear()
 
 	if r.Exists("a") || r.Exists("b") {
@@ -131,7 +140,7 @@ func TestRegistry_Clear(t *testing.T) {
 
 func TestRegistry_Clear_AllowsReRegistration(t *testing.T) {
 	r := newTestRegistry()
-	r.Register(&mockPlugin{name: "reused"})
+	mustRegister(t, r, &mockPlugin{name: "reused"})
 	r.Clear()
 
 	if err := r.Register(&mockPlugin{name: "reused"}); err != nil {
@@ -141,7 +150,7 @@ func TestRegistry_Clear_AllowsReRegistration(t *testing.T) {
 
 func TestRegistry_Exists(t *testing.T) {
 	r := newTestRegistry()
-	r.Register(&mockPlugin{name: "present"})
+	mustRegister(t, r, &mockPlugin{name: "present"})
 
 	if !r.Exists("present") {
 		t.Error("Exists() returned false for registered plugin")
@@ -155,20 +164,22 @@ func TestRegistry_ConcurrentAccess(t *testing.T) {
 	// Smoke test: concurrent reads and writes should not race.
 	// Run with: go test -race ./internal/plugins/...
 	r := newTestRegistry()
-	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			r.Register(&mockPlugin{name: fmt.Sprintf("plugin-%d", i)})
+			_ = r.Register(&mockPlugin{name: fmt.Sprintf("plugin-%d", i)})
 		}
-		close(done)
 	}()
 
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 50; i++ {
 			r.List()
 		}
 	}()
 
-	<-done
+	wg.Wait()
 }
