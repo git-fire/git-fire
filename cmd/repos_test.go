@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/TBRX103/git-fire/internal/registry"
@@ -47,7 +51,7 @@ func TestBuildKnownPaths_GlobalRescanDefault(t *testing.T) {
 	}
 
 	m2 := buildKnownPaths(reg, false)
-	if v := m2[abs]; v {
+	if v, ok := m2[abs]; !ok || v {
 		t.Error("should inherit global rescan=false when per-repo override is nil")
 	}
 }
@@ -64,7 +68,7 @@ func TestBuildKnownPaths_PerRepoOverride(t *testing.T) {
 	// Global says true, but per-repo says false
 	m := buildKnownPaths(reg, true)
 	abs, _ := filepath.Abs(dir)
-	if v := m[abs]; v {
+	if v, ok := m[abs]; !ok || v {
 		t.Error("per-repo RescanSubmodules=false should override global=true")
 	}
 }
@@ -104,9 +108,11 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 
 	// handleStatus should not error even with registry populated
 	err := handleStatus()
-	// SSH agent may not be running in CI — only fail on unexpected errors
 	if err != nil {
-		t.Logf("handleStatus() error (may be expected in test env): %v", err)
+		if strings.Contains(err.Error(), "failed to get SSH status") {
+			t.Skipf("skipping: SSH precondition not met in test environment: %v", err)
+		}
+		t.Fatalf("handleStatus() unexpected error: %v", err)
 	}
 }
 
@@ -128,7 +134,70 @@ func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	// Should fall back gracefully, not panic or hard-error on the registry
 	err := handleStatus()
 	if err != nil {
-		t.Logf("handleStatus() error (may be expected in test env): %v", err)
+		if strings.Contains(err.Error(), "failed to get SSH status") {
+			t.Skipf("skipping: SSH precondition not met in test environment: %v", err)
+		}
+		t.Fatalf("handleStatus() unexpected error: %v", err)
+	}
+}
+
+// ---- registry status validation (os.Stat error handling) ----
+
+func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("cannot test permission denied as root")
+	}
+
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", tmpHome)
+
+	// Create a path inside an unreadable parent dir so os.Stat returns EACCES,
+	// not ENOENT. The parent has mode 0o000 so traversal is denied.
+	lockedParent := filepath.Join(t.TempDir(), "locked")
+	if err := os.MkdirAll(lockedParent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	targetPath := filepath.Join(lockedParent, "repo")
+	if err := os.MkdirAll(targetPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(lockedParent, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(lockedParent, 0o700)
+
+	// Register the path-inside-locked-dir as missing
+	reg := &registry.Registry{
+		Repos: []registry.RegistryEntry{
+			{Path: targetPath, Name: "locked", Status: registry.StatusMissing},
+		},
+	}
+	regPath := filepath.Join(tmpHome, ".git-fire", "repos.toml")
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("failed to write test registry: %v", err)
+	}
+
+	resetFlags()
+	dryRun = true
+	scanPath = t.TempDir()
+
+	if err := runGitFire(rootCmd, []string{}); err != nil {
+		t.Fatalf("runGitFire() error = %v", err)
+	}
+
+	// Reload registry — the repo must still be missing, not flipped to active
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
+	entry := loaded.FindByPath(targetPath)
+	if entry == nil {
+		t.Fatal("registry entry disappeared after run")
+	}
+	if entry.Status != registry.StatusMissing {
+		t.Errorf("expected StatusMissing after non-ENOENT stat error, got %q", entry.Status)
 	}
 }
 
@@ -158,6 +227,25 @@ func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	if err != nil {
 		t.Errorf("runGitFire() should not abort when registry is corrupt, got: %v", err)
 	}
+}
+
+// captureStdout redirects os.Stdout for the duration of fn and returns what was written.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("captureStdout: pipe: %v", err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	fn()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("captureStdout: read: %v", err)
+	}
+	return buf.String()
 }
 
 // ---- ignored-repo filtering (filepath.Abs failure safety) ----
@@ -194,8 +282,19 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 	// Scan the parent dir so both repos are discovered
 	scanPath = filepath.Dir(kept.Path())
 
-	err := runGitFire(rootCmd, []string{})
-	if err != nil {
-		t.Errorf("runGitFire() error = %v", err)
+	var runErr error
+	out := captureStdout(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+	if runErr != nil {
+		t.Fatalf("runGitFire() error = %v", runErr)
+	}
+
+	// The "Selected repositories:" block lists repos by name with a bullet
+	if strings.Contains(out, fmt.Sprintf("• %s", "ignored")) {
+		t.Errorf("ignored repo should not appear in output:\n%s", out)
+	}
+	if !strings.Contains(out, fmt.Sprintf("• %s", "kept")) {
+		t.Errorf("kept repo should appear in output:\n%s", out)
 	}
 }

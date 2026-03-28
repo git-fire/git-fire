@@ -65,8 +65,14 @@ func TestSave_Load_Roundtrip(t *testing.T) {
 	if got.Path != orig.Repos[0].Path {
 		t.Errorf("Path: got %q, want %q", got.Path, orig.Repos[0].Path)
 	}
+	if got.Name != orig.Repos[0].Name {
+		t.Errorf("Name: got %q, want %q", got.Name, orig.Repos[0].Name)
+	}
 	if got.Status != StatusActive {
 		t.Errorf("Status: got %q, want %q", got.Status, StatusActive)
+	}
+	if got.Mode != orig.Repos[0].Mode {
+		t.Errorf("Mode: got %q, want %q", got.Mode, orig.Repos[0].Mode)
 	}
 	if got.RescanSubmodules == nil || *got.RescanSubmodules != true {
 		t.Errorf("RescanSubmodules: got %v, want true", got.RescanSubmodules)

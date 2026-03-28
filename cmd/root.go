@@ -112,12 +112,14 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if entry.Status == registry.StatusIgnored {
 			continue
 		}
-		if _, statErr := os.Stat(entry.Path); os.IsNotExist(statErr) {
-			if reg.Repos[i].Status != registry.StatusMissing {
+		if _, statErr := os.Stat(entry.Path); statErr != nil {
+			if os.IsNotExist(statErr) && reg.Repos[i].Status != registry.StatusMissing {
 				reg.Repos[i].Status = registry.StatusMissing
 				registryUpdated = true
 			}
-		} else if entry.Status == registry.StatusMissing {
+			continue
+		}
+		if entry.Status == registry.StatusMissing {
 			reg.Repos[i].Status = registry.StatusActive
 			registryUpdated = true
 		}
@@ -410,10 +412,12 @@ func handleStatus() error {
 	// Merge registry known paths so --status counts match normal runs.
 	cfg := config.LoadOrDefault()
 	reg := &registry.Registry{}
-	if p, err := registry.DefaultRegistryPath(); err == nil {
-		if loaded, err := registry.Load(p); err == nil {
-			reg = loaded
-		}
+	if p, err := registry.DefaultRegistryPath(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: registry disabled: %v\n", err)
+	} else if loaded, err := registry.Load(p); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: ignoring unreadable registry %s: %v\n", p, err)
+	} else {
+		reg = loaded
 	}
 	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
