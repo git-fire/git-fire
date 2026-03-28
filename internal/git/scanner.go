@@ -10,10 +10,12 @@ import (
 	"time"
 )
 
-// ScanRepositories finds all git repositories under the given root path
+// ScanRepositories finds all git repositories under the given root path.
+// If opts.KnownPaths is populated, repos at those absolute paths are
+// analyzed immediately without re-walking their directory tree (unless the
+// per-path rescan_submodules flag is true), which significantly speeds up
+// startup when many repos are already tracked.
 func ScanRepositories(opts ScanOptions) ([]Repository, error) {
-	// TODO: Implement caching if opts.UseCache
-
 	repos := make([]Repository, 0)
 	reposMutex := &sync.Mutex{}
 
@@ -21,56 +23,81 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 	semaphore := make(chan struct{}, opts.Workers)
 	var wg sync.WaitGroup
 
-	// Walk the directory tree
-	err := filepath.Walk(opts.RootPath, func(path string, info os.FileInfo, err error) error {
+	// Resolve root to an absolute path so KnownPaths lookups work correctly.
+	absRoot, err := filepath.Abs(opts.RootPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolving scan path: %w", err)
+	}
+
+	spawnAnalysis := func(repoPath string) {
+		wg.Add(1)
+		semaphore <- struct{}{}
+		go func(p string) {
+			defer wg.Done()
+			defer func() { <-semaphore }()
+
+			repo, err := analyzeRepository(p)
+			if err != nil {
+				return
+			}
+			reposMutex.Lock()
+			repos = append(repos, repo)
+			reposMutex.Unlock()
+		}(repoPath)
+	}
+
+	// Pre-analyze all known paths immediately so they appear in results even
+	// if the walk skips them. This also handles nested known repos correctly
+	// (a parent skipped by the walker does not prevent inner repos from being
+	// analyzed, since they were already queued here).
+	for knownPath := range opts.KnownPaths {
+		spawnAnalysis(knownPath)
+	}
+
+	// Walk the directory tree to discover new (unknown) repos.
+	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// Skip directories we can't access
 			return nil
 		}
 
-		// Check if this is a .git directory
-		if info.IsDir() && info.Name() == ".git" {
-			// Found a git repo!
-			repoPath := filepath.Dir(path)
+		if !info.IsDir() {
+			return nil
+		}
 
-			// Spawn goroutine to process this repo
-			wg.Add(1)
-			semaphore <- struct{}{} // Acquire
+		absPath, absErr := filepath.Abs(path)
+		if absErr != nil {
+			return nil
+		}
 
-			go func(path string) {
-				defer wg.Done()
-				defer func() { <-semaphore }() // Release
+		// If this directory is a known repo root:
+		//   rescan=false → skip the entire subtree (already queued above)
+		//   rescan=true  → continue walking so new submodules inside are found
+		if rescan, isKnown := opts.KnownPaths[absPath]; isKnown && !rescan {
+			return filepath.SkipDir
+		}
 
-				repo, err := analyzeRepository(path)
-				if err != nil {
-					// Skip repos we can't analyze
-					return
-				}
-
-				reposMutex.Lock()
-				repos = append(repos, repo)
-				reposMutex.Unlock()
-			}(repoPath)
-
-			// Don't descend into .git directory
+		// Check if this is a .git directory (signals a repo root).
+		if info.Name() == ".git" {
+			repoPath := filepath.Dir(absPath)
+			// Only queue if not already handled via KnownPaths pre-analysis.
+			if _, alreadyKnown := opts.KnownPaths[repoPath]; !alreadyKnown {
+				spawnAnalysis(repoPath)
+			}
 			return filepath.SkipDir
 		}
 
 		// Check exclude patterns
-		if info.IsDir() {
-			for _, exclude := range opts.Exclude {
-				if info.Name() == exclude {
-					return filepath.SkipDir
-				}
+		for _, exclude := range opts.Exclude {
+			if info.Name() == exclude {
+				return filepath.SkipDir
 			}
 		}
 
 		// Check depth limit
-		depth := strings.Count(strings.TrimPrefix(path, opts.RootPath), string(os.PathSeparator))
+		depth := strings.Count(strings.TrimPrefix(path, absRoot), string(os.PathSeparator))
 		if depth > opts.MaxDepth {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
+			return filepath.SkipDir
 		}
 
 		return nil

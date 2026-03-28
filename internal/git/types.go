@@ -42,6 +42,19 @@ func (m RepoMode) String() string {
 	}
 }
 
+// ParseMode converts a mode string back to a RepoMode constant.
+// Unrecognised strings return ModePushKnownBranches.
+func ParseMode(s string) RepoMode {
+	switch s {
+	case "leave-untouched":
+		return ModeLeaveUntouched
+	case "push-all":
+		return ModePushAll
+	default:
+		return ModePushKnownBranches
+	}
+}
+
 // ScanOptions configures repository scanning
 type ScanOptions struct {
 	// Root path to start scanning from
@@ -64,6 +77,13 @@ type ScanOptions struct {
 
 	// Parallel workers
 	Workers int
+
+	// KnownPaths maps absolute repo paths already in the registry to their
+	// rescan_submodules flag. When rescan_submodules is false the scanner skips
+	// descending into the directory (it is already known), but still analyzes
+	// it for fresh metadata. When true the scanner descends normally so that
+	// new submodules inside the repo can be discovered.
+	KnownPaths map[string]bool
 }
 
 // DefaultScanOptions returns sensible defaults

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/executor"
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/TBRX103/git-fire/internal/safety"
 	"github.com/TBRX103/git-fire/internal/ui"
 )
@@ -91,10 +94,56 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		fmt.Println(safety.SecurityNotice())
 	}
 
+	// Load persistent registry
+	regPath, err := registry.DefaultRegistryPath()
+	if err != nil {
+		return fmt.Errorf("registry path: %w", err)
+	}
+	reg, err := registry.Load(regPath)
+	if err != nil {
+		return fmt.Errorf("loading registry: %w", err)
+	}
+
+	// Validate known paths and mark missing ones
+	registryUpdated := false
+	for i, entry := range reg.Repos {
+		if entry.Status == registry.StatusIgnored {
+			continue
+		}
+		if _, statErr := os.Stat(entry.Path); os.IsNotExist(statErr) {
+			if reg.Repos[i].Status != registry.StatusMissing {
+				reg.Repos[i].Status = registry.StatusMissing
+				registryUpdated = true
+			}
+		} else if entry.Status == registry.StatusMissing {
+			reg.Repos[i].Status = registry.StatusActive
+			registryUpdated = true
+		}
+	}
+
+	// Build KnownPaths for the scanner: active entries only.
+	// Resolve the global rescan_submodules default for entries that don't
+	// override it.
+	knownPaths := make(map[string]bool)
+	for _, entry := range reg.Repos {
+		if entry.Status != registry.StatusActive {
+			continue
+		}
+		absPath, absErr := filepath.Abs(entry.Path)
+		if absErr != nil {
+			continue
+		}
+		rescan := cfg.Global.RescanSubmodules
+		if entry.RescanSubmodules != nil {
+			rescan = *entry.RescanSubmodules
+		}
+		knownPaths[absPath] = rescan
+	}
+
 	// Background scanning - start immediately
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
 	fmt.Println()
-	fmt.Println("⏳ Scanning repositories and checking SSH keys...")
+	fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(knownPaths))
 	fmt.Println()
 
 	var (
@@ -115,6 +164,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		opts.RootPath = cfg.Global.ScanPath
 		opts.Exclude = cfg.Global.ScanExclude
 		opts.Workers = cfg.Global.ScanWorkers
+		opts.KnownPaths = knownPaths
 
 		repos, scanErr = git.ScanRepositories(opts)
 	}()
@@ -136,6 +186,53 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("SSH status check failed: %w", sshErr)
 	}
 
+	// Upsert all discovered repos into the registry, preserving per-repo
+	// mode from the registry when available.
+	now := time.Now()
+	for i, repo := range repos {
+		absPath, absErr := filepath.Abs(repo.Path)
+		if absErr != nil {
+			continue
+		}
+		existing := reg.FindByPath(absPath)
+		if existing != nil {
+			// Restore persisted mode onto the in-memory repo
+			if existing.Mode != "" {
+				repos[i].Mode = git.ParseMode(existing.Mode)
+			}
+			existing.LastSeen = now
+			existing.Status = registry.StatusActive
+		} else {
+			// New discovery — add to registry
+			reg.Upsert(registry.RegistryEntry{
+				Path:     absPath,
+				Name:     repo.Name,
+				Status:   registry.StatusActive,
+				Mode:     repo.Mode.String(),
+				AddedAt:  now,
+				LastSeen: now,
+			})
+			registryUpdated = true
+		}
+	}
+
+	// Persist registry if anything changed
+	if registryUpdated || len(repos) > 0 {
+		_ = registry.Save(reg, regPath) // best-effort; don't fail the run
+	}
+
+	// Exclude ignored repos from backup
+	activeRepos := make([]git.Repository, 0, len(repos))
+	for _, repo := range repos {
+		absPath, _ := filepath.Abs(repo.Path)
+		entry := reg.FindByPath(absPath)
+		if entry != nil && entry.Status == registry.StatusIgnored {
+			continue
+		}
+		activeRepos = append(activeRepos, repo)
+	}
+	repos = activeRepos
+
 	// Show scan results
 	fmt.Printf("✓ Found %d repositories\n", len(repos))
 	fmt.Printf("✓ SSH Status: %d keys available", len(sshStatus.AvailableKeys))
@@ -156,9 +253,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		// Seed defaults so the TUI can show current state and the user can override
 		for i := range repos {
 			repos[i].Selected = true
-			repos[i].Mode = git.ModePushKnownBranches
+			if repos[i].Mode == git.ModeLeaveUntouched {
+				repos[i].Mode = git.ModePushKnownBranches
+			}
 		}
-		selected, err := ui.RunRepoSelector(repos)
+		selected, err := ui.RunRepoSelector(repos, reg, regPath)
 		if err != nil {
 			if errors.Is(err, ui.ErrCancelled) {
 				fmt.Println("Aborted.")
@@ -174,7 +273,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	} else {
 		for i := range repos {
 			repos[i].Selected = true
-			repos[i].Mode = git.ModePushKnownBranches
+			if repos[i].Mode == git.ModeLeaveUntouched {
+				repos[i].Mode = git.ModePushKnownBranches
+			}
 		}
 	}
 

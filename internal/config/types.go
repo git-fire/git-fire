@@ -28,6 +28,9 @@ type GlobalConfig struct {
 	ScanDepth   int           `mapstructure:"scan_depth"`
 	ScanWorkers int           `mapstructure:"scan_workers"`
 	CacheTTL    time.Duration `mapstructure:"cache_ttl"`
+
+	// Re-scan known repos for new submodules (global default; overridable per-repo in registry)
+	RescanSubmodules bool `mapstructure:"rescan_submodules"`
 }
 
 // BackupConfig contains backup mode settings
@@ -74,6 +77,9 @@ type RepoOverride struct {
 
 	// Skip auto-commit for this repo
 	SkipAutoCommit bool `mapstructure:"skip_auto_commit"`
+
+	// Re-scan this repo for submodules. nil/unset = use global default.
+	RescanSubmodules *bool `mapstructure:"rescan_submodules"`
 }
 
 // PluginsConfig contains plugin configuration
