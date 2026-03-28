@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -154,6 +155,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if fireMode {
 		selected, err := ui.RunRepoSelector(repos)
 		if err != nil {
+			if errors.Is(err, ui.ErrCancelled) {
+				fmt.Println("Aborted.")
+				return nil
+			}
 			return fmt.Errorf("repo selection failed: %w", err)
 		}
 		if len(selected) == 0 {

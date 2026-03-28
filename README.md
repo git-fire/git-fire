@@ -195,7 +195,7 @@ git-fire isn't just for emergencies. It's also a perfectly valid end-of-day tool
 git-fire
 ```
 
-One command. Every dirty repo in `~/projects` gets committed and pushed. You leave with a clean slate and nothing left unsaved. No need to context-switch back through eight terminals figuring out what you were working on.
+One command. Every dirty repo in your working directory (or `--path ~/projects`) gets committed and pushed. You leave with a clean slate and nothing left unsaved. No need to context-switch back through eight terminals figuring out what you were working on.
 
 The `--dry-run` flag lets you preview what it would commit before actually doing it.
 

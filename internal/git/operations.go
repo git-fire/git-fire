@@ -619,10 +619,10 @@ func GetUncommittedFiles(repoPath string) ([]string, error) {
 		}
 		xy := entry[:2]
 		path := entry[3:] // skip "XY " prefix
-		// Rename/copy: status starts with R or C, next NUL token is the new path
+		// Rename/copy: git status -z gives "XY new_path\0old_path\0"
+		// entry[3:] already has the new (destination) path; skip the old path token.
 		if (xy[0] == 'R' || xy[0] == 'C') && i < len(entries) {
-			path = entries[i] // new path is the following NUL-delimited token
-			i++
+			i++ // consume old path token — path is already set to the new path
 		}
 		if path != "" {
 			files = append(files, path)

@@ -679,3 +679,81 @@ func TestGetCurrentBranch_DetachedHead(t *testing.T) {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
+
+func TestGetUncommittedFiles(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Committed file that will be modified in working tree ( M status)
+	repo.AddFile("tracked.txt", "original").Commit("add tracked")
+	repo.ModifyFile("tracked.txt", "modified")
+
+	// Staged new file (A  status) — added after the commit above
+	repo.AddFile("staged.txt", "staged content")
+
+	// Untracked file (written directly, not staged)
+	if err := os.WriteFile(filepath.Join(repo.Path(), "untracked.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatalf("failed to write untracked file: %v", err)
+	}
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	if !fileSet["staged.txt"] {
+		t.Errorf("expected staged.txt in results, got %v", files)
+	}
+	if !fileSet["tracked.txt"] {
+		t.Errorf("expected tracked.txt in results, got %v", files)
+	}
+	if !fileSet["untracked.txt"] {
+		t.Errorf("expected untracked.txt in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_Rename(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Commit a file, then rename it so it shows as R in git status
+	repo.AddFile("old-name.txt", "content").StageFile("old-name.txt").Commit("add file")
+
+	// Rename via git mv so it's staged as a rename
+	testutil.RunGitCmd(t, repo.Path(), "mv", "old-name.txt", "new-name.txt")
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	// Should return the new (destination) path, not the old one
+	if !fileSet["new-name.txt"] {
+		t.Errorf("expected new-name.txt (rename destination) in results, got %v", files)
+	}
+	if fileSet["old-name.txt"] {
+		t.Errorf("old-name.txt (rename source) should not be in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_Clean(t *testing.T) {
+	_, repo := testutil.CreateCleanRepoScenario(t)
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("expected no files for clean repo, got %v", files)
+	}
+}
