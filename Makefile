@@ -1,7 +1,7 @@
 BINARY := git-fire
 MODULE := github.com/TBRX103/git-fire
 
-.PHONY: all build run test test-race lint lint-fix vet clean install help
+.PHONY: all build run test test-race lint clean install help
 
 all: build
 
@@ -21,16 +21,8 @@ test:
 test-race:
 	go test -race -count=1 ./...
 
-## lint: run golangci-lint (install: https://golangci-lint.run/usage/install/)
+## lint: vet the code
 lint:
-	golangci-lint run ./...
-
-## lint-fix: run golangci-lint and auto-fix what it can
-lint-fix:
-	golangci-lint run --fix ./...
-
-## vet: run go vet only (faster than full lint)
-vet:
 	go vet ./...
 
 ## clean: remove the built binary
