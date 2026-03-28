@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux
+          - { goos: linux,   goarch: amd64,  name: linux-amd64   }
+          - { goos: linux,   goarch: arm64,  name: linux-arm64   }
+          - { goos: linux,   goarch: arm,    goarm: "6", name: linux-armv6 }
+          # macOS
+          - { goos: darwin,  goarch: amd64,  name: darwin-amd64  }
+          - { goos: darwin,  goarch: arm64,  name: darwin-arm64  }
+          # Windows
+          - { goos: windows, goarch: amd64,  name: windows-amd64, ext: .exe }
+          - { goos: windows, goarch: arm64,  name: windows-arm64, ext: .exe }
+          - { goos: windows, goarch: "386",  name: windows-386,   ext: .exe }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath -ldflags="-s -w" \
+            -o "git-fire-${{ matrix.name }}${{ matrix.ext }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-fire-${{ matrix.name }}
+          path: git-fire-${{ matrix.name }}${{ matrix.ext }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum * | tee checksums.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
