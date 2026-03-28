@@ -35,6 +35,7 @@ func TestAutoCommitDirty(t *testing.T) {
 			})
 
 			err := AutoCommitDirty(repo, CommitOptions{
+				AddAll:  true,
 				Message: "Emergency backup",
 			})
 
@@ -637,5 +638,181 @@ func TestListWorktrees(t *testing.T) {
 		if featureWorktree.Path != worktreePath {
 			t.Errorf("Expected worktree path %s, got %s", worktreePath, featureWorktree.Path)
 		}
+	}
+}
+
+// TestAutoCommitDirty_DetachedHead validates that AutoCommitDirty fails safely
+// when the repo is in detached HEAD state. The original qw3rtman/git-fire (bash)
+// was known to behave incorrectly in this scenario.
+func TestAutoCommitDirty_DetachedHead(t *testing.T) {
+	_, repo, _ := testutil.CreateDetachedHeadScenario(t)
+
+	// Add an untracked file so the repo is dirty
+	dirtyFile := filepath.Join(repo.Path(), "dirty.txt")
+	if err := os.WriteFile(dirtyFile, []byte("change\n"), 0644); err != nil {
+		t.Fatalf("failed to create dirty file: %v", err)
+	}
+
+	err := AutoCommitDirty(repo.Path(), CommitOptions{AddAll: true})
+	if err == nil {
+		t.Fatal("expected an error for detached HEAD, got nil")
+	}
+	// git commit fails with "not a branch" / "HEAD detached" messaging
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "detached") &&
+		!strings.Contains(errMsg, "not a branch") &&
+		!strings.Contains(errMsg, "HEAD") {
+		t.Errorf("unexpected error message for detached HEAD: %v", err)
+	}
+}
+
+// TestGetCurrentBranch_DetachedHead validates that GetCurrentBranch returns an
+// explicit error (not an empty string) when HEAD is detached.
+func TestGetCurrentBranch_DetachedHead(t *testing.T) {
+	_, repo, _ := testutil.CreateDetachedHeadScenario(t)
+
+	branch, err := GetCurrentBranch(repo.Path())
+	if err == nil {
+		t.Fatalf("expected error for detached HEAD, got branch=%q", branch)
+	}
+	if !strings.Contains(err.Error(), "detached HEAD") && !strings.Contains(err.Error(), "not on any branch") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestGetUncommittedFiles(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Committed file that will be modified in working tree ( M status)
+	repo.AddFile("tracked.txt", "original").Commit("add tracked")
+	repo.ModifyFile("tracked.txt", "modified")
+
+	// Staged new file (A  status) — added after the commit above
+	repo.AddFile("staged.txt", "staged content")
+
+	// Untracked file (written directly, not staged)
+	if err := os.WriteFile(filepath.Join(repo.Path(), "untracked.txt"), []byte("hello\n"), 0644); err != nil {
+		t.Fatalf("failed to write untracked file: %v", err)
+	}
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	if !fileSet["staged.txt"] {
+		t.Errorf("expected staged.txt in results, got %v", files)
+	}
+	if !fileSet["tracked.txt"] {
+		t.Errorf("expected tracked.txt in results, got %v", files)
+	}
+	if !fileSet["untracked.txt"] {
+		t.Errorf("expected untracked.txt in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_SpacesInPath(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	repo.AddFile("normal.txt", "content").Commit("initial")
+
+	// File with spaces in the name — old line-based parsers would split on the space
+	if err := os.WriteFile(filepath.Join(repo.Path(), "file with spaces.txt"), []byte("spaced\n"), 0644); err != nil {
+		t.Fatalf("failed to write spaced file: %v", err)
+	}
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	if !fileSet["file with spaces.txt"] {
+		t.Errorf("expected 'file with spaces.txt' in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_Rename(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Commit a file, then rename it so it shows as R in git status
+	repo.AddFile("old-name.txt", "content").StageFile("old-name.txt").Commit("add file")
+
+	// Rename via git mv so it's staged as a rename
+	testutil.RunGitCmd(t, repo.Path(), "mv", "old-name.txt", "new-name.txt")
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	// Should return the new (destination) path, not the old one
+	if !fileSet["new-name.txt"] {
+		t.Errorf("expected new-name.txt (rename destination) in results, got %v", files)
+	}
+	if fileSet["old-name.txt"] {
+		t.Errorf("old-name.txt (rename source) should not be in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_Copy(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+
+	// Commit a file with enough content for Git's similarity detection
+	content := "copy detection content: this file will be copied to a new path\n"
+	repo.AddFile("old-name.txt", content).StageFile("old-name.txt").Commit("add file")
+
+	// Enable copy detection so git status reports C instead of A for similar new files
+	testutil.RunGitCmd(t, repo.Path(), "config", "status.renames", "copies")
+
+	// Stage a new file with identical content — Git should detect it as a copy
+	repo.AddFile("new-name.txt", content).StageFile("new-name.txt")
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+
+	fileSet := make(map[string]bool, len(files))
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	// Should return the copy destination (new path), not the source
+	if !fileSet["new-name.txt"] {
+		t.Errorf("expected new-name.txt (copy destination) in results, got %v", files)
+	}
+	if fileSet["old-name.txt"] {
+		t.Errorf("old-name.txt (copy source) should not be in results, got %v", files)
+	}
+}
+
+func TestGetUncommittedFiles_Clean(t *testing.T) {
+	_, repo := testutil.CreateCleanRepoScenario(t)
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("expected no files for clean repo, got %v", files)
 	}
 }

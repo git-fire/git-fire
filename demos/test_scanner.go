@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -33,7 +35,7 @@ func main() {
 
 	if len(repos) == 0 {
 		fmt.Println("No repositories found. Try specifying a different path:")
-		fmt.Println("  go run ./cmd/test_scanner.go ~/projects")
+		fmt.Println("  go run ./demos/test_scanner.go ~/projects")
 		os.Exit(0)
 	}
 

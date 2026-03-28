@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/TBRX103/git-fire/internal/executor"
 	"github.com/TBRX103/git-fire/internal/git"
 	"github.com/TBRX103/git-fire/internal/safety"
+	"github.com/TBRX103/git-fire/internal/ui"
 )
 
 var (
@@ -49,7 +51,7 @@ func Execute() error {
 func init() {
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.Flags().BoolVar(&fireDrill, "fire-drill", false, "Alias for --dry-run")
-	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Use fancy fire UI mode")
+	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Fire mode: TUI repo selector, skips confirmation prompt")
 	rootCmd.Flags().StringVar(&scanPath, "path", ".", "Path to scan for repositories")
 	rootCmd.Flags().BoolVar(&skipCommit, "skip-auto-commit", false, "Skip auto-committing dirty repos")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
@@ -149,12 +151,31 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Interactive repo selection
-	// For MVP, we'll auto-select all repos
-	// TODO: Use TUI for selection when fireMode is enabled
-	for i := range repos {
-		repos[i].Selected = true
-		repos[i].Mode = git.ModePushKnownBranches // Default mode
+	// Repo selection: TUI when --fire is set, otherwise auto-select all
+	if fireMode {
+		// Seed defaults so the TUI can show current state and the user can override
+		for i := range repos {
+			repos[i].Selected = true
+			repos[i].Mode = git.ModePushKnownBranches
+		}
+		selected, err := ui.RunRepoSelector(repos)
+		if err != nil {
+			if errors.Is(err, ui.ErrCancelled) {
+				fmt.Println("Aborted.")
+				return nil
+			}
+			return fmt.Errorf("repo selection failed: %w", err)
+		}
+		if len(selected) == 0 {
+			fmt.Println("No repositories selected.")
+			return nil
+		}
+		repos = selected
+	} else {
+		for i := range repos {
+			repos[i].Selected = true
+			repos[i].Mode = git.ModePushKnownBranches
+		}
 	}
 
 	// Show selected repos
@@ -192,14 +213,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Confirm execution (skip in fire mode or if --yes flag added)
-	fmt.Print("🔥 Proceed with pushing? [y/N]: ")
-	var response string
-	fmt.Scanln(&response)
-
-	if response != "y" && response != "Y" {
-		fmt.Println("Aborted.")
-		return nil
+	// Confirm execution (skip in fire mode — no time to type y in an emergency)
+	if !fireMode {
+		fmt.Print("Proceed with pushing? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Aborted.")
+			return nil
+		}
 	}
 
 	// Setup logging

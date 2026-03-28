@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
+var ErrCancelled = errors.New("cancelled")
 
 var (
 	titleStyle = lipgloss.NewStyle().
@@ -305,7 +309,7 @@ func RunRepoSelector(repos []git.Repository) ([]git.Repository, error) {
 	m := finalModel.(RepoSelectorModel)
 
 	if !m.confirmed {
-		return nil, fmt.Errorf("cancelled")
+		return nil, ErrCancelled
 	}
 
 	return m.GetSelectedRepos(), nil

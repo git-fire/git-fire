@@ -2,10 +2,12 @@ package executor
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/safety"
 )
 
 // Runner executes push plans
@@ -146,7 +148,10 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 
 	switch action.Type {
 	case ActionAutoCommit:
+		// Scan for secrets before committing — warn on stderr but always proceed
+		warnAboutSecrets(repo.Path)
 		err = git.AutoCommitDirty(repo.Path, git.CommitOptions{
+			AddAll:  true,
 			Message: fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
 		})
 
@@ -234,6 +239,15 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 		result.TotalActions += len(repoPlan.Actions)
 		result.RepoResults = append(result.RepoResults, repoResult)
 
+		// Warn about secrets even in dry run — the whole point of dry run is to
+		// surface issues before they become real commits.
+		for _, action := range repoPlan.Actions {
+			if action.Type == ActionAutoCommit {
+				warnAboutSecrets(repoPlan.Repo.Path)
+				break
+			}
+		}
+
 		r.sendProgress(Progress{
 			CurrentRepo: i + 1,
 			TotalRepos:  len(plan.Repos),
@@ -280,4 +294,14 @@ func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
 
 	// Fallback: return empty string if remote not found
 	return ""
+}
+
+// warnAboutSecrets scans uncommitted files for secrets and prints warnings to stderr.
+func warnAboutSecrets(repoPath string) {
+	if uncommitted, scanErr := git.GetUncommittedFiles(repoPath); scanErr == nil && len(uncommitted) > 0 {
+		scanner := safety.NewSecretScanner()
+		if suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted); scanErr == nil && len(suspicious) > 0 {
+			fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+		}
+	}
 }

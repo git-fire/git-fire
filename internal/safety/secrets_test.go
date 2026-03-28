@@ -3,6 +3,7 @@ package safety
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -254,16 +255,16 @@ func TestFormatWarning(t *testing.T) {
 	}
 
 	// Should contain file paths
-	if !contains(warning, ".env") {
+	if !strings.Contains(warning, ".env") {
 		t.Error("Warning should mention .env file")
 	}
 
-	if !contains(warning, "config.yml") {
+	if !strings.Contains(warning, "config.yml") {
 		t.Error("Warning should mention config.yml file")
 	}
 
 	// Should contain recommendations
-	if !contains(warning, "RECOMMENDATIONS") {
+	if !strings.Contains(warning, "RECOMMENDATIONS") {
 		t.Error("Warning should include recommendations")
 	}
 }
@@ -284,15 +285,15 @@ func TestSecurityNotice(t *testing.T) {
 	}
 
 	// Should contain key warnings
-	if !contains(notice, "WARNING") {
+	if !strings.Contains(notice, "WARNING") {
 		t.Error("Notice should contain WARNING")
 	}
 
-	if !contains(notice, ".env") {
+	if !strings.Contains(notice, ".env") {
 		t.Error("Notice should mention .env files")
 	}
 
-	if !contains(notice, "--dry-run") {
+	if !strings.Contains(notice, "--dry-run") {
 		t.Error("Notice should recommend --dry-run")
 	}
 }
@@ -309,10 +310,10 @@ func TestRecommendedGitignorePatterns(t *testing.T) {
 	foundPem := false
 
 	for _, pattern := range patterns {
-		if contains(pattern, ".env") {
+		if strings.Contains(pattern, ".env") {
 			foundEnv = true
 		}
-		if contains(pattern, ".pem") {
+		if strings.Contains(pattern, ".pem") {
 			foundPem = true
 		}
 	}
@@ -326,19 +327,3 @@ func TestRecommendedGitignorePatterns(t *testing.T) {
 	}
 }
 
-// Helper function to check if string contains substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && containsHelper(s, substr)
-}
-
-func containsHelper(s, substr string) bool {
-	if s == substr {
-		return true
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

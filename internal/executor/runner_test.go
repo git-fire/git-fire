@@ -1,6 +1,11 @@
 package executor
 
 import (
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -378,9 +383,12 @@ func TestRunner_ProgressTracking(t *testing.T) {
 		t.Fatalf("BuildPlan() error = %v", err)
 	}
 
-	// Collect progress updates
+	// Collect progress updates — use WaitGroup so we don't race on the slice
+	var wg sync.WaitGroup
 	progressUpdates := []Progress{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for progress := range runner.progress {
 			progressUpdates = append(progressUpdates, progress)
 		}
@@ -392,8 +400,9 @@ func TestRunner_ProgressTracking(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	// Give progress channel time to flush
-	time.Sleep(10 * time.Millisecond)
+	// Close the channel so the range loop above exits, then wait for it
+	runner.Close()
+	wg.Wait()
 
 	// Verify progress updates were sent
 	if len(progressUpdates) < 1 {
@@ -631,5 +640,76 @@ func TestProgress_Status(t *testing.T) {
 
 	if progress.TotalRepos != 5 {
 		t.Errorf("Expected total repos to be 5, got %d", progress.TotalRepos)
+	}
+}
+
+// TestDryRun_SecretWarning verifies that --dry-run emits a secret warning to
+// stderr when uncommitted files contain a detectable secret pattern.
+func TestDryRun_SecretWarning(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("initial.txt", "content\n").
+		Commit("initial")
+
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	// Drop a file with a fake AWS key — untracked, not staged
+	secretFile := filepath.Join(repo.Path(), "secrets.txt")
+	if err := os.WriteFile(secretFile, []byte("AWS_KEY=AKIAIOSFODNN7EXAMPLE\n"), 0644); err != nil {
+		t.Fatalf("failed to write secret file: %v", err)
+	}
+
+	repos := []git.Repository{
+		{
+			Path:    repo.Path(),
+			Name:    "dirty-repo",
+			Selected: true,
+			Mode:    git.ModePushKnownBranches,
+			IsDirty: true,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: remote.Path()},
+			},
+			Branches: []string{defaultBranch},
+		},
+	}
+
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan(repos, true) // dry run
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	// Capture stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+
+	_, err = runner.Execute(plan)
+
+	w.Close()
+	os.Stderr = old
+
+	var buf strings.Builder
+	io.Copy(&buf, r)
+	stderr := buf.String()
+
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !strings.Contains(stderr, "WARNING") {
+		t.Errorf("expected secret warning on stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "AWS") {
+		t.Errorf("expected AWS pattern name in warning, got: %q", stderr)
 	}
 }

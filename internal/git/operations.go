@@ -11,7 +11,7 @@ import (
 // CommitOptions configures auto-commit behavior
 type CommitOptions struct {
 	Message           string // Commit message
-	AddAll            bool   // Run git add -A (default: true)
+	AddAll            bool   // Run git add -A; must be set explicitly (default: false)
 	UseDualBranch     bool   // Use staged/unstaged dual branch strategy (default: true)
 	ReturnToOriginal  bool   // Reset to original state after creating branches (default: true)
 }
@@ -34,24 +34,23 @@ type Worktree struct {
 // AutoCommitDirty commits all uncommitted changes in a repo
 // Returns nil if repo is already clean
 func AutoCommitDirty(repoPath string, opts CommitOptions) error {
-	// Check if repo is dirty
+	// Check if repo is dirty first — clean repos are a no-op regardless of HEAD state
 	isDirty, err := IsDirty(repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to check repo status: %w", err)
 	}
 
 	if !isDirty {
-		// Repo is clean, nothing to do
 		return nil
 	}
 
-	// Add all changes (respects .gitignore)
-	addAll := opts.AddAll
-	if !addAll {
-		addAll = true // Default to adding all
+	// Refuse to commit in detached HEAD — the commit would be unreachable
+	if _, err := GetCurrentBranch(repoPath); err != nil {
+		return fmt.Errorf("cannot auto-commit: %w", err)
 	}
 
-	if addAll {
+	// Add all changes (respects .gitignore)
+	if opts.AddAll {
 		cmd := exec.Command("git", "add", "-A")
 		cmd.Dir = repoPath
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -591,6 +590,45 @@ func commitChanges(repoPath, message string, addAll bool) error {
 	}
 
 	return nil
+}
+
+// GetUncommittedFiles returns the relative paths of all files that would be
+// staged by git add -A — modified, added, deleted, and untracked files that
+// are not excluded by .gitignore.
+//
+// Uses --porcelain -z (NUL-delimited) to avoid the quoting that git applies
+// to filenames containing spaces or special characters in plain porcelain output.
+func GetUncommittedFiles(repoPath string) ([]string, error) {
+	cmd := exec.Command("git", "status", "--porcelain", "-z")
+	cmd.Dir = repoPath
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git status failed: %w", err)
+	}
+
+	var files []string
+	// -z output: entries are NUL-terminated; renames produce two NUL-separated tokens
+	entries := strings.Split(string(output), "\x00")
+	i := 0
+	for i < len(entries) {
+		entry := entries[i]
+		i++
+		if len(entry) < 4 {
+			continue
+		}
+		xy := entry[:2]
+		path := entry[3:] // skip "XY " prefix
+		// Rename/copy: git status -z gives "XY new_path\0old_path\0"
+		// entry[3:] already has the new (destination) path; skip the old path token.
+		if (xy[0] == 'R' || xy[0] == 'C') && i < len(entries) {
+			i++ // consume old path token — path is already set to the new path
+		}
+		if path != "" {
+			files = append(files, path)
+		}
+	}
+	return files, nil
 }
 
 // createBranch creates a new branch at the current HEAD

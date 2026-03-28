@@ -30,3 +30,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Built binary
+git-fire
+
+# Claude Code local settings (contains machine-specific paths and permissions)
+.claude/
