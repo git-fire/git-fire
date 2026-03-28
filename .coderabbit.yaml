@@ -26,7 +26,7 @@ reviews:
     golangci-lint:
       enabled: true
     ast-grep:
-      enabled: true
+      essential_rules: true
     shellcheck:
       enabled: true  # catches issues in fire.sh, scripts/
 
