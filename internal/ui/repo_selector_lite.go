@@ -44,6 +44,7 @@ type RepoSelectorLiteModel struct {
 	confirmed bool
 	reg       *registry.Registry
 	regPath   string
+	lastErr   error
 }
 
 // NewRepoSelectorLiteModel creates a new lite repo selector
@@ -109,12 +110,12 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case git.ModePushAll:
 				repo.Mode = git.ModeLeaveUntouched
 			}
-			m.persistMode(repo.Path, repo.Mode)
+			m.lastErr = m.persistMode(repo.Path, repo.Mode)
 
 		case "x":
 			if len(m.repos) > 0 {
 				repo := m.repos[m.cursor]
-				m.persistIgnore(repo.Path)
+				m.lastErr = m.persistIgnore(repo.Path)
 				m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
 				newSelected := make(map[int]bool)
 				for i := range m.repos {
@@ -217,16 +218,20 @@ func (m RepoSelectorLiteModel) View() string {
 	)
 	s.WriteString(help)
 
+	if m.lastErr != nil {
+		s.WriteString(fmt.Sprintf("\n\n⚠️  registry save failed: %v", m.lastErr))
+	}
+
 	return liteBoxStyle.Render(s.String())
 }
 
-func (m RepoSelectorLiteModel) persistMode(repoPath string, mode git.RepoMode) {
+func (m RepoSelectorLiteModel) persistMode(repoPath string, mode git.RepoMode) error {
 	if m.reg == nil || m.regPath == "" {
-		return
+		return nil
 	}
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
-		return
+		return err
 	}
 	entry := m.reg.FindByPath(absPath)
 	if entry != nil {
@@ -239,16 +244,16 @@ func (m RepoSelectorLiteModel) persistMode(repoPath string, mode git.RepoMode) {
 			Mode:   mode.String(),
 		})
 	}
-	_ = registry.Save(m.reg, m.regPath)
+	return registry.Save(m.reg, m.regPath)
 }
 
-func (m RepoSelectorLiteModel) persistIgnore(repoPath string) {
+func (m RepoSelectorLiteModel) persistIgnore(repoPath string) error {
 	if m.reg == nil || m.regPath == "" {
-		return
+		return nil
 	}
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
-		return
+		return err
 	}
 	if !m.reg.SetStatus(absPath, registry.StatusIgnored) {
 		m.reg.Upsert(registry.RegistryEntry{
@@ -257,7 +262,7 @@ func (m RepoSelectorLiteModel) persistIgnore(repoPath string) {
 			Status: registry.StatusIgnored,
 		})
 	}
-	_ = registry.Save(m.reg, m.regPath)
+	return registry.Save(m.reg, m.regPath)
 }
 
 // GetSelectedRepos returns the selected repositories

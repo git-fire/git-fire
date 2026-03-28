@@ -94,14 +94,16 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		fmt.Println(safety.SecurityNotice())
 	}
 
-	// Load persistent registry
-	regPath, err := registry.DefaultRegistryPath()
-	if err != nil {
-		return fmt.Errorf("registry path: %w", err)
-	}
-	reg, err := registry.Load(regPath)
-	if err != nil {
-		return fmt.Errorf("loading registry: %w", err)
+	// Load persistent registry (best-effort: fall back to empty in-memory registry on failure)
+	reg := &registry.Registry{}
+	regPath := ""
+	if p, err := registry.DefaultRegistryPath(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: registry disabled: %v\n", err)
+	} else if loaded, err := registry.Load(p); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: ignoring unreadable registry %s: %v\n", p, err)
+	} else {
+		regPath = p
+		reg = loaded
 	}
 
 	// Validate known paths and mark missing ones
@@ -219,7 +221,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Persist registry if anything changed
-	if registryUpdated || len(repos) > 0 {
+	if regPath != "" && (registryUpdated || len(repos) > 0) {
 		_ = registry.Save(reg, regPath) // best-effort; don't fail the run
 	}
 

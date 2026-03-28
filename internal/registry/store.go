@@ -71,8 +71,11 @@ func Save(reg *Registry, path string) error {
 func (r *Registry) Upsert(entry RegistryEntry) {
 	for i, e := range r.Repos {
 		if e.Path == entry.Path {
-			// Preserve the original AddedAt
+			// Preserve the original AddedAt and per-repo RescanSubmodules override
 			entry.AddedAt = e.AddedAt
+			if entry.RescanSubmodules == nil {
+				entry.RescanSubmodules = e.RescanSubmodules
+			}
 			r.Repos[i] = entry
 			return
 		}
