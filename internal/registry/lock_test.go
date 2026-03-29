@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -132,11 +133,14 @@ func TestAcquireLock_Timeout(t *testing.T) {
 	registryPath := filepath.Join(t.TempDir(), "repos.toml")
 	lockPath := registryPath + ".lock"
 
-	// Simulate another process holding the lock by pre-creating the lock file.
+	// Simulate a live process holding the lock by writing the current PID.
+	// Using a dead PID would trigger the stale-lock cleanup and let acquireLock
+	// succeed immediately, defeating the purpose of this test.
 	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(lockPath, []byte("99999\n"), 0o600); err != nil {
+	lockContent := fmt.Sprintf("%d\n", os.Getpid())
+	if err := os.WriteFile(lockPath, []byte(lockContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
