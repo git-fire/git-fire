@@ -407,10 +407,12 @@ func handleStatus() error {
 	fmt.Println(sshStatus.Summary())
 
 	// Show repositories
-	opts := git.DefaultScanOptions()
-
 	// Merge registry known paths so --status counts match normal runs.
 	cfg := config.LoadOrDefault()
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = cfg.Global.ScanPath
+
 	reg := &registry.Registry{}
 	if p, err := registry.DefaultRegistryPath(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: registry disabled: %v\n", err)
