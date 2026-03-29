@@ -1,0 +1,611 @@
+== UAT remediation run ==
+Sun Mar 29 20:40:55 UTC 2026
+
+[1m[0;34m━━━ PRE-FLIGHT ━━━[0m
+[0;32m  ✓ PASS[0m  Binary exists at /home/ben/projects/git-fire/git-fire
+[0;36m    →[0m Version: git-fire version 27f5db1
+
+[1m[0;34m━━━ SCENARIO 1: Staged + Unstaged changes (no conflict) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: staged=file_a.txt, unstaged=file_b.txt
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Auto-commit uncommitted changes (in-progress)
+    [1/1] repo: Push backup branch git-fire-staged-main-20260329-164055-c1bb890 (origin) (in-progress)
+    [1/1] repo: Push backup branch git-fire-full-main-20260329-164055-d07fb5f (origin) (in-progress)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 104.019921ms
+    
+    📝 Log file: /tmp/tmp.AOQgHS6Xa0/.cache/git-fire/logs/git-fire-20260329-164055.log
+[0;32m  ✓ PASS[0m  S1: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S1: git-fire-staged-* backup branch pushed to remote (  git-fire-staged-main-20260329-164055-c1bb890)
+[0;31m  ✗ FAIL[0m  S1: file_a.txt (staged) MISSING from staged backup branch
+[0;32m  ✓ PASS[0m  S1: git-fire-full-* backup branch pushed to remote (  git-fire-full-main-20260329-164055-d07fb5f)
+[0;31m  ✗ FAIL[0m  S1: file_a.txt (staged) MISSING from full backup branch
+[0;31m  ✗ FAIL[0m  S1: file_b.txt (unstaged) MISSING from full backup branch
+
+[1m[0;34m━━━ SCENARIO 1b: Only staged changes ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: staged=staged_file.txt, nothing unstaged
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Auto-commit uncommitted changes (in-progress)
+    [1/1] repo: Push backup branch git-fire-staged-main-20260329-164055-697af9a (origin) (in-progress)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 66.38938ms
+    
+    📝 Log file: /tmp/tmp.JRhM7VXvGd/.cache/git-fire/logs/git-fire-20260329-164055.log
+[0;32m  ✓ PASS[0m  S1b: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S1b: git-fire-staged-* branch pushed (  git-fire-staged-main-20260329-164055-697af9a)
+[0;31m  ✗ FAIL[0m  S1b: staged file MISSING from backup branch
+
+[1m[0;34m━━━ SCENARIO 1c: Only unstaged changes ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: nothing staged, unstaged=unstaged_file.txt
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Auto-commit uncommitted changes (in-progress)
+    [1/1] repo: Push backup branch git-fire-full-main-20260329-164055-afc967c (origin) (in-progress)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 69.664633ms
+    
+    📝 Log file: /tmp/tmp.ALXSyuhjeu/.cache/git-fire/logs/git-fire-20260329-164055.log
+[0;32m  ✓ PASS[0m  S1c: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S1c: git-fire-full-* branch pushed (  git-fire-full-main-20260329-164055-afc967c)
+[0;31m  ✗ FAIL[0m  S1c: unstaged file MISSING from full backup branch
+
+[1m[0;34m━━━ SCENARIO 2: Staged + Unstaged + Upstream Conflict ━━━[0m
+branch 'main' set up to track 'origin/main'.
+HEAD is now at 623446f initial commit
+[0;36m    →[0m Setup: remote is 1 commit AHEAD of local fork point; local has staged+unstaged
+[0;36m    →[0m Remote commit log:
+    e449f7b remote advance commit
+    623446f initial commit
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] clone: Starting (starting)
+    [1/1] clone: Push branches that exist on remote (origin) (in-progress)
+    [1/2] clone: Complete (success)
+    [2/2] repo: Starting (starting)
+    [2/2] repo: Auto-commit uncommitted changes (in-progress)
+    [2/2] repo: Push backup branch git-fire-staged-main-20260329-164055-8bb3991 (origin) (in-progress)
+    [2/2] repo: Push backup branch git-fire-full-main-20260329-164055-aef4e2d (origin) (in-progress)
+    [2/2] repo: Push branches that exist on remote (origin) (in-progress)
+    [2/2] repo: Push branches that exist on remote (origin) (failed)
+      ❌ Error: branch main: git push failed: exit status 1
+    Stderr: To file:///tmp/tmp.f1VGNGWGsq/remote.git
+     ! [rejected]        main -> main (non-fast-forward)
+    error: failed to push some refs to 'file:///tmp/tmp.f1VGNGWGsq/remote.git'
+    hint: Updates were rejected because the tip of your current branch is behind
+    hint: its remote counterpart. If you want to integrate the remote changes,
+    hint: use 'git pull' before pushing again.
+    hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+    
+    [2/2] repo: Complete (failed)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 1 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 127.384305ms
+    
+    📝 Log file: /tmp/tmp.JKhrvghBa0/.cache/git-fire/logs/git-fire-20260329-164055.log
+    
+    ⚠️  Some repositories failed to push. Check the log for details.
+    Error: some repositories failed
+    Error: some repositories failed
+[0;32m  ✓ PASS[0m  S2: exit code non-zero (push correctly failed)
+[0;32m  ✓ PASS[0m  S2: local backup branch(es) created before push attempt (staged=  git-fire-staged-main-20260329-164055-8bb3991 full=  git-fire-full-main-20260329-164055-aef4e2d)
+[0;36m    →[0m S2: remote main commit count = 2
+[0;32m  ✓ PASS[0m  S2: remote main unchanged (push correctly rejected)
+[0;32m  ✓ PASS[0m  S2: backup branch(es) pushed to remote despite main conflict (staged=  git-fire-staged-main-20260329-164055-8bb3991 full=  git-fire-full-main-20260329-164055-aef4e2d)
+
+[1m[0;34m━━━ SCENARIO 3: Multiple branches, unpushed (push-known-branches mode) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: main pushed; feature-a, feature-b are local-only (never pushed)
+[0;36m    →[0m Local branches:   feature-a   feature-b * main 
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    warning: branch 'feature-a' has no remote tracking ref — not backed up
+    warning: branch 'feature-b' has no remote tracking ref — not backed up
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 24.140527ms
+    
+    📝 Log file: /tmp/tmp.Q1QTTNtvwJ/.cache/git-fire/logs/git-fire-20260329-164056.log
+[0;32m  ✓ PASS[0m  S3: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S3: main on remote — branch 'main' exists on remote
+[0;32m  ✓ PASS[0m  S3: feature-a correctly NOT pushed (local-only, not 'known' to remote)
+[0;32m  ✓ PASS[0m  S3: feature-b correctly NOT pushed (local-only, not 'known' to remote)
+[0;32m  ✓ PASS[0m  S3: warning emitted for local-only branches not backed up
+[0;36m    →[0m S3: push-known-branches is the expected default mode (registry upsert now respects default_mode config)
+
+[1m[0;34m━━━ SCENARIO 3b: Multiple branches, push-all mode (registry override) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: registry pre-seeded with push-all for /tmp/tmp.sXGouBymHc/repo
+[0;36m    →[0m Local branches:   feature-a   feature-b * main 
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Push all branches (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 26.945137ms
+    
+    📝 Log file: /tmp/tmp.LoQthT3xck/.cache/git-fire/logs/git-fire-20260329-164056.log
+[0;32m  ✓ PASS[0m  S3b: exit code with push-all mode (exit=0)
+[0;32m  ✓ PASS[0m  S3b: feature-a pushed with push-all mode
+[0;32m  ✓ PASS[0m  S3b: feature-b pushed with push-all mode
+
+[1m[0;34m━━━ SCENARIO 4: Multiple branches with upstream conflict (partial failure) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+branch 'feature-ok' set up to track 'origin/feature-ok'.
+branch 'feature-conflict' set up to track 'origin/feature-conflict'.
+[0;36m    →[0m Setup: feature-ok (fast-forward ok), feature-conflict (diverged, push will fail)
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] clone: Starting (starting)
+    [1/1] clone: Push branches that exist on remote (origin) (in-progress)
+    [1/2] clone: Complete (success)
+    [2/2] repo: Starting (starting)
+    [2/2] repo: Push branches that exist on remote (origin) (in-progress)
+    [2/2] repo: Push branches that exist on remote (origin) (failed)
+      ❌ Error: branch feature-conflict: git push failed: exit status 1
+    Stderr: To file:///tmp/tmp.OigrXvN6AH/remote.git
+     ! [rejected]        feature-conflict -> feature-conflict (non-fast-forward)
+    error: failed to push some refs to 'file:///tmp/tmp.OigrXvN6AH/remote.git'
+    hint: Updates were rejected because a pushed branch tip is behind its remote
+    hint: counterpart. If you want to integrate the remote changes, use 'git pull'
+    hint: before pushing again.
+    hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+    
+    [2/2] repo: Complete (failed)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 1 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 75.819658ms
+    
+    📝 Log file: /tmp/tmp.Bi65vZk1q2/.cache/git-fire/logs/git-fire-20260329-164056.log
+    
+    ⚠️  Some repositories failed to push. Check the log for details.
+    Error: some repositories failed
+    Error: some repositories failed
+[0;32m  ✓ PASS[0m  S4: exit code non-zero (partial failure expected)
+[0;32m  ✓ PASS[0m  S4: feature-ok pushed successfully (3 commits on remote)
+[0;32m  ✓ PASS[0m  S4: feature-conflict remote unchanged at 3 commits (push correctly rejected)
+
+[1m[0;34m━━━ SCENARIO 5: Push completely fails (nonexistent remote) ━━━[0m
+[0;36m    →[0m Setup: bad remote URL, staged=staged.txt, unstaged=unstaged.txt
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Auto-commit uncommitted changes (in-progress)
+    [1/1] repo: Push backup branch git-fire-staged-main-20260329-164056-3620bf0 (origin) (in-progress)
+    [1/1] repo: Push backup branch git-fire-staged-main-20260329-164056-3620bf0 (origin) (failed)
+      ❌ Error: git push failed: exit status 128
+    Stderr: fatal: '/nonexistent/path/that/does/not/exist.git' does not appear to be a git repository
+    fatal: Could not read from remote repository.
+    
+    Please make sure you have the correct access rights
+    and the repository exists.
+    
+    [1/1] repo: Push backup branch git-fire-full-main-20260329-164056-4f7ce33 (origin) (in-progress)
+    [1/1] repo: Push backup branch git-fire-full-main-20260329-164056-4f7ce33 (origin) (failed)
+      ❌ Error: git push failed: exit status 128
+    Stderr: fatal: '/nonexistent/path/that/does/not/exist.git' does not appear to be a git repository
+    fatal: Could not read from remote repository.
+    
+    Please make sure you have the correct access rights
+    and the repository exists.
+    
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Push branches that exist on remote (origin) (failed)
+      ❌ Error: git fetch failed: exit status 128
+    Output: fatal: '/nonexistent/path/that/does/not/exist.git' does not appear to be a git repository
+    fatal: Could not read from remote repository.
+    
+    Please make sure you have the correct access rights
+    and the repository exists.
+    
+    [1/1] repo: Complete (failed)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 0 repos
+    ❌ Failed: 1 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 48.720306ms
+    
+    📝 Log file: /tmp/tmp.SgHSFVZLUl/.cache/git-fire/logs/git-fire-20260329-164056.log
+    
+    ⚠️  Some repositories failed to push. Check the log for details.
+    Error: some repositories failed
+    Error: some repositories failed
+[0;32m  ✓ PASS[0m  S5: exit code non-zero (push failed as expected)
+[0;32m  ✓ PASS[0m  S5: local backup branch(es) created before push attempt (staged=  git-fire-staged-main-20260329-164056-3620bf0 full=  git-fire-full-main-20260329-164056-4f7ce33)
+[0;31m  ✗ FAIL[0m  S5: staged file NOT in full backup branch
+[0;31m  ✗ FAIL[0m  S5: unstaged file NOT in full backup branch
+[0;32m  ✓ PASS[0m  S5: error output contains failure indication
+
+[1m[0;34m━━━ SCENARIO 6: Clean repo (nothing dirty) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: clean repo, all pushed, nothing dirty
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 22.221378ms
+    
+    📝 Log file: /tmp/tmp.5tcxjh9l3G/.cache/git-fire/logs/git-fire-20260329-164056.log
+[0;32m  ✓ PASS[0m  S6: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S6: remote unchanged (still 1 commit) — main has 1 commits (expected 1)
+
+[1m[0;34m━━━ SCENARIO 7: Dry run (--dry-run) ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: staged + unstaged changes, running with --dry-run
+[0;36m    →[0m git-fire output:
+    🔥 Git Fire - Emergency Backup Tool
+    
+    ⏳ Loading 0 known repositories and scanning for new ones...
+    
+    ✓ Found 1 repositories
+    ✓ SSH Status: 0 keys available
+    
+    Selected repositories:
+      • repo (dirty)
+    
+    Push Plan:
+      Total repositories: 1
+      Dirty repositories: 1
+    
+    ⚠️  DRY RUN - No changes will be made
+    
+    Repositories:
+    
+    1. repo
+       Path: /tmp/tmp.x0xwxHyb6G/repo
+       Actions:
+         - auto-commit: Auto-commit uncommitted changes
+         - push-known: Push branches that exist on remote (origin)
+    
+    
+    🔥 Fire Drill Complete - No changes were made
+[0;32m  ✓ PASS[0m  S7: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S7: remote unchanged (dry-run made no pushes) — main has 1 commits (expected 1)
+[0;32m  ✓ PASS[0m  S7: no local commits made (dry-run preserved state)
+[0;32m  ✓ PASS[0m  S7: staged file still staged (dry-run preserved state)
+[0;32m  ✓ PASS[0m  S7: dry-run message in output
+
+[1m[0;34m━━━ SCENARIO 8: Repo with no remote configured ━━━[0m
+[0;36m    →[0m Setup: repo with NO remote, dirty changes
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: No remotes configured (skipped)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 0 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 1 repos
+    ⏱  Duration: 5.904828ms
+    
+    📝 Log file: /tmp/tmp.BRDxRjE8FH/.cache/git-fire/logs/git-fire-20260329-164056.log
+[0;32m  ✓ PASS[0m  S8: no crash/panic (exit=0)
+[0;32m  ✓ PASS[0m  S8: 'skip/no remote' message in output
+
+[1m[0;34m━━━ SCENARIO 9: --skip-auto-commit flag ━━━[0m
+branch 'main' set up to track 'origin/main'.
+[0;36m    →[0m Setup: staged change, running with --skip-auto-commit
+[0;36m    →[0m git-fire output:
+    
+    ⚠️  SECURITY WARNING
+    
+    Git-fire will auto-commit ALL uncommitted files in emergency mode.
+    
+    BEFORE running in panic mode:
+      ✓ Use .env files for secrets (add to .gitignore)
+      ✓ Add sensitive files to .gitignore or .git/info/exclude
+      ✓ Never commit: .env, credentials.json, *.pem, *.key
+      ✓ Use environment variables for sensitive configuration
+    
+    ALWAYS run --dry-run first to preview what will be committed!
+    
+    🔥 Git Fire - Emergency Backup Tool
+    
+    🔥 Scanning and backing up repositories...
+    
+    [1/1] repo: Starting (starting)
+    [1/1] repo: Push branches that exist on remote (origin) (in-progress)
+    [1/1] repo: Complete (success)
+    
+    ✓ SSH: 0 keys available
+    
+    ==================================================
+    🔥 Git Fire Complete!
+    ==================================================
+    
+    ✓ Successfully pushed: 1 repos
+    ❌ Failed: 0 repos
+    ⊘ Skipped: 0 repos
+    ⏱  Duration: 21.385503ms
+    
+    📝 Log file: /tmp/tmp.r0NOu2kIon/.cache/git-fire/logs/git-fire-20260329-164057.log
+[0;32m  ✓ PASS[0m  S9: exit code (exit=0)
+[0;32m  ✓ PASS[0m  S9: remote unchanged (auto-commit skipped) — main has 1 commits (expected 1)
+[0;32m  ✓ PASS[0m  S9: staged file still staged (auto-commit was skipped)
+
+[1m[0;34m════════════════════════════════════════════════════════════[0m
+[1m[0;34m  git-fire MVP UAT — FINAL REPORT[0m
+[1m[0;34m════════════════════════════════════════════════════════════[0m
+
+  [0;32mPASS: 38[0m
+  [0;31mFAIL: 7[0m
+  [1;33mBUGS: 0[0m
+
+[0;31mFailed checks:[0m
+  [0;31m✗[0m S1: file_a.txt (staged) MISSING from staged backup branch
+  [0;31m✗[0m S1: file_a.txt (staged) MISSING from full backup branch
+  [0;31m✗[0m S1: file_b.txt (unstaged) MISSING from full backup branch
+  [0;31m✗[0m S1b: staged file MISSING from backup branch
+  [0;31m✗[0m S1c: unstaged file MISSING from full backup branch
+  [0;31m✗[0m S5: staged file NOT in full backup branch
+  [0;31m✗[0m S5: unstaged file NOT in full backup branch
+
+[1mKey Behavioral Summary (current post-fix behavior):[0m
+  • AutoCommitDirtyWithStrategy (dual-branch): ACTIVE — staged → git-fire-staged-*, all → git-fire-full-*
+  • Upstream conflict: backup branches pushed before main push attempt; main push rejected safely
+  • push-known-branches: warns for local-only branches (no longer silent — Bug 3 fixed)
+  • DefaultMode config: applied via registry upsert (no longer dead code — Bug 4 fixed)
+  • conflict_strategy='new-branch': evaluated by planner (no longer dead code — Bug 2 fixed)
+  • SilenceUsage: cobra usage suppressed on errors (Bug 5 fixed)
+
+[0;31m[1m7 check(s) FAILED.[0m
+

@@ -1,0 +1,23 @@
+== make test-race ==
+Sun Mar 29 20:04:49 UTC 2026
+cd "/home/ben/projects/git-fire/" && go test -race -count=1 ./...
+?   	github.com/TBRX103/git-fire	[no test files]
+ok  	github.com/TBRX103/git-fire/cmd	3.263s
+--- FAIL: TestIsKeyEncrypted (0.01s)
+    --- FAIL: TestIsKeyEncrypted/real_unencrypted_key (0.00s)
+        ssh_test.go:182: Expected unencrypted key to be detected as not encrypted
+--- FAIL: TestTestPassphrase (0.30s)
+    --- FAIL: TestTestPassphrase/correct_passphrase (0.00s)
+        ssh_test.go:276: Expected correct passphrase to validate
+FAIL
+FAIL	github.com/TBRX103/git-fire/internal/auth	0.559s
+ok  	github.com/TBRX103/git-fire/internal/config	1.040s
+ok  	github.com/TBRX103/git-fire/internal/executor	2.801s
+ok  	github.com/TBRX103/git-fire/internal/git	3.082s
+ok  	github.com/TBRX103/git-fire/internal/plugins	1.161s
+ok  	github.com/TBRX103/git-fire/internal/registry	6.088s
+ok  	github.com/TBRX103/git-fire/internal/safety	1.052s
+ok  	github.com/TBRX103/git-fire/internal/testutil	2.781s
+ok  	github.com/TBRX103/git-fire/internal/ui	1.048s
+FAIL
+make: *** [Makefile:31: test-race] Error 1
