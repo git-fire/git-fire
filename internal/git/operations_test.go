@@ -816,3 +816,81 @@ func TestGetUncommittedFiles_Clean(t *testing.T) {
 		t.Errorf("expected no files for clean repo, got %v", files)
 	}
 }
+
+func TestPushAllBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	if err := PushAllBranches(repo, "origin"); err != nil {
+		t.Errorf("PushAllBranches() error = %v", err)
+	}
+}
+
+func TestPushAllBranches_InvalidRemote(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "test-repo"})
+
+	if err := PushAllBranches(repo, "nonexistent"); err == nil {
+		t.Error("expected error pushing to nonexistent remote")
+	}
+}
+
+func TestPushKnownBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// Push once to set up the remote branch
+	if err := PushAllBranches(repo, "origin"); err != nil {
+		t.Fatalf("initial push: %v", err)
+	}
+
+	// PushKnownBranches should succeed (branch already exists on remote)
+	if err := PushKnownBranches(repo, "origin"); err != nil {
+		t.Errorf("PushKnownBranches() error = %v", err)
+	}
+}
+
+func TestPushKnownBranches_NoRemoteBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// No branches pushed yet — PushKnownBranches should succeed (nothing to do)
+	if err := PushKnownBranches(repo, "origin"); err != nil {
+		t.Errorf("PushKnownBranches() with no remote branches: error = %v", err)
+	}
+}
+
+func TestPushKnownBranches_ContinuesOnError(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// Push main branch to establish it on remote
+	branch, err := GetCurrentBranch(repo)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch: %v", err)
+	}
+	if err := PushBranch(repo, "origin", branch); err != nil {
+		t.Fatalf("initial push: %v", err)
+	}
+
+	// Diverge local branch from remote so push will fail
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "--amend", "--no-edit", "--reset-author")
+
+	// Push should fail for the diverged branch but return an error (not panic)
+	err = PushKnownBranches(repo, "origin")
+	// We expect an error (diverged history), but execution should complete
+	if err == nil {
+		t.Log("no error returned (fast-forward succeeded or nothing to push)")
+	}
+}

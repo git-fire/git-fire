@@ -2,6 +2,18 @@
 
 Git-fire is designed to be extensible beyond just git operations. This document describes how to add external tools, remote services, and custom backup strategies.
 
+## Implementation Status
+
+| Plugin Type | Status | Notes |
+|------------|--------|-------|
+| Command plugins | ✅ **Implemented** | Execute external commands/scripts |
+| Go plugins (.so) | 🗓 Planned (Phase 2) | Dynamic `.so` loading via Go plugin package |
+| Webhook/HTTP plugins | 🗓 Planned (Phase 2) | REST API callbacks |
+
+Only **command plugins** are available today. All other types are documented here as the intended design for when they are built.
+
+---
+
 ## Philosophy
 
 While git-fire is built around git, **emergencies don't respect tool boundaries**. Sometimes you need to:
@@ -50,7 +62,9 @@ when = "before-push"
 
 ---
 
-### 2. Go Plugins (Most Powerful)
+### 2. Go Plugins (Most Powerful) — 🗓 Planned
+
+> **Not yet implemented.** This describes the intended design for Phase 2.
 
 Write plugins in Go that integrate deeply:
 
@@ -141,7 +155,9 @@ compress = true
 
 ---
 
-### 3. HTTP/Webhook Plugins
+### 3. HTTP/Webhook Plugins — 🗓 Planned
+
+> **Not yet implemented.** This describes the intended design for Phase 2.
 
 Call remote services:
 
@@ -186,11 +202,14 @@ body = '''
 
 ---
 
-### 4. Remote Backup Services
+### 4. Remote Backup Services — 🗓 Planned
 
-Integrate with existing backup solutions:
+> **Not yet implemented.** Use command plugins today to achieve the same result (see examples below).
+
+Integrate with existing backup solutions via dedicated plugin types:
 
 ```toml
+# Future syntax (not yet supported — use [[plugins.command]] today)
 [[plugins.restic]]
 repository = "/backups/restic"
 password_file = "~/.restic-password"
@@ -200,19 +219,15 @@ tags = ["git-fire", "emergency"]
 remote = "backup-s3"
 path = "git-fire-backups"
 flags = ["--fast-list", "--transfers=32"]
-
-[[plugins.borgbackup]]
-repository = "ssh://backup-server/~/backups"
-passphrase_command = "pass show backup/borg"
 ```
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Command Plugins (Week 1)
+### Phase 1: Command Plugins — ✅ Complete
 
-**Files to create:**
+**Implemented in:**
 ```
 internal/plugins/
 ├── types.go        # Plugin interfaces
@@ -250,7 +265,7 @@ type CommandPlugin struct {
 }
 ```
 
-### Phase 2: Go Plugins (Week 2)
+### Phase 2: Go Plugins — 🗓 Planned
 
 Add plugin loading via Go's `plugin` package:
 
@@ -278,7 +293,7 @@ func LoadGoPlugins() error {
 }
 ```
 
-### Phase 3: Webhook/HTTP Plugins (Week 3)
+### Phase 3: Webhook/HTTP Plugins — 🗓 Planned
 
 REST API integration:
 
@@ -325,29 +340,27 @@ command = "aws"
 args = ["s3", "sync", "{repo_path}", "s3://emergency/{repo_name}-{timestamp}/"]
 when = "after-push"
 
-[[plugins.webhook]]
+# Slack via curl — works today with command plugins
+[[plugins.command]]
 name = "slack-notify"
-url = "${SLACK_WEBHOOK}"
-body = '{"text": "✅ {repo_name} backed up to S3"}'
+command = "curl"
+args = ["-s", "-X", "POST", "${SLACK_WEBHOOK}", "-H", "Content-Type: application/json",
+        "-d", "{\"text\": \"✅ {repo_name} backed up to S3\"}"]
 when = "after-push"
 ```
 
 ### Example 2: Company Backup Service
 
 ```toml
-[[plugins.webhook]]
+# Use a command plugin with curl until webhook plugins are implemented
+[[plugins.command]]
 name = "company-backup"
-url = "https://backup.company.com/api/git-fire"
-method = "POST"
-headers = { "X-API-Key" = "${COMPANY_BACKUP_KEY}" }
-body = '''
-{
-  "repo": "{repo_name}",
-  "path": "{repo_path}",
-  "emergency": true,
-  "contact": "user@company.com"
-}
-'''
+command = "curl"
+args = ["-s", "-X", "POST", "https://backup.company.com/api/git-fire",
+        "-H", "X-API-Key: ${COMPANY_BACKUP_KEY}",
+        "-H", "Content-Type: application/json",
+        "-d", "{\"repo\": \"{repo_name}\", \"path\": \"{repo_path}\", \"emergency\": true}"]
+when = "after-push"
 timeout = "60s"
 ```
 
@@ -386,22 +399,17 @@ on_failure = "ignore"  # Don't fail if USB not mounted
 
 ## CLI Integration
 
+Plugins run automatically during backup when configured in `~/.config/git-fire/config.toml`. Use `--dry-run` to preview without executing:
+
 ```bash
-# List available plugins
-git-fire --list-plugins
+# Preview backup plan including plugin actions
+git-fire --dry-run
 
-# Run with specific plugins
-git-fire --plugin s3-backup --plugin slack-notify
-
-# Disable plugins for this run
-git-fire --no-plugins
-
-# Test plugin configuration
-git-fire --test-plugin s3-backup --dry-run
-
-# Show plugin execution plan
-git-fire --dry-run --show-plugins
+# Generate a config file to add plugins to
+git-fire --init
 ```
+
+> **Planned CLI flags** (not yet implemented): `--list-plugins`, `--plugin <name>`, `--no-plugins`, `--test-plugin`, `--show-plugins`. These will be added in Phase 2 alongside webhook and Go plugin support.
 
 ---
 
@@ -470,7 +478,7 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
 
 3. Test it:
    ```bash
-   git-fire --dry-run --plugin local-backup
+   git-fire --dry-run
    ```
 
 4. Run for real:
