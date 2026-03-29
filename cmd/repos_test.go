@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"github.com/TBRX103/git-fire/internal/executor"
 	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/TBRX103/git-fire/internal/testutil"
@@ -386,12 +387,11 @@ func TestReposScan_Function(t *testing.T) {
 func TestReposScan_DefaultPath(t *testing.T) {
 	isolateHome(t)
 
-	// Create a real repo inside the current test temp dir
-	tmp := t.TempDir()
-	testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "scanme2"})
+	// Create a real repo and scan its parent so reposScan actually discovers it
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "scanme2"})
+	scanRoot := filepath.Dir(repoPath)
 
-	// Pass an explicit path so the test is deterministic
-	if err := reposScan(reposScanCmd, []string{tmp}); err != nil {
+	if err := reposScan(reposScanCmd, []string{scanRoot}); err != nil {
 		t.Errorf("reposScan() with explicit path error = %v", err)
 	}
 }
@@ -507,7 +507,7 @@ func TestPrintResult(t *testing.T) {
 		Success:  3,
 		Failed:   1,
 		Skipped:  2,
-		Duration: 5,
+		Duration: 5 * time.Second,
 	}, "/tmp/fake.log")
 
 	w.Close()

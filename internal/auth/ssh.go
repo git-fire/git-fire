@@ -193,7 +193,14 @@ func TestPassphrase(keyPath, passphrase string) bool {
 	// Write a temporary askpass helper script that outputs the passphrase.
 	// Using SSH_ASKPASS avoids putting the passphrase on the ssh-keygen
 	// command line where it would be visible in process listings (ps aux).
-	askpass, err := os.CreateTemp("", "gf-askpass-*.sh")
+	// Use an app-owned directory rather than the system temp dir, which is
+	// often mounted noexec on hardened hosts — ssh-keygen cannot execute the
+	// askpass helper if the mount forbids it.
+	askpassDir := filepath.Join(func() string { h, _ := os.UserHomeDir(); return h }(), ".cache", "git-fire")
+	if err := os.MkdirAll(askpassDir, 0o700); err != nil {
+		return false
+	}
+	askpass, err := os.CreateTemp(askpassDir, "gf-askpass-*.sh")
 	if err != nil {
 		return false
 	}

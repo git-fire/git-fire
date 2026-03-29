@@ -94,6 +94,54 @@ func TestLogger_Error(t *testing.T) {
 	}
 }
 
+func TestLogger_Error_MasksURLCredentials(t *testing.T) {
+	dir := t.TempDir()
+	logger, err := NewLogger(dir)
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
+	defer logger.Close()
+
+	logger.Error("myrepo", "push", "push failed",
+		&testError{"remote: https://user:s3cr3tpassword@github.com/org/repo.git"})
+
+	data, err := os.ReadFile(logger.LogPath())
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "s3cr3tpassword") {
+		t.Error("log file must not contain the raw password")
+	}
+	if !strings.Contains(content, "[REDACTED]") {
+		t.Error("log file should contain [REDACTED] in place of credentials")
+	}
+}
+
+func TestLogger_Error_MasksKeyValue(t *testing.T) {
+	dir := t.TempDir()
+	logger, err := NewLogger(dir)
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
+	defer logger.Close()
+
+	logger.Error("myrepo", "push", "auth failed",
+		&testError{"API_KEY=supersecrettoken123"})
+
+	data, err := os.ReadFile(logger.LogPath())
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "supersecrettoken123") {
+		t.Error("log file must not contain the raw API key value")
+	}
+	if !strings.Contains(content, "[REDACTED]") {
+		t.Error("log file should contain [REDACTED] in place of key value")
+	}
+}
+
 func TestLogger_Error_Nil(t *testing.T) {
 	dir := t.TempDir()
 	logger, err := NewLogger(dir)

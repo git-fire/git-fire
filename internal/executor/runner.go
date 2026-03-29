@@ -101,25 +101,29 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		return result
 	}
 
-	// Execute each action
+	// Execute each action. Continue past failures so every remote gets a
+	// best-effort push — collecting the first error to surface to the caller.
+	var firstErr error
 	for _, action := range repoPlan.Actions {
 		executedAction := r.executeAction(repoPlan.Repo, action, current, total)
 		result.Actions = append(result.Actions, executedAction)
 
 		if executedAction.Error != nil {
-			result.Error = executedAction.Error
-			result.Success = false
-			result.Duration = time.Since(startTime)
-			return result
+			if firstErr == nil {
+				firstErr = executedAction.Error
+			}
 		}
 
-		// Track pushed branches
+		// Track pushed branches regardless of other action outcomes
 		if action.Type == ActionPushBranch && executedAction.Branch != "" {
 			result.PushedBranches = append(result.PushedBranches, executedAction.Branch)
 		}
 	}
 
-	result.Success = true
+	result.Success = firstErr == nil
+	if firstErr != nil {
+		result.Error = firstErr
+	}
 	result.Duration = time.Since(startTime)
 
 	r.sendProgress(Progress{

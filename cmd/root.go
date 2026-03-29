@@ -496,6 +496,12 @@ func handleInit() error {
 	// Check if config already exists
 	if _, err := os.Stat(configPath); err == nil {
 		if !forceInit {
+			// In non-interactive environments (CI, piped stdin) fmt.Scanln would
+			// hang or read garbage. Detect a non-terminal and fail fast so the
+			// caller knows to use --force.
+			if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+				return fmt.Errorf("config already exists at %s; use --force to overwrite non-interactively", configPath)
+			}
 			fmt.Printf("Configuration file already exists: %s\n", configPath)
 			fmt.Print("Overwrite? [y/N]: ")
 			var response string
