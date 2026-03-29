@@ -8,6 +8,8 @@ import (
 	"github.com/TBRX103/git-fire/internal/git"
 )
 
+const fireBranchPlaceholder = "__git_fire_created_branch__"
+
 // Planner creates execution plans
 type Planner struct {
 	config *config.Config
@@ -133,17 +135,59 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 				Remote:      remote.Name,
 			})
 
-		default:
+		case git.ModePushCurrentBranch:
+			if p.config.Global.ConflictStrategy == "new-branch" {
+				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
+				if conflictErr != nil {
+					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
+				}
+				if hasConflict {
+					repoPlan.HasConflict = true
+					if !repoPlanHasFireCreateAction(repoPlan.Actions) {
+						repoPlan.Actions = append(repoPlan.Actions, Action{
+							Type:        ActionCreateFireBranch,
+							Description: fmt.Sprintf("Create fire backup branch for %s", currentBranch),
+							Branch:      currentBranch,
+						})
+					}
+					repoPlan.Actions = append(repoPlan.Actions, Action{
+						Type:        ActionPushBranch,
+						Description: fmt.Sprintf("Push fire backup branch for %s (%s)", currentBranch, remote.Name),
+						Remote:      remote.Name,
+						Branch:      fireBranchPlaceholder,
+					})
+					continue
+				}
+			}
+
 			repoPlan.Actions = append(repoPlan.Actions, Action{
 				Type:        ActionPushBranch,
 				Description: fmt.Sprintf("Push branch %s (%s)", currentBranch, remote.Name),
 				Remote:      remote.Name,
 				Branch:      currentBranch,
 			})
+
+		default:
+			repoPlan.Skip = true
+			repoPlan.SkipReason = fmt.Sprintf("unsupported mode: %s", repo.Mode.String())
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionSkip,
+				Description: repoPlan.SkipReason,
+			})
+			return repoPlan, nil
 		}
 	}
 
 	return repoPlan, nil
+}
+
+func repoPlanHasFireCreateAction(actions []Action) bool {
+	for _, action := range actions {
+		if action.Type == ActionCreateFireBranch {
+			return true
+		}
+	}
+	return false
 }
 
 // Summary returns a human-readable summary of the plan

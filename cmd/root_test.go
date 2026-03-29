@@ -6,8 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/TBRX103/git-fire/internal/testutil"
 )
 
@@ -131,6 +134,12 @@ func TestRootCommand_Help(t *testing.T) {
 		if !strings.Contains(output, expected) {
 			t.Errorf("Help output missing expected text: %s", expected)
 		}
+	}
+}
+
+func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
+	if !rootCmd.SilenceUsage {
+		t.Fatal("expected rootCmd.SilenceUsage to be true")
 	}
 }
 
@@ -468,6 +477,31 @@ func TestRunGitFire_SecurityNotice(t *testing.T) {
 	err := runGitFire(rootCmd, []string{})
 	if err != nil {
 		t.Errorf("runGitFire() error = %v", err)
+	}
+}
+
+func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
+	reg := &registry.Registry{}
+	now := time.Now()
+	repo := git.Repository{
+		Path: "/tmp/repo-a",
+		Name: "repo-a",
+	}
+
+	updated, include := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if !include {
+		t.Fatal("expected new repo to be included")
+	}
+	if updated.Mode != git.ModePushAll {
+		t.Fatalf("expected mode %v, got %v", git.ModePushAll, updated.Mode)
+	}
+
+	entry := reg.FindByPath("/tmp/repo-a")
+	if entry == nil {
+		t.Fatal("expected registry entry to be created")
+	}
+	if entry.Mode != git.ModePushAll.String() {
+		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
 	}
 }
 

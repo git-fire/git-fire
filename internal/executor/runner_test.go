@@ -272,11 +272,116 @@ func TestRunner_ExecuteActionAutoCommit(t *testing.T) {
 	if executedAction.Error != nil {
 		t.Errorf("Auto-commit action failed: %v", executedAction.Error)
 	}
+	if executedAction.Branch == "" {
+		t.Error("Expected auto-commit action to return created backup branch names")
+	}
+}
 
-	// Verify repo is now clean
-	isDirty := testutil.IsDirty(t, repo.Path())
-	if isDirty {
-		t.Error("Expected repo to be clean after auto-commit")
+func TestRunner_ExecuteActionCreateFireBranch_PushesRemote(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("test").
+		WithRemote("origin", remote).
+		AddFile("file.txt", "content\n").
+		Commit("initial commit")
+
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+
+	repo.AddFile("local-only.txt", "new local work\n")
+	repo.Commit("local commit")
+
+	action := Action{
+		Type:        ActionCreateFireBranch,
+		Description: "Create fire branch",
+		Remote:      "origin",
+		Branch:      currentBranch,
+	}
+
+	gitRepo := git.Repository{
+		Path: repo.Path(),
+		Name: "test-repo",
+		Remotes: []git.Remote{
+			{Name: "origin", URL: remote.Path()},
+		},
+	}
+
+	executed := runner.executeAction(gitRepo, action, 1, 1)
+	if executed.Error != nil {
+		t.Fatalf("CreateFireBranch action failed: %v", executed.Error)
+	}
+	if executed.Branch == "" {
+		t.Fatal("Expected fire branch name to be set on executed action")
+	}
+
+	remoteSHA, err := git.GetCommitSHA(remote.Path(), "refs/heads/"+executed.Branch)
+	if err != nil {
+		t.Fatalf("failed to read fire branch from remote: %v", err)
+	}
+	localFireSHA, err := git.GetCommitSHA(repo.Path(), executed.Branch)
+	if err != nil {
+		t.Fatalf("failed to read local fire branch SHA: %v", err)
+	}
+	if remoteSHA != localFireSHA {
+		t.Errorf("fire branch push mismatch: remote=%s local=%s", remoteSHA, localFireSHA)
+	}
+}
+
+func TestRunner_Execute_UsesDualBranchPushes(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+
+	repo.AddFile("staged.txt", "staged\n")
+	repo.StageFile("staged.txt")
+	repo.AddFile("unstaged.txt", "unstaged\n")
+
+	repos := []git.Repository{
+		{
+			Path:     repo.Path(),
+			Name:     "dirty-repo",
+			Selected: true,
+			Mode:     git.ModePushCurrentBranch,
+			IsDirty:  true,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: remote.Path()},
+			},
+		},
+	}
+
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	rr := result.RepoResults[0]
+	if len(rr.PushedBranches) == 0 {
+		t.Fatal("Expected pushed backup branches, got none")
+	}
+	for _, b := range rr.PushedBranches {
+		if strings.HasPrefix(b, currentBranch) {
+			t.Errorf("expected backup branch push, got current branch %q", b)
+		}
 	}
 }
 

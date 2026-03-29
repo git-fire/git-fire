@@ -27,6 +27,7 @@ const (
 	ModeLeaveUntouched   RepoMode = iota // Skip this repo
 	ModePushKnownBranches                // Push only branches that exist on remote
 	ModePushAll                          // Push all branches
+	ModePushCurrentBranch                // Push only current checked-out branch
 )
 
 func (m RepoMode) String() string {
@@ -37,6 +38,8 @@ func (m RepoMode) String() string {
 		return "push-known-branches"
 	case ModePushAll:
 		return "push-all"
+	case ModePushCurrentBranch:
+		return "push-current-branch"
 	default:
 		return "unknown"
 	}
@@ -52,6 +55,8 @@ func ParseMode(s string) RepoMode {
 		return ModePushKnownBranches
 	case "push-all":
 		return ModePushAll
+	case "push-current-branch":
+		return ModePushCurrentBranch
 	default:
 		return ModeLeaveUntouched
 	}

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -886,6 +887,52 @@ func TestPushKnownBranches_NoRemoteBranches(t *testing.T) {
 	// No branches pushed yet — PushKnownBranches should succeed (nothing to do)
 	if err := PushKnownBranches(repo, "origin"); err != nil {
 		t.Errorf("PushKnownBranches() with no remote branches: error = %v", err)
+	}
+}
+
+func TestPushKnownBranches_WarnsForLocalOnlyBranch(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// Establish the default branch on remote.
+	currentBranch, err := GetCurrentBranch(repo)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch() error = %v", err)
+	}
+	if err := PushBranch(repo, "origin", currentBranch); err != nil {
+		t.Fatalf("initial push failed: %v", err)
+	}
+
+	// Create local-only branch that does not exist on remote.
+	testutil.RunGitCmd(t, repo, "checkout", "-b", "feature-local-only")
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "-m", "feature work")
+	testutil.RunGitCmd(t, repo, "checkout", "-")
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stderr = w
+
+	callErr := PushKnownBranches(repo, "origin")
+
+	w.Close()
+	os.Stderr = origStderr
+
+	if callErr != nil {
+		t.Fatalf("PushKnownBranches() error = %v", callErr)
+	}
+
+	var stderr bytes.Buffer
+	if _, err := stderr.ReadFrom(r); err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "feature-local-only") {
+		t.Fatalf("expected warning for local-only branch, got: %q", stderr.String())
 	}
 }
 
