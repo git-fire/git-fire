@@ -20,7 +20,6 @@ AI coding agents (Claude Code, Cursor, Windsurf, etc.) touch many repos in a ses
 ### P0 — Machine-Readable Output
 
 - `--output=json` flag returning structured JSON on stdout (single object after run)
-- `--output=ndjson` for streaming progress (one event per line during execution)
 - Apply to all subcommands: `repos list --output=json`, `--status --output=json`
 - Required for: agents parsing subprocess output, orchestration pipelines
 
@@ -47,6 +46,11 @@ AI coding agents (Claude Code, Cursor, Windsurf, etc.) touch many repos in a ses
 
 - `--session-id <id>` flag propagated to all JSON log entries and output JSON
 - Required for: correlating backup events with specific agent sessions in audit logs
+
+### P1 — NDJSON Progress Streaming
+
+- `--output=ndjson` for streaming progress (one event per line during execution)
+- Required for: real-time agent feedback during long backups (see [docs/agentic-flows.md](docs/agentic-flows.md))
 
 ### P2 — Repo Targeting via Flag or Stdin
 

@@ -229,7 +229,7 @@ AI coding agents edit files at high speed across multiple repos without committi
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . 2>/dev/null || true"
+            "command": "git-fire --path . >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }

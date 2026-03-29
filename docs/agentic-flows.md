@@ -45,7 +45,7 @@ Add to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . --skip-auto-commit 2>/dev/null || true"
+            "command": "git-fire --path . --skip-auto-commit >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -85,7 +85,7 @@ For aggressive safety — auto-commit everything the agent touched:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . 2>/dev/null || true"
+            "command": "git-fire --path . >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -156,7 +156,7 @@ git-fire repos list
 git-fire repos ignore ~/projects/vendor-lib
 ```
 
-The registry persists at `~/.git-fire/repos.toml` — agents or orchestration scripts can read and write it directly.
+The registry persists at `~/.git-fire/repos.toml` — agents or orchestration scripts can read it directly. For writes or updates, prefer `git-fire repos scan`, `ignore`, `unignore`, or `remove` so validation and invariants are preserved.
 
 ### 5. Environment Variable Configuration (Available Today)
 
@@ -450,7 +450,7 @@ for _, repo := range result.Repos {
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . --skip-auto-commit --output=json 2>/dev/null || true"
+            "command": "git-fire --path . --skip-auto-commit --output=json >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -518,7 +518,7 @@ And in Claude Code settings:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path ~/projects 2>/dev/null || true"
+            "command": "git-fire --path ~/projects >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
