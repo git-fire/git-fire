@@ -25,7 +25,6 @@ NC='\033[0m'
 INSTALL_DIR="$HOME/.local/bin"
 BINARY_NAME="git-fire"
 GITHUB_REPO="TBRX103/git-fire"
-DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/latest/download/$BINARY_NAME"
 
 banner() {
     echo -e "${RED}"
@@ -65,32 +64,55 @@ try_download() {
     ARCH=$(uname -m)
 
     case "$ARCH" in
-        x86_64) ARCH="amd64" ;;
+        x86_64)        ARCH="amd64" ;;
         aarch64|arm64) ARCH="arm64" ;;
-        armv7l) ARCH="arm" ;;
+        armv7l|armv6l) ARCH="armv6" ;;
     esac
 
-    BINARY_URL="https://github.com/$GITHUB_REPO/releases/latest/download/git-fire-$OS-$ARCH"
+    # Fetch latest version tag from GitHub API
+    VERSION=""
+    if command -v curl &> /dev/null; then
+        VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+            | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/' 2>/dev/null || true)
+    elif command -v wget &> /dev/null; then
+        VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+            | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/' 2>/dev/null || true)
+    fi
+
+    if [ -z "$VERSION" ]; then
+        echo -e "${YELLOW}Could not determine latest version, using fallback${NC}\n"
+        return 1
+    fi
+
+    # GoReleaser archive naming: git-fire_VERSION_OS_ARCH.tar.gz
+    ARCHIVE_NAME="git-fire_${VERSION}_${OS}_${ARCH}.tar.gz"
+    BINARY_URL="https://github.com/$GITHUB_REPO/releases/download/v${VERSION}/${ARCHIVE_NAME}"
+    TMP_DIR=$(mktemp -d)
 
     # Try to download
+    DOWNLOADED=false
     if command -v curl &> /dev/null; then
-        mkdir -p "$INSTALL_DIR"
-        if curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/$BINARY_NAME" 2>/dev/null; then
-            chmod +x "$INSTALL_DIR/$BINARY_NAME"
-            export PATH="$INSTALL_DIR:$PATH"
-            echo -e "${GREEN}✓ Downloaded git-fire${NC}\n"
-            return 0
+        if curl -fsSL "$BINARY_URL" -o "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
+            DOWNLOADED=true
         fi
     elif command -v wget &> /dev/null; then
-        mkdir -p "$INSTALL_DIR"
-        if wget -q "$BINARY_URL" -O "$INSTALL_DIR/$BINARY_NAME" 2>/dev/null; then
-            chmod +x "$INSTALL_DIR/$BINARY_NAME"
-            export PATH="$INSTALL_DIR:$PATH"
-            echo -e "${GREEN}✓ Downloaded git-fire${NC}\n"
-            return 0
+        if wget -q "$BINARY_URL" -O "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
+            DOWNLOADED=true
         fi
     fi
 
+    if [ "$DOWNLOADED" = true ]; then
+        mkdir -p "$INSTALL_DIR"
+        tar -xzf "$TMP_DIR/$ARCHIVE_NAME" -C "$TMP_DIR"
+        cp "$TMP_DIR/git-fire" "$INSTALL_DIR/$BINARY_NAME"
+        chmod +x "$INSTALL_DIR/$BINARY_NAME"
+        rm -rf "$TMP_DIR"
+        export PATH="$INSTALL_DIR:$PATH"
+        echo -e "${GREEN}✓ Downloaded git-fire${NC}\n"
+        return 0
+    fi
+
+    rm -rf "$TMP_DIR"
     echo -e "${YELLOW}Could not download binary, using fallback bash implementation${NC}\n"
     return 1
 }

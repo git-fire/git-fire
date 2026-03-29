@@ -2,10 +2,10 @@
 # Git-Fire Installer
 #
 # Install git-fire:
-#   curl -fsSL https://git-fire.sh/install | bash
+#   curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
 #
 # OR:
-#   wget -qO- https://git-fire.sh/install | bash
+#   wget -qO- https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
 
 set -e
 
@@ -24,9 +24,9 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 case "$ARCH" in
-    x86_64) ARCH="amd64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
-    armv7l) ARCH="arm" ;;
+    x86_64)          ARCH="amd64" ;;
+    aarch64|arm64)   ARCH="arm64" ;;
+    armv7l|armv6l)   ARCH="armv6" ;;
     *)
         echo -e "${RED}Unsupported architecture: $ARCH${NC}"
         exit 1
@@ -35,28 +35,53 @@ esac
 
 echo "Detected: $OS-$ARCH"
 
-# Download URL
-BINARY_URL="https://github.com/$GITHUB_REPO/releases/latest/download/git-fire-$OS-$ARCH"
+# Fetch latest release version from GitHub API
+echo "Fetching latest release..."
+if command -v curl &> /dev/null; then
+    VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+        | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/')
+elif command -v wget &> /dev/null; then
+    VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+        | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/')
+else
+    echo -e "${RED}Error: curl or wget required${NC}"
+    exit 1
+fi
+
+if [ -z "$VERSION" ]; then
+    echo -e "${RED}Error: could not determine latest version${NC}"
+    exit 1
+fi
+
+echo "Latest version: v$VERSION"
+
+# Build tarball name and URL (GoReleaser naming convention)
+# e.g. git-fire_1.2.3_linux_amd64.tar.gz
+ARCHIVE_NAME="git-fire_${VERSION}_${OS}_${ARCH}.tar.gz"
+DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/v${VERSION}/${ARCHIVE_NAME}"
 
 # Alternative: build from source if binary not available
 BUILD_FROM_SOURCE=false
 
-# Try to download binary
-echo "Downloading from $BINARY_URL..."
-
+# Download and extract
+echo "Downloading $ARCHIVE_NAME..."
 mkdir -p "$INSTALL_DIR"
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 if command -v curl &> /dev/null; then
-    if ! curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/git-fire" 2>/dev/null; then
+    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
         BUILD_FROM_SOURCE=true
     fi
 elif command -v wget &> /dev/null; then
-    if ! wget -q "$BINARY_URL" -O "$INSTALL_DIR/git-fire" 2>/dev/null; then
+    if ! wget -q "$DOWNLOAD_URL" -O "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
         BUILD_FROM_SOURCE=true
     fi
-else
-    echo -e "${RED}Error: curl or wget required${NC}"
-    exit 1
+fi
+
+if [ "$BUILD_FROM_SOURCE" = false ]; then
+    tar -xzf "$TMP_DIR/$ARCHIVE_NAME" -C "$TMP_DIR"
+    cp "$TMP_DIR/git-fire" "$INSTALL_DIR/git-fire"
 fi
 
 # Build from source if download failed
@@ -69,17 +94,10 @@ if [ "$BUILD_FROM_SOURCE" = true ]; then
         exit 1
     fi
 
-    # Clone and build
-    TMP_DIR=$(mktemp -d)
-    cd "$TMP_DIR"
-
-    git clone "https://github.com/$GITHUB_REPO.git"
-    cd git-fire
-
-    go build -o "$INSTALL_DIR/git-fire" .
-
-    cd -
-    rm -rf "$TMP_DIR"
+    BUILD_DIR=$(mktemp -d)
+    git clone "https://github.com/$GITHUB_REPO.git" "$BUILD_DIR/git-fire"
+    (cd "$BUILD_DIR/git-fire" && go build -ldflags="-s -w" -o "$INSTALL_DIR/git-fire" .)
+    rm -rf "$BUILD_DIR"
 fi
 
 # Make executable
@@ -95,7 +113,6 @@ if [ -x "$INSTALL_DIR/git-fire" ]; then
         echo "Add this to your shell rc file (~/.bashrc, ~/.zshrc, etc.):"
         echo -e "  ${GREEN}export PATH=\"$INSTALL_DIR:\$PATH\"${NC}\n"
 
-        # Detect shell and suggest
         if [ -n "$BASH_VERSION" ]; then
             echo "For bash:"
             echo -e "  ${GREEN}echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc${NC}"
@@ -115,7 +132,6 @@ if [ -x "$INSTALL_DIR/git-fire" ]; then
         echo -e "${YELLOW}⚠️  Installation may have issues${NC}\n"
     fi
 
-    # Next steps
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}  Next steps:${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
