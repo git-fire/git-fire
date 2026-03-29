@@ -19,58 +19,12 @@ func DefaultRegistryPath() (string, error) {
 	return filepath.Join(home, ".config", "git-fire", "repos.toml"), nil
 }
 
-func legacyRegistryPath(home string) string {
-	return filepath.Join(home, ".git-fire", "repos.toml")
-}
-
-// tryMigrateLegacyRegistry copies ~/.git-fire/repos.toml into the new config
-// location once if the new file does not exist yet, then renames the legacy
-// file to repos.toml.migrated. Only runs when newPath is the canonical default
-// (so tests using arbitrary temp paths never pull in a real home registry).
-func tryMigrateLegacyRegistry(newPath string) error {
-	if _, err := os.Stat(newPath); err == nil {
-		return nil
-	}
-	canonical, err := DefaultRegistryPath()
-	if err != nil {
-		return nil
-	}
-	if filepath.Clean(newPath) != filepath.Clean(canonical) {
-		return nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil
-	}
-	oldPath := legacyRegistryPath(home)
-	data, err := os.ReadFile(oldPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("reading legacy registry %s: %w", oldPath, err)
-	}
-	newDir := filepath.Dir(newPath)
-	if err := os.MkdirAll(newDir, 0o700); err != nil {
-		return fmt.Errorf("creating registry directory: %w", err)
-	}
-	if err := os.WriteFile(newPath, data, 0o600); err != nil {
-		return fmt.Errorf("writing migrated registry: %w", err)
-	}
-	_ = os.Rename(oldPath, oldPath+".migrated")
-	return nil
-}
-
 // Load reads the registry from disk. If the file or directory does not exist
 // it is created and an empty registry is returned.
 func Load(path string) (*Registry, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating registry directory: %w", err)
-	}
-
-	if err := tryMigrateLegacyRegistry(path); err != nil {
-		return nil, err
 	}
 
 	data, err := os.ReadFile(path)

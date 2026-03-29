@@ -18,7 +18,7 @@ var reposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Manage the persistent repository registry",
 	Long: `Manage the persistent repository registry stored at ~/.config/git-fire/repos.toml
-(same directory as config.toml; legacy ~/.git-fire/repos.toml is migrated on first load).
+(same directory as config.toml).
 
 The registry tracks all git repositories that git-fire has discovered, so that
 future runs load them instantly without re-scanning the filesystem.`,
@@ -247,7 +247,7 @@ func setRepoStatus(rawPath, status, label string) error {
 }
 
 // buildKnownPaths constructs the KnownPaths map for the scanner. Active,
-// missing, and legacy empty-status entries are included so repos persist across
+// missing, and empty-status entries are included so repos persist across
 // runs from different working directories; ignored entries are excluded.
 // Paths that no longer exist are skipped at analysis time (see scanner).
 func buildKnownPaths(reg *registry.Registry, globalRescan bool) map[string]bool {

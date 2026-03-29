@@ -149,7 +149,6 @@ git-fire --backup-to <git-root-url> --token <api-token>
 
 ### File Location
 - Primary: `~/.config/git-fire/config.toml`
-- Fallback: `~/.git-fire/config.toml`
 - Env override: `GIT_FIRE_CONFIG=/path/to/config.toml`
 
 **Important:** Config is OPTIONAL. Tool works with zero configuration using safe defaults.
@@ -302,9 +301,8 @@ conflict_strategy = "skip"  # Don't create new branches for this one
 ### Config Loading Rules (Zero-Config Friendly)
 1. Try to load from `GIT_FIRE_CONFIG` env var
 2. Try `~/.config/git-fire/config.toml`
-3. Try `~/.git-fire/config.toml`
-4. **If none exist:** Use safe built-in defaults (works immediately, no setup required)
-5. User can optionally run `git-fire --init` to generate config template for customization
+3. **If none exist:** Use safe built-in defaults (works immediately, no setup required)
+4. User can optionally run `git-fire --init` to generate config template for customization
 
 **Emergency mode philosophy:** Tool MUST work with zero configuration for first-time users in actual emergencies.
 

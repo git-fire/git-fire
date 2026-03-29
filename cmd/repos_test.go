@@ -18,7 +18,7 @@ import (
 func TestBuildKnownPaths_ActiveMissingEmptyNotIgnored(t *testing.T) {
 	dir := t.TempDir()
 	missingPath := filepath.Join(dir, "missing")
-	emptyStatusPath := filepath.Join(dir, "legacy")
+	emptyStatusPath := filepath.Join(dir, "empty-status")
 	reg := &registry.Registry{
 		Repos: []registry.RegistryEntry{
 			{Path: dir, Status: registry.StatusActive},

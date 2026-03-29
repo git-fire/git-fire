@@ -123,7 +123,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build KnownPaths for the scanner (active, missing, and legacy empty status).
+	// Build KnownPaths for the scanner (active, missing, and empty status).
 	knownPaths := buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
 	// Build scan options

@@ -1,6 +1,6 @@
 # Persistent Repository Registry
 
-`git-fire` maintains a registry at `~/.config/git-fire/repos.toml` (next to `config.toml`) that accumulates every git repo discovered across runs. A legacy file at `~/.git-fire/repos.toml` is migrated automatically on first load. Known repos are loaded instantly at startup; the filesystem walker only descends into directories not already in the registry.
+`git-fire` maintains a registry at `~/.config/git-fire/repos.toml` (next to `config.toml`) that accumulates every git repo discovered across runs. Known repos are loaded instantly at startup; the filesystem walker only descends into directories not already in the registry.
 
 ## Architecture Diagrams
 
