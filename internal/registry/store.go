@@ -20,8 +20,20 @@ func DefaultRegistryPath() (string, error) {
 }
 
 // Load reads the registry from disk. If the file or directory does not exist
-// it is created and an empty registry is returned.
+// it is created and an empty registry is returned. An advisory lock is held
+// for the duration of the read to prevent a concurrent Save from racing.
 func Load(path string) (*Registry, error) {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
+
+	release, err := acquireLock(path)
+	defer release()
+	if err != nil {
+		// Lock timeout is non-fatal: proceed without the cross-process guarantee
+		// rather than blocking an emergency backup indefinitely.
+		_ = err
+	}
+
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating registry directory: %w", err)
@@ -43,7 +55,18 @@ func Load(path string) (*Registry, error) {
 }
 
 // Save writes the registry to disk atomically (write to a temp file, then rename).
+// An advisory lock is held to serialise concurrent writes.
 func Save(reg *Registry, path string) error {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
+
+	release, err := acquireLock(path)
+	defer release()
+	if err != nil {
+		// Non-fatal: proceed and rely on the atomic rename for crash safety.
+		_ = err
+	}
+
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("creating registry directory: %w", err)

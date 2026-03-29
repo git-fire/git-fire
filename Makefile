@@ -5,6 +5,10 @@ REPO_BIN := $(ROOT)$(BINARY)
 # Single global install location (overwrites on each install).
 USER_BIN := $(abspath $(HOME)/.local/bin)
 INSTALL_BIN := $(USER_BIN)/$(BINARY)
+# Version: use git tag if available, otherwise "dev"
+VERSION ?= $(shell git -C "$(ROOT)" describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS := -X github.com/TBRX103/git-fire/cmd.Version=$(VERSION)
+LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
 .PHONY: all build run test test-race lint clean install help
 
@@ -12,7 +16,7 @@ all: build
 
 ## build: compile binary next to this Makefile (./git-fire in repo root)
 build:
-	cd "$(ROOT)" && go build -o "$(REPO_BIN)" .
+	cd "$(ROOT)" && go build -ldflags "$(LDFLAGS)" -o "$(REPO_BIN)" .
 
 ## run: build and run with optional ARGS (e.g. make run ARGS="--dry-run")
 run: build
@@ -37,7 +41,7 @@ clean:
 ## install: build and copy to ~/.local/bin (overwrites). Invoke from anywhere: make -C /path/to/git-fire install
 install:
 	@mkdir -p "$(USER_BIN)"
-	cd "$(ROOT)" && go build -o "$(INSTALL_BIN)" .
+	cd "$(ROOT)" && go build -ldflags "$(LDFLAGS_RELEASE)" -o "$(INSTALL_BIN)" .
 	@chmod 755 "$(INSTALL_BIN)"
 	@echo ""
 	@echo "Installed: $(INSTALL_BIN)"

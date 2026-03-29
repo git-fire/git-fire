@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -21,6 +22,9 @@ import (
 	"github.com/TBRX103/git-fire/internal/ui"
 )
 
+// Version is set at build time via -ldflags "-X github.com/TBRX103/git-fire/cmd.Version=vX.Y.Z"
+var Version = "dev"
+
 var (
 	// Flags
 	dryRun     bool
@@ -29,6 +33,7 @@ var (
 	scanPath   string
 	skipCommit bool
 	initConfig bool
+	forceInit  bool
 	backupTo   string
 	showStatus bool
 )
@@ -53,12 +58,14 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.Version = Version
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.Flags().BoolVar(&fireDrill, "fire-drill", false, "Alias for --dry-run")
 	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Fire mode: TUI repo selector, skips confirmation prompt")
 	rootCmd.Flags().StringVar(&scanPath, "path", ".", "Path to scan for repositories")
 	rootCmd.Flags().BoolVar(&skipCommit, "skip-auto-commit", false, "Skip auto-committing dirty repos")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
+	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
@@ -72,6 +79,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	// Handle --status flag
 	if showStatus {
 		return handleStatus()
+	}
+
+	// Verify git is available before doing anything else
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("git not found in PATH: please install git before using git-fire")
 	}
 
 	// Load configuration
@@ -483,14 +495,22 @@ func handleInit() error {
 
 	// Check if config already exists
 	if _, err := os.Stat(configPath); err == nil {
-		fmt.Printf("Configuration file already exists: %s\n", configPath)
-		fmt.Print("Overwrite? [y/N]: ")
-		var response string
-		fmt.Scanln(&response)
+		if !forceInit {
+			// In non-interactive environments (CI, piped stdin) fmt.Scanln would
+			// hang or read garbage. Detect a non-terminal and fail fast so the
+			// caller knows to use --force.
+			if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+				return fmt.Errorf("config already exists at %s; use --force to overwrite non-interactively", configPath)
+			}
+			fmt.Printf("Configuration file already exists: %s\n", configPath)
+			fmt.Print("Overwrite? [y/N]: ")
+			var response string
+			fmt.Scanln(&response)
 
-		if response != "y" && response != "Y" {
-			fmt.Println("Aborted.")
-			return nil
+			if response != "y" && response != "Y" {
+				fmt.Println("Aborted.")
+				return nil
+			}
 		}
 	}
 

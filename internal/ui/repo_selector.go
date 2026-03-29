@@ -458,55 +458,17 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 // persistMode writes the repo's current mode to the registry synchronously.
 // Errors are silently ignored — this is best-effort during an emergency.
 func (m RepoSelectorModel) persistMode(repoPath string, mode git.RepoMode) {
-	if m.reg == nil || m.regPath == "" {
-		return
-	}
-	absPath, err := filepath.Abs(repoPath)
-	if err != nil {
-		return
-	}
-	entry := m.reg.FindByPath(absPath)
-	if entry != nil {
-		entry.Mode = mode.String()
-	} else {
-		m.reg.Upsert(registry.RegistryEntry{
-			Path:   absPath,
-			Name:   filepath.Base(absPath),
-			Status: registry.StatusActive,
-			Mode:   mode.String(),
-		})
-	}
-	_ = registry.Save(m.reg, m.regPath)
+	_ = selectorPersistMode(m.reg, m.regPath, repoPath, mode)
 }
 
 // persistIgnore marks the repo as ignored in the registry synchronously.
 func (m RepoSelectorModel) persistIgnore(repoPath string) {
-	if m.reg == nil || m.regPath == "" {
-		return
-	}
-	absPath, err := filepath.Abs(repoPath)
-	if err != nil {
-		return
-	}
-	if !m.reg.SetStatus(absPath, registry.StatusIgnored) {
-		m.reg.Upsert(registry.RegistryEntry{
-			Path:   absPath,
-			Name:   filepath.Base(absPath),
-			Status: registry.StatusIgnored,
-		})
-	}
-	_ = registry.Save(m.reg, m.regPath)
+	_ = selectorPersistIgnore(m.reg, m.regPath, repoPath)
 }
 
 // GetSelectedRepos returns the selected repositories
 func (m RepoSelectorModel) GetSelectedRepos() []git.Repository {
-	selected := make([]git.Repository, 0)
-	for i, repo := range m.repos {
-		if m.selected[i] {
-			selected = append(selected, repo)
-		}
-	}
-	return selected
+	return selectorGetSelected(m.repos, m.selected)
 }
 
 // RunRepoSelector runs the interactive repo selector and returns selected repos.

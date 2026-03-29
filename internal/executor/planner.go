@@ -94,46 +94,53 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 		})
 	}
 
-	// Step 2: Check for conflicts with remote
-	// For simplicity, we'll check the first remote
-	// In a real scenario, might want to check all remotes
-	remote := repo.Remotes[0]
-
-	// Get current branch (we'll simulate this - in real code would query git)
-	// For now, assume "main" or first branch
-	currentBranch := "main"
-	if len(repo.Branches) > 0 {
-		currentBranch = repo.Branches[0]
+	// Step 2+3: Determine push strategy and add an action for every remote.
+	// In an emergency every configured remote is a backup destination.
+	//
+	// The default mode pushes only the currently checked-out branch. We resolve
+	// it from git here rather than using Branches[0], which is in discovery
+	// order and may not match. The call is guarded so ModePushKnownBranches /
+	// ModePushAll repos (which don't need it) can skip the git invocation.
+	var currentBranch string
+	if repo.Mode != git.ModePushKnownBranches && repo.Mode != git.ModePushAll {
+		var err error
+		currentBranch, err = git.GetCurrentBranch(repo.Path)
+		if err != nil {
+			// Detached HEAD or damaged repo — can't safely target a single branch.
+			repoPlan.Skip = true
+			repoPlan.SkipReason = fmt.Sprintf("cannot determine current branch: %v", err)
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionSkip,
+				Description: repoPlan.SkipReason,
+			})
+			return repoPlan, nil
+		}
 	}
 
-	// Note: In dry-run mode, we can't actually check for conflicts
-	// without fetching from remote. For now, assume no conflicts in planning.
-	// Real conflict detection happens during execution.
+	for _, remote := range repo.Remotes {
+		switch repo.Mode {
+		case git.ModePushKnownBranches:
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushKnown,
+				Description: fmt.Sprintf("Push branches that exist on remote (%s)", remote.Name),
+				Remote:      remote.Name,
+			})
 
-	// Step 3: Determine push strategy based on mode
-	switch repo.Mode {
-	case git.ModePushKnownBranches:
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushKnown,
-			Description: "Push branches that exist on remote",
-			Remote:      remote.Name,
-		})
+		case git.ModePushAll:
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushAll,
+				Description: fmt.Sprintf("Push all branches (%s)", remote.Name),
+				Remote:      remote.Name,
+			})
 
-	case git.ModePushAll:
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushAll,
-			Description: "Push all branches",
-			Remote:      remote.Name,
-		})
-
-	default:
-		// Default to pushing current branch
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushBranch,
-			Description: fmt.Sprintf("Push branch %s", currentBranch),
-			Remote:      remote.Name,
-			Branch:      currentBranch,
-		})
+		default:
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushBranch,
+				Description: fmt.Sprintf("Push branch %s (%s)", currentBranch, remote.Name),
+				Remote:      remote.Name,
+				Branch:      currentBranch,
+			})
+		}
 	}
 
 	return repoPlan, nil

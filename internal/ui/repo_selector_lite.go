@@ -344,54 +344,16 @@ func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteMode
 }
 
 func (m RepoSelectorLiteModel) persistMode(repoPath string, mode git.RepoMode) error {
-	if m.reg == nil || m.regPath == "" {
-		return nil
-	}
-	absPath, err := filepath.Abs(repoPath)
-	if err != nil {
-		return err
-	}
-	entry := m.reg.FindByPath(absPath)
-	if entry != nil {
-		entry.Mode = mode.String()
-	} else {
-		m.reg.Upsert(registry.RegistryEntry{
-			Path:   absPath,
-			Name:   filepath.Base(absPath),
-			Status: registry.StatusActive,
-			Mode:   mode.String(),
-		})
-	}
-	return registry.Save(m.reg, m.regPath)
+	return selectorPersistMode(m.reg, m.regPath, repoPath, mode)
 }
 
 func (m RepoSelectorLiteModel) persistIgnore(repoPath string) error {
-	if m.reg == nil || m.regPath == "" {
-		return nil
-	}
-	absPath, err := filepath.Abs(repoPath)
-	if err != nil {
-		return err
-	}
-	if !m.reg.SetStatus(absPath, registry.StatusIgnored) {
-		m.reg.Upsert(registry.RegistryEntry{
-			Path:   absPath,
-			Name:   filepath.Base(absPath),
-			Status: registry.StatusIgnored,
-		})
-	}
-	return registry.Save(m.reg, m.regPath)
+	return selectorPersistIgnore(m.reg, m.regPath, repoPath)
 }
 
 // GetSelectedRepos returns the selected repositories
 func (m RepoSelectorLiteModel) GetSelectedRepos() []git.Repository {
-	selected := make([]git.Repository, 0)
-	for i, repo := range m.repos {
-		if m.selected[i] {
-			selected = append(selected, repo)
-		}
-	}
-	return selected
+	return selectorGetSelected(m.repos, m.selected)
 }
 
 // RunRepoSelectorLite runs the lite (non-animated) interactive repo selector.

@@ -816,3 +816,127 @@ func TestGetUncommittedFiles_Clean(t *testing.T) {
 		t.Errorf("expected no files for clean repo, got %v", files)
 	}
 }
+
+func TestPushAllBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	localSHA := testutil.GetCurrentSHA(t, repo)
+
+	if err := PushAllBranches(repo, "origin"); err != nil {
+		t.Errorf("PushAllBranches() error = %v", err)
+	}
+
+	// Verify the remote actually has the commit we pushed
+	branch, err := GetCurrentBranch(repo)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch: %v", err)
+	}
+	remoteSHA := getBareBranchSHA(t, remote, branch)
+	if remoteSHA != localSHA {
+		t.Errorf("remote SHA = %s, want %s — branch was not actually pushed", remoteSHA, localSHA)
+	}
+}
+
+func TestPushAllBranches_InvalidRemote(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "test-repo"})
+
+	if err := PushAllBranches(repo, "nonexistent"); err == nil {
+		t.Error("expected error pushing to nonexistent remote")
+	}
+}
+
+func TestPushKnownBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// Push once to establish the remote branch
+	if err := PushAllBranches(repo, "origin"); err != nil {
+		t.Fatalf("initial push: %v", err)
+	}
+
+	// Add a new commit so we can verify PushKnownBranches actually moves the remote ref
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "-m", "second commit")
+	localSHA := testutil.GetCurrentSHA(t, repo)
+
+	if err := PushKnownBranches(repo, "origin"); err != nil {
+		t.Errorf("PushKnownBranches() error = %v", err)
+	}
+
+	// Confirm the remote ref was updated to the new commit
+	remoteSHA := testutil.GetCurrentSHA(t, remote)
+	if remoteSHA != localSHA {
+		t.Errorf("remote SHA = %s, want %s — branch was not pushed", remoteSHA, localSHA)
+	}
+}
+
+func TestPushKnownBranches_NoRemoteBranches(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "test-repo",
+		Remotes: map[string]string{"origin": remote},
+	})
+
+	// No branches pushed yet — PushKnownBranches should succeed (nothing to do)
+	if err := PushKnownBranches(repo, "origin"); err != nil {
+		t.Errorf("PushKnownBranches() with no remote branches: error = %v", err)
+	}
+}
+
+func TestPushKnownBranches_ContinuesOnError(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:     "test-repo",
+		Remotes:  map[string]string{"origin": remote},
+		Branches: []string{"accept-branch", "reject-branch"},
+	})
+
+	// Push all branches to establish them on the remote
+	if err := PushAllBranches(repo, "origin"); err != nil {
+		t.Fatalf("initial push: %v", err)
+	}
+
+	// accept-branch: add a new commit (fast-forward friendly)
+	testutil.RunGitCmd(t, repo, "checkout", "accept-branch")
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "-m", "extra commit on accept-branch")
+	acceptLocalSHA := testutil.GetCurrentSHA(t, repo)
+
+	// reject-branch: push an extra commit to the remote, then rewind local and
+	// add a different commit — local and remote now have diverged histories.
+	testutil.RunGitCmd(t, repo, "checkout", "reject-branch")
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "-m", "commit pushed to remote")
+	testutil.RunGitCmd(t, repo, "push", "origin", "reject-branch") // advance remote
+	testutil.RunGitCmd(t, repo, "reset", "--hard", "HEAD^")        // rewind local
+	testutil.RunGitCmd(t, repo, "commit", "--allow-empty", "-m", "diverged local commit")
+
+	// Return to the default branch before calling PushKnownBranches
+	testutil.RunGitCmd(t, repo, "checkout", "-")
+
+	err := PushKnownBranches(repo, "origin")
+	if err == nil {
+		t.Error("expected error: reject-branch should fail with non-fast-forward rejection")
+	}
+
+	// accept-branch must have been pushed despite reject-branch failing
+	acceptRemoteSHA := getBareBranchSHA(t, remote, "accept-branch")
+	if acceptRemoteSHA != acceptLocalSHA {
+		t.Errorf("accept-branch remote SHA = %s, want %s — branch was not pushed after sibling failure",
+			acceptRemoteSHA, acceptLocalSHA)
+	}
+}
+
+// getBareBranchSHA returns the SHA of a branch in a bare remote repository.
+func getBareBranchSHA(t *testing.T, bareRemote, branch string) string {
+	t.Helper()
+	sha, err := getCommitSHA(bareRemote, "refs/heads/"+branch)
+	if err != nil {
+		t.Fatalf("get remote branch SHA %s: %v", branch, err)
+	}
+	return sha
+}

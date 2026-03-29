@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
+	"time"
+	"github.com/TBRX103/git-fire/internal/executor"
 	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/TBRX103/git-fire/internal/testutil"
 )
@@ -316,5 +317,207 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 	}
 	if !strings.Contains(out, fmt.Sprintf("• %s", "kept")) {
 		t.Errorf("kept repo should appear in output:\n%s", out)
+	}
+}
+
+// ---- repos subcommand function coverage ----
+
+// isolateHome redirects HOME so loadRegistry() uses a temp registry.
+func isolateHome(t *testing.T) string {
+	t.Helper()
+	tmp := t.TempDir()
+	orig := os.Getenv("HOME")
+	t.Cleanup(func() { os.Setenv("HOME", orig) })
+	os.Setenv("HOME", tmp)
+	return tmp
+}
+
+func TestLoadRegistry(t *testing.T) {
+	isolateHome(t)
+
+	reg, path, err := loadRegistry()
+	if err != nil {
+		t.Fatalf("loadRegistry() error = %v", err)
+	}
+	if reg == nil {
+		t.Error("expected non-nil registry")
+	}
+	if path == "" {
+		t.Error("expected non-empty path")
+	}
+}
+
+func TestReposList_FunctionDirectly(t *testing.T) {
+	isolateHome(t)
+	// Empty registry — should print "No repositories" message
+	if err := reposList(reposListCmd, nil); err != nil {
+		t.Errorf("reposList() error = %v", err)
+	}
+}
+
+func TestReposList_WithData(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	reg.Upsert(registry.RegistryEntry{
+		Path: "/some/repo", Name: "repo", Status: registry.StatusActive,
+		Mode: "push-known-branches",
+	})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := reposList(reposListCmd, nil); err != nil {
+		t.Errorf("reposList() error = %v", err)
+	}
+}
+
+func TestReposScan_Function(t *testing.T) {
+	isolateHome(t)
+
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "scanme"})
+	scanRoot := filepath.Dir(repoPath)
+
+	if err := reposScan(reposScanCmd, []string{scanRoot}); err != nil {
+		t.Errorf("reposScan() error = %v", err)
+	}
+}
+
+func TestReposScan_DefaultPath(t *testing.T) {
+	isolateHome(t)
+
+	// Create a real repo and scan its parent so reposScan actually discovers it
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "scanme2"})
+	scanRoot := filepath.Dir(repoPath)
+
+	if err := reposScan(reposScanCmd, []string{scanRoot}); err != nil {
+		t.Errorf("reposScan() with explicit path error = %v", err)
+	}
+}
+
+func TestReposRemove_Function(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	abs, _ := filepath.Abs("/fake/path")
+	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "fake", Status: registry.StatusActive})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := reposRemove(reposRemoveCmd, []string{abs}); err != nil {
+		t.Errorf("reposRemove() error = %v", err)
+	}
+
+	loaded, _ := registry.Load(regPath)
+	if loaded.FindByPath(abs) != nil {
+		t.Error("entry should have been removed")
+	}
+}
+
+func TestReposRemove_NotFound_Function(t *testing.T) {
+	isolateHome(t)
+	if err := reposRemove(reposRemoveCmd, []string{"/definitely/not/there"}); err == nil {
+		t.Error("expected error for non-existent path")
+	}
+}
+
+func TestSetRepoStatus_IgnoreUnignore(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	abs, _ := filepath.Abs("/some/repo")
+	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "repo", Status: registry.StatusActive})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := setRepoStatus(abs, registry.StatusIgnored, "ignored"); err != nil {
+		t.Errorf("setRepoStatus(ignored) error = %v", err)
+	}
+	loaded, _ := registry.Load(regPath)
+	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
+		t.Error("status should be ignored")
+	}
+
+	if err := setRepoStatus(abs, registry.StatusActive, "active"); err != nil {
+		t.Errorf("setRepoStatus(active) error = %v", err)
+	}
+	loaded2, _ := registry.Load(regPath)
+	if e := loaded2.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
+		t.Error("status should be active after unignore")
+	}
+}
+
+func TestSetRepoStatus_NotFound(t *testing.T) {
+	isolateHome(t)
+	if err := setRepoStatus("/not/tracked", registry.StatusIgnored, "ignored"); err == nil {
+		t.Error("expected error for untracked path")
+	}
+}
+
+func TestStatusLabel_AllValues(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{registry.StatusActive, "active "},
+		{"", "active "},
+		{registry.StatusMissing, "MISSING"},
+		{registry.StatusIgnored, "ignored"},
+		{"custom-status", "custom-status"},
+	}
+	for _, tt := range tests {
+		if got := statusLabel(tt.in); got != tt.want {
+			t.Errorf("statusLabel(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestHandleInit_ForceFlag(t *testing.T) {
+	tmpHome := t.TempDir()
+	orig := os.Getenv("HOME")
+	defer os.Setenv("HOME", orig)
+	os.Setenv("HOME", tmpHome)
+
+	// First call creates the file
+	forceInit = false
+	if err := handleInit(); err != nil {
+		t.Fatalf("first handleInit(): %v", err)
+	}
+
+	// Second call with --force should overwrite without prompting
+	forceInit = true
+	defer func() { forceInit = false }()
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with force: %v", err)
+	}
+}
+
+func TestPrintResult(t *testing.T) {
+	// Capture stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+
+	printResult(&executor.ExecutionResult{
+		Success:  3,
+		Failed:   1,
+		Skipped:  2,
+		Duration: 5 * time.Second,
+	}, "/tmp/fake.log")
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	out := buf.String()
+
+	if !strings.Contains(out, "3") {
+		t.Error("expected success count in output")
 	}
 }

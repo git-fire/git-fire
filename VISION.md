@@ -47,9 +47,9 @@ A platform where `fire` (one command) saves ALL your critical data:
 
 Built git-fire MVP:
 - Multi-repo scanning & pushing
-- Secret detection 
-- Plugin architecture
-- 43/43 tests passing
+- Secret detection
+- Plugin architecture (command plugins)
+- 250+ tests passing
 - Emergency script (curl | bash)
 
 **Result:** Validates core concept

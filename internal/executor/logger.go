@@ -5,8 +5,43 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 )
+
+// secretPatterns matches common credential patterns that should be redacted
+// from log output before persisting to disk.
+var secretPatterns = []*regexp.Regexp{
+	// HTTPS URLs with embedded credentials: https://user:pass@host
+	regexp.MustCompile(`(?i)(https?://)[^:@/\s]+:[^@/\s]+@`),
+	// AWS access keys
+	regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),
+	// Generic token/key/password/secret in key=value form
+	regexp.MustCompile(`(?i)(token|key|password|secret|passwd|api_key|apikey)\s*[:=]\s*\S+`),
+	// GitHub tokens
+	regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b`),
+}
+
+// maskSecrets redacts common credential patterns from a string.
+func maskSecrets(s string) string {
+	for _, re := range secretPatterns {
+		s = re.ReplaceAllStringFunc(s, func(m string) string {
+			// For URL credentials keep the scheme and host visible.
+			if strings.HasPrefix(strings.ToLower(m), "http") {
+				// Replace user:pass@ with [REDACTED]@
+				return re.ReplaceAllString(m, "${1}[REDACTED]@")
+			}
+			// For key=value forms keep the key name.
+			idx := strings.IndexAny(m, ":=")
+			if idx >= 0 {
+				return m[:idx+1] + "[REDACTED]"
+			}
+			return "[REDACTED]"
+		})
+	}
+	return s
+}
 
 // Logger handles structured logging of git-fire operations
 type Logger struct {
@@ -28,7 +63,7 @@ type LogEntry struct {
 // NewLogger creates a new logger
 func NewLogger(logDir string) (*Logger, error) {
 	// Create log directory if it doesn't exist
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -36,7 +71,7 @@ func NewLogger(logDir string) (*Logger, error) {
 	logFilename := fmt.Sprintf("git-fire-%s.log", time.Now().Format("20060102-150405"))
 	logPath := filepath.Join(logDir, logFilename)
 
-	file, err := os.Create(logPath)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
@@ -82,7 +117,9 @@ func (l *Logger) Info(repo, action, description string) {
 	})
 }
 
-// Error logs an error message
+// Error logs an error message. The error string is masked for common secret
+// patterns (e.g. HTTPS credentials embedded in git remote URLs) before being
+// written to disk.
 func (l *Logger) Error(repo, action, description string, err error) {
 	entry := LogEntry{
 		Level:       "error",
@@ -91,7 +128,7 @@ func (l *Logger) Error(repo, action, description string, err error) {
 		Description: description,
 	}
 	if err != nil {
-		entry.Error = err.Error()
+		entry.Error = maskSecrets(err.Error())
 	}
 	l.Log(entry)
 }
