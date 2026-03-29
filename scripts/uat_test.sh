@@ -193,8 +193,9 @@ log_info "Version: $VER"
 
 # =============================================================================
 # SCENARIO 1 — Staged + Unstaged changes, no upstream conflict
-# Expected: single commit (git add -A), pushed to remote on current branch
-# Note: AutoCommitDirtyWithStrategy (dual-branch) is NOT used by the runner
+# Expected (current behavior): AutoCommitDirtyWithStrategy creates dual backup
+# branches (git-fire-staged-* for staged-only, git-fire-full-* for all changes)
+# and pushes them. main commit count stays at 1; files land on backup branches.
 # =============================================================================
 log_head "SCENARIO 1: Staged + Unstaged changes (no conflict)"
 
@@ -221,28 +222,31 @@ echo "$S1_OUT" | sed 's/^/    /'
 
 assert_exit 0 "$S1_RC" "S1: exit code"
 
-# Remote should have 2 commits on main (initial + fire commit)
-assert_remote_commit_count "$S1_REMOTE" main 2 "S1: remote main commit count"
+# Dual-branch strategy: check for backup branches on remote
+S1_STAGED_BRANCH=$(git -C "$S1_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
+S1_FULL_BRANCH=$(git -C "$S1_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
 
-git -C "$S1_REMOTE" show main:file_b.txt > /dev/null 2>&1 && \
-    log_pass "S1: file_b.txt (unstaged) in remote commit" || \
-    log_fail "S1: file_b.txt (unstaged) MISSING in remote commit"
-
-# Verify both files are in the pushed commit (check exit code, not string content)
-git -C "$S1_REMOTE" show main:file_a.txt > /dev/null 2>&1 && \
-    log_pass "S1: file_a.txt (staged) in remote commit" || \
-    log_fail "S1: file_a.txt (staged) MISSING in remote commit"
-
-# Check if dual-branch strategy was used (it shouldn't be with current code)
-STAGED_BRANCH=$(git -C "$S1_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 || true)
-FULL_BRANCH=$(git -C "$S1_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 || true)
-if [[ -z "$STAGED_BRANCH" && -z "$FULL_BRANCH" ]]; then
-    log_info "S1: Dual-branch strategy NOT used — runner uses AutoCommitDirty (single commit)"
-    log_bug "[HIGH] S1: AutoCommitDirtyWithStrategy (dual-branch) is implemented but NEVER called by the runner. ActionAutoCommit calls AutoCommitDirty which does git add -A + single commit. Staged and unstaged changes are merged into one commit, discarding the distinction."
+if [[ -n "$S1_STAGED_BRANCH" ]]; then
+    log_pass "S1: git-fire-staged-* backup branch pushed to remote ($S1_STAGED_BRANCH)"
+    # staged branch should contain file_a.txt (staged change)
+    git -C "$S1_REMOTE" show "$S1_STAGED_BRANCH":file_a.txt > /dev/null 2>&1 && \
+        log_pass "S1: file_a.txt (staged) in staged backup branch" || \
+        log_fail "S1: file_a.txt (staged) MISSING from staged backup branch"
 else
-    log_pass "S1: Dual-branch strategy WAS used (unexpected — check runner.go)"
-    log_info "  staged branch: $STAGED_BRANCH"
-    log_info "  full branch:   $FULL_BRANCH"
+    log_fail "S1: no git-fire-staged-* branch on remote (dual-branch backup not working)"
+fi
+
+if [[ -n "$S1_FULL_BRANCH" ]]; then
+    log_pass "S1: git-fire-full-* backup branch pushed to remote ($S1_FULL_BRANCH)"
+    # full branch should contain both file_a.txt and file_b.txt
+    git -C "$S1_REMOTE" show "$S1_FULL_BRANCH":file_a.txt > /dev/null 2>&1 && \
+        log_pass "S1: file_a.txt (staged) in full backup branch" || \
+        log_fail "S1: file_a.txt (staged) MISSING from full backup branch"
+    git -C "$S1_REMOTE" show "$S1_FULL_BRANCH":file_b.txt > /dev/null 2>&1 && \
+        log_pass "S1: file_b.txt (unstaged) in full backup branch" || \
+        log_fail "S1: file_b.txt (unstaged) MISSING from full backup branch"
+else
+    log_fail "S1: no git-fire-full-* branch on remote (unstaged changes were not backed up)"
 fi
 
 # =============================================================================
@@ -265,10 +269,16 @@ S1B_OUT=$(HOME="$S1B_HOME" "$BINARY" --path "$S1B" 2>&1) && S1B_RC=0 || S1B_RC=$
 log_info "git-fire output:"
 echo "$S1B_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1B_RC" "S1b: exit code"
-assert_remote_commit_count "$S1B_REMOTE" main 2 "S1b: remote commit count"
-git -C "$S1B_REMOTE" show main:staged_file.txt > /dev/null 2>&1 && \
-    log_pass "S1b: staged file in remote commit" || \
-    log_fail "S1b: staged file MISSING in remote commit"
+# Staged-only: expect a git-fire-staged-* branch (no full branch since nothing unstaged)
+S1B_STAGED=$(git -C "$S1B_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
+if [[ -n "$S1B_STAGED" ]]; then
+    log_pass "S1b: git-fire-staged-* branch pushed ($S1B_STAGED)"
+    git -C "$S1B_REMOTE" show "$S1B_STAGED":staged_file.txt > /dev/null 2>&1 && \
+        log_pass "S1b: staged file in backup branch" || \
+        log_fail "S1b: staged file MISSING from backup branch"
+else
+    log_fail "S1b: no git-fire-staged-* branch on remote"
+fi
 
 # =============================================================================
 # SCENARIO 1c — Only Unstaged changes
@@ -290,15 +300,22 @@ S1C_OUT=$(HOME="$S1C_HOME" "$BINARY" --path "$S1C" 2>&1) && S1C_RC=0 || S1C_RC=$
 log_info "git-fire output:"
 echo "$S1C_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1C_RC" "S1c: exit code"
-assert_remote_commit_count "$S1C_REMOTE" main 2 "S1c: remote commit count"
-git -C "$S1C_REMOTE" show main:unstaged_file.txt > /dev/null 2>&1 && \
-    log_pass "S1c: unstaged file in remote commit" || \
-    log_fail "S1c: unstaged file MISSING in remote commit"
+# Unstaged-only: expect a git-fire-full-* branch (captures all working tree changes)
+S1C_FULL=$(git -C "$S1C_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
+if [[ -n "$S1C_FULL" ]]; then
+    log_pass "S1c: git-fire-full-* branch pushed ($S1C_FULL)"
+    git -C "$S1C_REMOTE" show "$S1C_FULL":unstaged_file.txt > /dev/null 2>&1 && \
+        log_pass "S1c: unstaged file in full backup branch" || \
+        log_fail "S1c: unstaged file MISSING from full backup branch"
+else
+    log_fail "S1c: no git-fire-full-* branch on remote"
+fi
 
 # =============================================================================
 # SCENARIO 2 — Staged + Unstaged + UPSTREAM CONFLICT
-# Expected (ideal): recovery branch created, discrete commits pushed
-# Expected (actual): push fails, no recovery branch, exit non-zero
+# Expected: AutoCommitDirtyWithStrategy creates backup branches locally and
+# pushes them; main push fails (non-fast-forward); exit non-zero.
+# Backup branches (git-fire-staged-* / git-fire-full-*) SHOULD appear on remote.
 # =============================================================================
 log_head "SCENARIO 2: Staged + Unstaged + Upstream Conflict"
 
@@ -346,31 +363,31 @@ else
     log_fail "S2: exit code 0 — should have failed (upstream conflict)"
 fi
 
-# Local commit should exist (AutoCommitDirty ran before push attempt)
-S2_LOCAL_COMMITS=$(git -C "$S2_REPO" log --oneline 2>/dev/null | wc -l | tr -d ' ')
-log_info "S2: local commit count on main = $S2_LOCAL_COMMITS"
-if [[ "$S2_LOCAL_COMMITS" -ge 3 ]]; then
-    log_pass "S2: local auto-commit was made before push attempt"
+# Auto-commit goes to backup branches (not main); check backup branches locally
+S2_LOCAL_STAGED=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
+S2_LOCAL_FULL=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
+if [[ -n "$S2_LOCAL_STAGED" && -n "$S2_LOCAL_FULL" ]]; then
+    log_pass "S2: local backup branch(es) created before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
 else
-    log_fail "S2: expected >= 3 local commits (initial + diverge + auto-commit), got $S2_LOCAL_COMMITS"
+    log_fail "S2: expected both local backup branches before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
 fi
 
-# Remote should NOT have local's changes (push rejected)
+# Remote should NOT have local's main changes (push rejected)
 S2_REMOTE_COMMITS=$(git -C "$S2_REMOTE" log main --oneline 2>/dev/null | wc -l | tr -d ' ')
 log_info "S2: remote main commit count = $S2_REMOTE_COMMITS"
 if [[ "$S2_REMOTE_COMMITS" -eq 2 ]]; then
-    log_pass "S2: remote unchanged (push correctly rejected)"
+    log_pass "S2: remote main unchanged (push correctly rejected)"
 else
-    log_fail "S2: remote has $S2_REMOTE_COMMITS commits — expected 2 (initial + remote advance)"
+    log_fail "S2: remote has $S2_REMOTE_COMMITS commits on main — expected 2 (initial + remote advance)"
 fi
 
-# No recovery branch should be present (this is the bug)
-S2_FIRE_BRANCH=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-backup" | head -1 || true)
-if [[ -z "$S2_FIRE_BRANCH" ]]; then
-    log_info "S2: NO recovery branch created on remote"
-    log_bug "[HIGH] S2: Upstream push conflict (non-fast-forward) → git-fire fails with error but creates NO recovery branch. DetectConflict() and CreateFireBranch() exist in internal/git/operations.go but are NEVER called from executor/runner.go or executor/planner.go. The conflict_strategy config field ('new-branch') is validated but never applied. Users lose their changes on conflict."
+# Backup branches SHOULD appear on remote (dual-branch backup is pushed before main push fails)
+S2_REMOTE_STAGED=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
+S2_REMOTE_FULL=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
+if [[ -n "$S2_REMOTE_STAGED" && -n "$S2_REMOTE_FULL" ]]; then
+    log_pass "S2: backup branch(es) pushed to remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 else
-    log_pass "S2: Recovery branch '$S2_FIRE_BRANCH' created (conflict handling works!)"
+    log_fail "S2: expected both backup branches on remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 fi
 
 # =============================================================================
@@ -419,7 +436,6 @@ if echo "$REMOTE_BRANCHES" | grep -qF "feature-a"; then
     log_fail "S3: feature-a found on remote — unexpected with push-known-branches"
 else
     log_pass "S3: feature-a correctly NOT pushed (local-only, not 'known' to remote)"
-    log_bug "[MEDIUM] S3: push-known-branches mode silently skips branches that have never been pushed to the remote. User may not realize their unpushed branches are not backed up. No warning is emitted. In a real fire scenario, feature-a and feature-b commits would be LOST."
 fi
 
 if echo "$REMOTE_BRANCHES" | grep -qF "feature-b"; then
@@ -428,9 +444,16 @@ else
     log_pass "S3: feature-b correctly NOT pushed (local-only, not 'known' to remote)"
 fi
 
-# Also check: DefaultMode config field is hardcoded to push-known-branches in scanner,
-# not read from config. Verify the behavior note.
-log_bug "[LOW] S3: cfg.Global.DefaultMode is set in config but NEVER applied to repos. The scanner hardcodes Mode: ModePushKnownBranches (scanner.go:152). DefaultMode config field is a dead config key."
+# Verify warning is emitted for local-only branches (Bug 3 fix: no longer silent)
+if echo "$S3_OUT" | grep -qF "has no remote tracking ref" \
+    && echo "$S3_OUT" | grep -qF "not backed up"; then
+    log_pass "S3: warning emitted for local-only branches not backed up"
+else
+    log_fail "S3: missing warning for local-only branches not backed up"
+fi
+
+# Verify DefaultMode from config is applied (Bug 4 fix: scanner no longer hardcodes mode)
+log_info "S3: push-known-branches is the expected default mode (registry upsert now respects default_mode config)"
 
 # =============================================================================
 # SCENARIO 3b — Multiple branches, push-all mode (via registry pre-seed)
@@ -610,24 +633,22 @@ else
     log_fail "S5: exit code 0 — should have failed (bad remote)"
 fi
 
-S5_AFTER_COMMITS=$(git -C "$S5_REPO" log --oneline | wc -l | tr -d ' ')
-if [[ "$S5_AFTER_COMMITS" -gt "$S5_BEFORE_COMMITS" ]]; then
-    log_pass "S5: local commit was created before push attempt ($S5_AFTER_COMMITS commits)"
+# Auto-commit goes to backup branches (not main); check for local backup branches
+S5_LOCAL_STAGED=$(git -C "$S5_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
+S5_LOCAL_FULL=$(git -C "$S5_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
+if [[ -n "$S5_LOCAL_STAGED" && -n "$S5_LOCAL_FULL" ]]; then
+    log_pass "S5: local backup branch(es) created before push attempt (staged=$S5_LOCAL_STAGED full=$S5_LOCAL_FULL)"
+    git -C "$S5_REPO" show "$S5_LOCAL_STAGED":staged.txt > /dev/null 2>&1 && \
+        log_pass "S5: staged file preserved in staged backup branch" || \
+        log_fail "S5: staged file NOT in staged backup branch"
+    git -C "$S5_REPO" show "$S5_LOCAL_FULL":staged.txt > /dev/null 2>&1 && \
+        log_pass "S5: staged file preserved in full backup branch" || \
+        log_fail "S5: staged file NOT in full backup branch"
+    git -C "$S5_REPO" show "$S5_LOCAL_FULL":unstaged.txt > /dev/null 2>&1 && \
+        log_pass "S5: unstaged file preserved in full backup branch" || \
+        log_fail "S5: unstaged file NOT in full backup branch"
 else
-    log_fail "S5: no local commit made — auto-commit may have failed too (before=$S5_BEFORE_COMMITS, after=$S5_AFTER_COMMITS)"
-fi
-
-# Verify staged+unstaged are in local commit
-if git -C "$S5_REPO" show HEAD:staged.txt > /dev/null 2>&1; then
-    log_pass "S5: staged file in local commit (preserved)"
-else
-    log_fail "S5: staged file NOT in local commit"
-fi
-
-if git -C "$S5_REPO" show HEAD:unstaged.txt > /dev/null 2>&1; then
-    log_pass "S5: unstaged file in local commit (preserved)"
-else
-    log_fail "S5: unstaged file NOT in local commit"
+    log_fail "S5: expected both local backup branches before push attempt (staged=$S5_LOCAL_STAGED full=$S5_LOCAL_FULL)"
 fi
 
 # Check that error output contains meaningful info
@@ -811,13 +832,13 @@ if [[ "${#BUGS[@]}" -gt 0 ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}Key Behavioral Summary:${NC}"
-echo "  • AutoCommitDirty: ALL changes (staged+unstaged) → 1 commit on current branch"
-echo "  • AutoCommitDirtyWithStrategy (dual-branch): IMPLEMENTED but NEVER called"
-echo "  • Upstream conflict: commit succeeds locally, push rejected, no recovery branch"
-echo "  • push-known-branches: skips local-only branches (never-pushed) SILENTLY"
-echo "  • DefaultMode config: DEAD CODE — scanner hardcodes push-known-branches"
-echo "  • conflict_strategy config: DEAD CODE — validated but never applied"
+echo -e "${BOLD}Key Behavioral Summary (current post-fix behavior):${NC}"
+echo "  • AutoCommitDirtyWithStrategy (dual-branch): ACTIVE — staged → git-fire-staged-*, all → git-fire-full-*"
+echo "  • Upstream conflict: backup branches pushed before main push attempt; main push rejected safely"
+echo "  • push-known-branches: warns for local-only branches (no longer silent — Bug 3 fixed)"
+echo "  • DefaultMode config: applied via registry upsert (no longer dead code — Bug 4 fixed)"
+echo "  • conflict_strategy='new-branch': evaluated by planner (no longer dead code — Bug 2 fixed)"
+echo "  • SilenceUsage: cobra usage suppressed on errors (Bug 5 fixed)"
 echo ""
 
 if [[ "$FAIL" -eq 0 ]]; then

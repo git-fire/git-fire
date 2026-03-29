@@ -1,0 +1,3 @@
+== make lint ==
+Sun Mar 29 20:04:42 UTC 2026
+cd "/home/ben/projects/git-fire/" && go vet ./...

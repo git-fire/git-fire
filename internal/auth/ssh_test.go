@@ -167,6 +167,12 @@ MIIBpjBABgkqhkiG9w0BBQ0wMzAbBgkqhkiG9w
 			t.Skip("ssh-keygen not available")
 		}
 
+		// writeAskpassScript writes to ~/.cache/git-fire/; point HOME at
+		// tmpDir so the test is fully self-contained and works in sandboxes.
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
 		keyPath := filepath.Join(tmpDir, "real_key")
 		cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", keyPath, "-N", "", "-q")
 		if err := cmd.Run(); err != nil {
@@ -262,6 +268,13 @@ func TestTestPassphrase(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
+
+	// writeAskpassScript writes to ~/.cache/git-fire/; point HOME at
+	// tmpDir so the test is fully self-contained and works in sandboxes.
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
 	keyPath := filepath.Join(tmpDir, "test_key")
 
 	// Generate a test key with passphrase
