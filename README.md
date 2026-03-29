@@ -11,7 +11,7 @@
 > 1. `git-fire`
 > 2. Leave building
 
-Emergency git backup tool that automatically commits and pushes all your repositories when disaster strikes.
+Emergency git backup tool that automatically commits and pushes all your repositories when disaster strikes. It is also handy for **lazy uploading**: one command to get every dirty repo committed and pushed when you do not want to hop through each project by hand.
 
 ## 🚨 Quick Start
 
@@ -70,6 +70,24 @@ After you install git-fire, **populate the registry** so future runs know about 
 
 See **Usage** below for `--fire`, `--dry-run`, and `--path`.
 
+## Use cases
+
+Git-fire is built for more than one story. Here is a single place to collect **why** people reach for it:
+
+| Use case | What you get |
+|----------|----------------|
+| **Emergency / disaster backup** | Commit dirty trees and push to remotes fast when a machine is lost, a site is evacuating, or you need everything off-box *now*. |
+| **Lazy multi-repo sync** | One command over `--path` instead of opening every repo and running `git add`, `git commit`, and `git push` yourself. |
+| **End-of-day or pre-travel cleanup** | Leave with a clean slate: everything committed and pushed across the projects you care about. |
+| **Agent and IDE workflows** | Run after AI or agent sessions (or from hooks) so high-churn edits are not stranded locally—see [Agentic coding](#agentic-coding) below. |
+| **Automation-friendly runs** | Wire `git-fire` into cron, systemd timers, or other schedulers so pushes happen on a cadence (ensure SSH keys and non-interactive auth are sorted). |
+| **Extended backups** | Combine pushes with [plugins](PLUGINS.md) (e.g. object storage sync) for an extra copy of repo trees. |
+| **Red / purple team (authorized only)** | In **scoped, legal** exercises, bulk commit-and-push behavior can stress detections around developer tooling, mass `git push`, or “grab everything” backup paths—use only with explicit permission and safe lab data. |
+
+**Suggest features or contribute**
+
+Have another use case or a concrete feature in mind? **Open a GitHub issue** with the idea—we may implement it, and **pull requests are welcome**. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
+
 ## 🎯 Features
 
 ### Core Features
@@ -86,6 +104,7 @@ See **Usage** below for `--fire`, `--dry-run`, and `--path`.
 - ✅ **Background scanning** - Scans repos and SSH keys while waiting for input
 - ✅ **Structured logging** - JSON logs with full reversibility tracking
 - ✅ **Zero-config** - Works out of the box, configure if needed
+- ✅ **Lazy uploads** - Sync many repos at once instead of visiting each directory and running git yourself
 
 ### Safety Features
 
@@ -240,7 +259,9 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 
 ## 📝 License
 
-MIT License
+MIT License. **Copyright © 2026 Benjamin Schellenberger.** See [LICENSE](LICENSE) for the full text.
+
+Repository: [github.com/TBRX103/git-fire](https://github.com/TBRX103/git-fire). **TBRX103** is the GitHub organization for hosting and releases. **Copyright is held by Benjamin Schellenberger** (Ben Schellenberger); the formal `LICENSE` notice uses the legal name only.
 
 ## 🤖 Agentic Coding
 
@@ -270,17 +291,17 @@ This runs git-fire automatically after every Claude Code session ends.
 
 See [docs/agentic-flows.md](docs/agentic-flows.md) for the full integration guide, including plugin callbacks, registry management, and the roadmap for MCP server mode and structured JSON output.
 
-## 😴 End-of-Day Use
+## 😴 End-of-day use and lazy uploads
 
-git-fire isn't just for emergencies. It's also a perfectly valid end-of-day tool for the days when you don't feel like figuring out which repos you touched:
+For more scenarios, see **[Use cases](#use-cases)** above. For everyday sync: run `git-fire` when you want every dirty repo under your scan path committed and pushed without visiting each project.
 
 ```bash
 git-fire
 ```
 
-One command. Every dirty repo in your working directory (or `--path ~/projects`) gets committed and pushed. You leave with a clean slate and nothing left unsaved. No need to context-switch back through eight terminals figuring out what you were working on.
-
 The `--dry-run` flag lets you preview what it would commit before actually doing it.
+
+**Roadmap:** A dedicated **general non-emergency mode** (everyday-first UX, less “fire drill” framing) may land in a future release so casual syncing feels as first-class as the emergency story.
 
 ## 🐶 Dogfooding
 
