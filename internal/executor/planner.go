@@ -33,7 +33,7 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 			continue // Skip unselected repos
 		}
 
-		repoPlan, err := p.buildRepoPlan(repo)
+		repoPlan, err := p.BuildRepoPlan(repo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to plan repo %s: %w", repo.Path, err)
 		}
@@ -56,8 +56,9 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 	return plan, nil
 }
 
-// buildRepoPlan creates a plan for a single repository
-func (p *Planner) buildRepoPlan(repo git.Repository) (RepoPlan, error) {
+// BuildRepoPlan creates a plan for a single repository. It is exported so the
+// streaming executor can plan each repo as it arrives from the scanner.
+func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 	repoPlan := RepoPlan{
 		Repo:    repo,
 		Actions: []Action{},

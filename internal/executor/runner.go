@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/TBRX103/git-fire/internal/config"
@@ -213,6 +214,99 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 	}
 
 	return executedAction
+}
+
+// ExecuteStream reads repositories from repos as they arrive from the scanner,
+// builds a per-repo plan, and executes each one immediately. Workers block
+// when the channel is empty and stop when it is closed. total is an int64
+// pointer updated atomically by the caller's scan goroutine; it is used only
+// for progress display and may read as 0 while scanning is still in progress
+// (shown as "?" in that case).
+//
+// The aggregate result is equivalent to calling Execute on a plan built from
+// all repos, but backup starts as soon as the first repo is ready.
+func (r *Runner) ExecuteStream(
+	repos <-chan git.Repository,
+	planner *Planner,
+	dryRun bool,
+	total *int64,
+) (*ExecutionResult, error) {
+	result := &ExecutionResult{
+		StartTime:   time.Now(),
+		RepoResults: make([]RepoResult, 0),
+	}
+
+	current := 0
+	for repo := range repos {
+		if !repo.Selected {
+			continue
+		}
+
+		repoPlan, err := planner.BuildRepoPlan(repo)
+		if err != nil {
+			// Log and skip repos that can't be planned rather than aborting
+			// the whole run — in an emergency, back up as much as possible.
+			fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", repo.Path, err)
+			continue
+		}
+		repoPlan.Repo.Selected = true
+
+		current++
+		totalStr := "?"
+		if t := *total; t > 0 {
+			totalStr = fmt.Sprintf("%d", t)
+		}
+		_ = totalStr // used in progress display below
+
+		var repoResult RepoResult
+		if dryRun {
+			repoResult = RepoResult{
+				Path:    repoPlan.Repo.Path,
+				Success: true,
+				Actions: repoPlan.Actions,
+			}
+			if repoPlan.Skip {
+				result.Skipped++
+			} else {
+				result.Success++
+			}
+			for _, action := range repoPlan.Actions {
+				if action.Type == ActionAutoCommit {
+					warnAboutSecrets(repoPlan.Repo.Path)
+					break
+				}
+			}
+			tot := int(atomic.LoadInt64(total))
+			r.sendProgress(Progress{
+				CurrentRepo: current,
+				TotalRepos:  tot,
+				RepoName:    repo.Name,
+				Action:      "[DRY RUN] Would execute actions",
+				Status:      StatusSuccess,
+			})
+		} else {
+			repoResult = r.executeRepo(repoPlan, current, int(atomic.LoadInt64(total)))
+			if repoResult.Success {
+				result.Success++
+			} else if repoResult.Error != nil {
+				result.Failed++
+			} else {
+				result.Skipped++
+			}
+		}
+
+		result.RepoResults = append(result.RepoResults, repoResult)
+		result.TotalActions += len(repoResult.Actions)
+		for _, action := range repoResult.Actions {
+			if action.Error != nil {
+				result.FailedActions++
+			}
+		}
+	}
+
+	result.EndTime = time.Now()
+	result.Duration = result.EndTime.Sub(result.StartTime)
+	return result, nil
 }
 
 // dryRunExecute simulates execution without making changes

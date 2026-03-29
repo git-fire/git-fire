@@ -53,6 +53,12 @@ main.go
 - All operations are logged as structured JSON to `~/.config/git-fire/` for reversibility.
 - `internal/ui` has no tests — Bubble Tea TUI testing is deferred intentionally.
 
+**Registry invariant (opt-out model):**
+Every repo git-fire discovers is immediately upserted into the persistent registry (`~/.git-fire/repos.toml`) and the registry is saved before the run ends. Backup is opt-out — all `active` repos are backed up by default; users explicitly set a repo to `ignored` to exclude it. Registry entries persist their absolute paths, so repos found from one working directory are included in future runs from any directory.
+
+**Scan→backup pipeline (non-`--fire` live runs):**
+`cmd/root.go` uses `git.ScanRepositoriesStream` to pipeline scanning and backup: as soon as a repo is discovered it is upserted into the registry and queued for backup via `executor.Runner.ExecuteStream`. Backup workers block when the queue is temporarily empty rather than waiting for the full scan to complete. `--fire` (TUI) and `--dry-run` modes still collect the full repo list first, since the TUI and plan summary both need it.
+
 ---
 
 ## Testing

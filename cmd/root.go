@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -22,14 +23,14 @@ import (
 
 var (
 	// Flags
-	dryRun       bool
-	fireDrill    bool
-	fireMode     bool
-	scanPath     string
-	skipCommit   bool
-	initConfig   bool
-	backupTo     string
-	showStatus   bool
+	dryRun     bool
+	fireDrill  bool
+	fireMode   bool
+	scanPath   string
+	skipCommit bool
+	initConfig bool
+	backupTo   string
+	showStatus bool
 )
 
 var rootCmd = &cobra.Command{
@@ -107,7 +108,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate known paths and mark missing ones
-	registryUpdated := false
 	for i, entry := range reg.Repos {
 		if entry.Status == registry.StatusIgnored {
 			continue
@@ -115,25 +115,40 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if _, statErr := os.Stat(entry.Path); statErr != nil {
 			if os.IsNotExist(statErr) && reg.Repos[i].Status != registry.StatusMissing {
 				reg.Repos[i].Status = registry.StatusMissing
-				registryUpdated = true
 			}
 			continue
 		}
 		if entry.Status == registry.StatusMissing {
 			reg.Repos[i].Status = registry.StatusActive
-			registryUpdated = true
 		}
 	}
 
 	// Build KnownPaths for the scanner: active entries only.
 	knownPaths := buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
-	// Background scanning - start immediately
+	// Build scan options
+	opts := git.DefaultScanOptions()
+	opts.RootPath = cfg.Global.ScanPath
+	opts.Exclude = cfg.Global.ScanExclude
+	opts.Workers = cfg.Global.ScanWorkers
+	opts.KnownPaths = knownPaths
+
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
 	fmt.Println()
-	fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(knownPaths))
-	fmt.Println()
 
+	// Fire mode and dry-run collect all repos upfront (TUI and plan summary need
+	// the full list). Normal live runs use the streaming pipeline so backup begins
+	// as soon as the first repo is discovered.
+	if fireMode || dryRun {
+		return runBatch(cfg, reg, regPath, opts)
+	}
+	return runStream(cfg, reg, regPath, opts)
+}
+
+// runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
+// list before proceeding, which is necessary for the interactive selector and
+// for showing a complete plan summary before any changes are made.
+func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
 	var (
 		repos     []git.Repository
 		sshStatus *auth.SSHStatus
@@ -142,31 +157,20 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		wg        sync.WaitGroup
 	)
 
-	// Start background scans
-	wg.Add(2)
+	fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	fmt.Println()
 
-	// Scan repositories in background
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		opts := git.DefaultScanOptions()
-		opts.RootPath = cfg.Global.ScanPath
-		opts.Exclude = cfg.Global.ScanExclude
-		opts.Workers = cfg.Global.ScanWorkers
-		opts.KnownPaths = knownPaths
-
 		repos, scanErr = git.ScanRepositories(opts)
 	}()
-
-	// Check SSH status in background
 	go func() {
 		defer wg.Done()
 		sshStatus, sshErr = auth.GetSSHStatus()
 	}()
-
-	// Wait for both scans to complete
 	wg.Wait()
 
-	// Check for errors
 	if scanErr != nil {
 		return fmt.Errorf("repository scan failed: %w", scanErr)
 	}
@@ -174,49 +178,18 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("SSH status check failed: %w", sshErr)
 	}
 
-	// Upsert all discovered repos into the registry, preserving per-repo
-	// mode from the registry when available.
+	// Upsert all discovered repos into the registry.
 	now := time.Now()
 	for i, repo := range repos {
-		absPath, absErr := filepath.Abs(repo.Path)
-		if absErr != nil {
-			continue
-		}
-		existing := reg.FindByPath(absPath)
-		if existing != nil {
-			// Restore persisted mode onto the in-memory repo
-			if existing.Mode != "" {
-				repos[i].Mode = git.ParseMode(existing.Mode)
-			}
-			existing.LastSeen = now
-			if existing.Status != registry.StatusIgnored {
-				existing.Status = registry.StatusActive
-			}
-		} else {
-			// New discovery — add to registry
-			reg.Upsert(registry.RegistryEntry{
-				Path:     absPath,
-				Name:     repo.Name,
-				Status:   registry.StatusActive,
-				Mode:     repo.Mode.String(),
-				AddedAt:  now,
-				LastSeen: now,
-			})
-			registryUpdated = true
-		}
+		repos[i], _ = upsertRepoIntoRegistry(reg, repo, now)
 	}
+	saveRegistry(reg, regPath)
 
-	// Persist registry if anything changed
-	if regPath != "" && (registryUpdated || len(repos) > 0) {
-		_ = registry.Save(reg, regPath) // best-effort; don't fail the run
-	}
-
-	// Exclude ignored repos from backup
+	// Exclude ignored repos from backup.
 	activeRepos := make([]git.Repository, 0, len(repos))
 	for _, repo := range repos {
 		absPath, err := filepath.Abs(repo.Path)
 		if err != nil {
-			// Can't resolve path; include repo to be safe (don't silently drop backups)
 			activeRepos = append(activeRepos, repo)
 			continue
 		}
@@ -228,7 +201,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	repos = activeRepos
 
-	// Show scan results
 	fmt.Printf("✓ Found %d repositories\n", len(repos))
 	fmt.Printf("✓ SSH Status: %d keys available", len(sshStatus.AvailableKeys))
 	if sshStatus.Agent.Running {
@@ -237,15 +209,13 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println()
 
-	// If no repos found, exit
 	if len(repos) == 0 {
 		fmt.Println("No git repositories found.")
 		return nil
 	}
 
-	// Repo selection: TUI when --fire is set, otherwise auto-select all
+	// Repo selection: TUI when --fire is set, otherwise auto-select all.
 	if fireMode {
-		// Seed defaults so the TUI can show current state and the user can override
 		for i := range repos {
 			repos[i].Selected = true
 		}
@@ -281,37 +251,22 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Build execution plan
+	// Build and validate plan
 	planner := executor.NewPlanner(cfg)
 	plan, err := planner.BuildPlan(repos, dryRun)
 	if err != nil {
 		return fmt.Errorf("failed to build plan: %w", err)
 	}
-
-	// Validate plan
 	if err := plan.Validate(); err != nil {
 		return fmt.Errorf("invalid plan: %w", err)
 	}
 
-	// Show plan summary
 	fmt.Println(plan.Summary())
 	fmt.Println()
 
-	// In dry-run mode, just show plan and exit
 	if dryRun {
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
 		return nil
-	}
-
-	// Confirm execution (skip in fire mode — no time to type y in an emergency)
-	if !fireMode {
-		fmt.Print("Proceed with pushing? [y/N]: ")
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println("Aborted.")
-			return nil
-		}
 	}
 
 	// Setup logging
@@ -329,13 +284,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	runner := executor.NewRunner(cfg)
 	defer runner.Close()
 
-	// Start progress monitoring in background
 	go func() {
 		for progress := range runner.ProgressChan() {
 			fmt.Printf("[%d/%d] %s: %s (%s)\n",
 				progress.CurrentRepo, progress.TotalRepos,
 				progress.RepoName, progress.Action, progress.Status)
-
 			if progress.Error != nil {
 				fmt.Printf("  ❌ Error: %v\n", progress.Error)
 			}
@@ -347,10 +300,172 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("execution failed: %w", err)
 	}
 
-	// Log results
+	logger.LogResult(result)
+	printResult(result, logger.LogPath())
+
+	if result.Failed > 0 {
+		fmt.Println("\n⚠️  Some repositories failed to push. Check the log for details.")
+		return fmt.Errorf("some repositories failed")
+	}
+	return nil
+}
+
+// runStream is the default live-run path. It pipelines scan → registry upsert →
+// backup so that pushing starts as soon as the first repo is discovered, without
+// waiting for the full scan to complete. Workers block when the queue is
+// temporarily empty and drain naturally when scanning is done.
+func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
+	fmt.Println("🔥 Scanning and backing up repositories...")
+	fmt.Println()
+
+	// Start SSH check in the background — we'll show the result at the end.
+	sshChan := make(chan *auth.SSHStatus, 1)
+	sshErrChan := make(chan error, 1)
+	go func() {
+		status, err := auth.GetSSHStatus()
+		if err != nil {
+			sshErrChan <- err
+		} else {
+			sshChan <- status
+		}
+	}()
+
+	scanChan := make(chan git.Repository, opts.Workers)
+	repoChan := make(chan git.Repository, opts.Workers)
+
+	// totalFound is updated by the upsert goroutine and read (with atomic load)
+	// by the progress printer. Using int64 for atomic ops.
+	var totalFound int64
+	var scanErr error
+
+	// Goroutine 1: scan → scanChan (closed when scan finishes)
+	go func() {
+		scanErr = git.ScanRepositoriesStream(opts, scanChan)
+	}()
+
+	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
+	now := time.Now()
+	go func() {
+		defer close(repoChan)
+		for repo := range scanChan {
+			repo, include := upsertRepoIntoRegistry(reg, repo, now)
+			atomic.AddInt64(&totalFound, 1)
+			if include {
+				repo.Selected = true
+				repoChan <- repo
+			}
+		}
+		saveRegistry(reg, regPath)
+	}()
+
+	// Setup logger, planner, runner
+	logger, err := executor.NewLogger(executor.DefaultLogDir())
+	if err != nil {
+		return fmt.Errorf("failed to setup logger: %w", err)
+	}
+	defer logger.Close()
+
+	planner := executor.NewPlanner(cfg)
+	runner := executor.NewRunner(cfg)
+	defer runner.Close()
+
+	// Progress display goroutine
+	go func() {
+		for progress := range runner.ProgressChan() {
+			total := int(atomic.LoadInt64(&totalFound))
+			totalStr := "?"
+			if total > 0 {
+				totalStr = fmt.Sprintf("%d", total)
+			}
+			fmt.Printf("[%d/%s] %s: %s (%s)\n",
+				progress.CurrentRepo, totalStr,
+				progress.RepoName, progress.Action, progress.Status)
+			if progress.Error != nil {
+				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+			}
+		}
+	}()
+
+	// ExecuteStream blocks until repoChan is closed (scan + upsert both done).
+	// totalFound is updated atomically by the upsert goroutine as repos arrive.
+	result, execErr := runner.ExecuteStream(repoChan, planner, false, &totalFound)
+
+	// Check scan error (non-fatal: report and continue to show results)
+	if scanErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: scan error: %v\n", scanErr)
+	}
+
 	logger.LogResult(result)
 
-	// Show results
+	// Show SSH status
+	select {
+	case sshStatus := <-sshChan:
+		fmt.Printf("\n✓ SSH: %d keys available", len(sshStatus.AvailableKeys))
+		if sshStatus.Agent.Running {
+			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		}
+		fmt.Println()
+	case sshErr := <-sshErrChan:
+		fmt.Fprintf(os.Stderr, "warning: SSH check failed: %v\n", sshErr)
+	}
+
+	printResult(result, logger.LogPath())
+
+	if execErr != nil {
+		return fmt.Errorf("execution failed: %w", execErr)
+	}
+	if result.Failed > 0 {
+		fmt.Println("\n⚠️  Some repositories failed to push. Check the log for details.")
+		return fmt.Errorf("some repositories failed")
+	}
+	return nil
+}
+
+// upsertRepoIntoRegistry adds or updates the registry entry for repo and
+// returns the (possibly mode-updated) repo and whether it should be backed up
+// (false only for StatusIgnored entries).
+func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now time.Time) (git.Repository, bool) {
+	absPath, err := filepath.Abs(repo.Path)
+	if err != nil {
+		// Can't resolve path — include repo to be safe (never silently drop backups).
+		return repo, true
+	}
+	existing := reg.FindByPath(absPath)
+	if existing != nil {
+		if existing.Mode != "" {
+			repo.Mode = git.ParseMode(existing.Mode)
+		}
+		existing.LastSeen = now
+		if existing.Status == registry.StatusIgnored {
+			return repo, false
+		}
+		existing.Status = registry.StatusActive
+		return repo, true
+	}
+	// New discovery — register it immediately (opt-out model).
+	reg.Upsert(registry.RegistryEntry{
+		Path:     absPath,
+		Name:     repo.Name,
+		Status:   registry.StatusActive,
+		Mode:     repo.Mode.String(),
+		AddedAt:  now,
+		LastSeen: now,
+	})
+	return repo, true
+}
+
+// saveRegistry persists the registry and logs a warning on failure.
+func saveRegistry(reg *registry.Registry, regPath string) {
+	if regPath == "" {
+		return
+	}
+	if err := registry.Save(reg, regPath); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to save registry: %v\n", err)
+	}
+}
+
+// printResult prints the final summary after a run.
+func printResult(result *executor.ExecutionResult, logPath string) {
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("🔥 Git Fire Complete!")
 	fmt.Println(strings.Repeat("=", 50))
@@ -360,14 +475,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	fmt.Printf("⊘ Skipped: %d repos\n", result.Skipped)
 	fmt.Printf("⏱  Duration: %s\n", result.Duration)
 	fmt.Printf("\n")
-	fmt.Printf("📝 Log file: %s\n", logger.LogPath())
-
-	if result.Failed > 0 {
-		fmt.Println("\n⚠️  Some repositories failed to push. Check the log for details.")
-		return fmt.Errorf("some repositories failed")
-	}
-
-	return nil
+	fmt.Printf("📝 Log file: %s\n", logPath)
 }
 
 func handleInit() error {
@@ -407,7 +515,6 @@ func handleStatus() error {
 	fmt.Println(sshStatus.Summary())
 
 	// Show repositories
-	// Merge registry known paths so --status counts match normal runs.
 	cfg := config.LoadOrDefault()
 	if scanPath != "." {
 		cfg.Global.ScanPath = scanPath

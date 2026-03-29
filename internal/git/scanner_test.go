@@ -284,6 +284,119 @@ func TestScanRepositories_ExtractsBranches(t *testing.T) {
 	}
 }
 
+// TestScanRepositories_IncludesOutOfTreeKnownPaths verifies the registry
+// invariant: repos registered from a previous run in a different directory
+// are still returned even when the scan root does not contain them.
+func TestScanRepositories_IncludesOutOfTreeKnownPaths(t *testing.T) {
+	tempRoot := t.TempDir()
+
+	// insideRepo is under the scan root.
+	insideDir := filepath.Join(tempRoot, "scan-root", "inside-repo")
+	// outsideRepo is a sibling of the scan root — NOT under it.
+	outsideDir := filepath.Join(tempRoot, "other-dir", "outside-repo")
+
+	for _, dir := range []string{insideDir, outsideDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+		initBareRepo(t, dir)
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = filepath.Join(tempRoot, "scan-root")
+	opts.UseCache = false
+	// outsideDir is known from the registry (populated by a prior run).
+	opts.KnownPaths = map[string]bool{
+		outsideDir: false,
+	}
+
+	repos, err := git.ScanRepositories(opts)
+	if err != nil {
+		t.Fatalf("ScanRepositories: %v", err)
+	}
+
+	found := make(map[string]bool)
+	for _, r := range repos {
+		found[r.Name] = true
+	}
+
+	if !found["inside-repo"] {
+		t.Error("inside-repo (under scan root) not found")
+	}
+	if !found["outside-repo"] {
+		t.Error("outside-repo (registry entry outside scan root) not found — registry invariant broken")
+	}
+}
+
+// TestScanRepositoriesStream verifies that the streaming variant sends every
+// discovered repo to the channel and closes it when done.
+func TestScanRepositoriesStream(t *testing.T) {
+	tempRoot := t.TempDir()
+
+	names := []string{"alpha", "beta", "gamma"}
+	for _, name := range names {
+		dir := filepath.Join(tempRoot, name)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		initBareRepo(t, dir)
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.UseCache = false
+
+	out := make(chan git.Repository, len(names))
+	// Drain in goroutine (caller's responsibility).
+	var got []git.Repository
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for r := range out {
+			got = append(got, r)
+		}
+	}()
+
+	if err := git.ScanRepositoriesStream(opts, out); err != nil {
+		t.Fatalf("ScanRepositoriesStream: %v", err)
+	}
+	<-done // channel must be closed by ScanRepositoriesStream
+
+	if len(got) != len(names) {
+		t.Fatalf("want %d repos, got %d", len(names), len(got))
+	}
+	foundNames := make(map[string]bool)
+	for _, r := range got {
+		foundNames[r.Name] = true
+	}
+	for _, name := range names {
+		if !foundNames[name] {
+			t.Errorf("repo %q not received from stream", name)
+		}
+	}
+}
+
+// initBareRepo initialises a minimal git repo (with one commit) at dir.
+func initBareRepo(t *testing.T, dir string) {
+	t.Helper()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", args, out)
+		}
+	}
+	run("git", "init")
+	run("git", "config", "user.email", "test@test.com")
+	run("git", "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("git", "add", ".")
+	run("git", "commit", "-m", "init")
+}
+
 func TestDefaultScanOptions(t *testing.T) {
 	opts := git.DefaultScanOptions()
 
