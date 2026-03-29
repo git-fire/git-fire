@@ -10,13 +10,21 @@ tone_instructions: >
   terms (e.g. errors vs exceptions, interfaces, goroutines vs threads).
   Be direct; prioritize correctness and safety over style.
 
+  Do not post nitpick or trivial findings (including 🧹 Nitpick / 🔵 Trivial
+  severity). Skip style preferences, optional polish, minor doc wording,
+  consistency nits, and markdown formatting unless they cause real confusion
+  or incorrect behavior. Only flag bugs, security issues, incorrect or
+  misleading documentation of behavior, and meaningful design or reliability
+  risks.
+
 reviews:
-  profile: "assertive"
+  # chill = fewer comments; assertive was generating endless doc/tool nits
+  profile: "chill"
   request_changes_workflow: true
   high_level_summary: true
   poem: true
   review_status: true
-  collapse_walkthrough: false
+  collapse_walkthrough: true
 
   auto_review:
     enabled: true
@@ -29,8 +37,18 @@ reviews:
       essential_rules: true
     shellcheck:
       enabled: true  # catches issues in fire.sh, scripts/
+    # markdownlint drove noisy MD022/MD040 false positives on fenced examples
+    markdownlint:
+      enabled: false
 
   path_instructions:
+    - path: "**/*.md"
+      instructions: |
+        Do not nitpick Markdown (fenced-code language tags, MD0xx layout,
+        heading spacing, minor phrasing). Only comment when documentation is
+        factually wrong about git-fire behavior, omits a serious hazard, or would
+        mislead users integrating the tool.
+
     - path: "**/*.go"
       instructions: |
         Review Go code with the following priorities (in order):
