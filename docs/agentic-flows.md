@@ -65,7 +65,7 @@ This pushes any commits the agent made (without auto-committing new dirty state,
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --dry-run --path . 2>&1 | tee ~/.cache/git-fire/last-session-preview.txt"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --dry-run --path . 2>&1 | tee ~/.cache/git-fire/last-session-preview.txt"
           }
         ]
       }
