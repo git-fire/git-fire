@@ -50,7 +50,7 @@ main.go
 - Uses native `git` binary via `exec.Command` — not go-git. Do not change this.
 - Repo scanning is parallel (goroutine pool). Pushing is sequential to avoid SSH contention.
 - Rate limiter caps concurrent pushes to the same host at 2.
-- All operations are logged as structured JSON to `~/.config/git-fire/` for reversibility.
+- All operations are logged as structured JSON lines under `~/.cache/git-fire/logs/` (session files `git-fire-*.log`); user config lives in `~/.config/git-fire/`.
 - `internal/ui` has no tests — Bubble Tea TUI testing is deferred intentionally.
 
 ---

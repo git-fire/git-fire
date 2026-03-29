@@ -136,7 +136,7 @@ name = "write-backup-manifest"
 command = "sh"
 args = [
   "-c",
-  "jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/session-manifest.ndjson"
+  "mkdir -p ~/.cache/git-fire && jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/session-manifest.ndjson"
 ]
 when = "on-success"
 ```
@@ -171,18 +171,18 @@ git-fire
 
 ### 6. JSON Logs for Agent Consumption (Available Today)
 
-Every git-fire run appends structured JSON to `~/.cache/git-fire/logs/`. Each line is a log entry:
+Every git-fire run writes a session file under `~/.cache/git-fire/logs/` named `git-fire-YYYYMMDD-HHMMSS.log`. Each **line** in that file is one JSON log entry (JSONL), not a single JSON array:
 
 ```json
 {"timestamp":"2026-03-28T10:23:45Z","level":"success","repo":"/home/user/projects/api","action":"push-branch","description":"Pushed main to origin","duration":"1.2s"}
 {"timestamp":"2026-03-28T10:23:46Z","level":"error","repo":"/home/user/projects/auth","action":"push-branch","error":"rejected: non-fast-forward"}
 ```
 
-Agents can tail the log file and parse results without screen-scraping:
+Agents can tail the latest session file and parse results without screen-scraping:
 
 ```bash
-# Get the most recent log file
-LATEST=$(ls -t ~/.cache/git-fire/logs/*.json | head -1)
+# Most recent session log (extension is .log, not .json)
+LATEST=$(ls -t ~/.cache/git-fire/logs/git-fire-*.log | head -1)
 # Parse failures
 cat "$LATEST" | jq 'select(.level == "error")'
 ```
@@ -503,7 +503,7 @@ enabled = ["session-log"]
 [[plugins.command]]
 name = "session-log"
 command = "sh"
-args = ["-c", "jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/agent-sessions.ndjson"]
+args = ["-c", "mkdir -p ~/.cache/git-fire && jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/agent-sessions.ndjson"]
 when = "on-success"
 ```
 

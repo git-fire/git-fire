@@ -203,7 +203,7 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 | Config | ✅ TOML + env | ❌ None |
 | Background scan | ✅ Yes | ❌ No |
 | Plugins | ✅ Extensible | ❌ No |
-| Tests | ✅ 43 tests | ❌ No tests |
+| Tests | ✅ 200+ tests | ❌ No tests |
 | Active | ✅ 2026 | ❌ 2015 (archived) |
 
 ## 🌐 Website
