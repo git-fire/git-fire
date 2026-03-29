@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 160" width="280" height="160">
+  <defs>
+    <linearGradient id="fg" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#B82E00"/>
+      <stop offset="45%"  stop-color="#E5650A"/>
+      <stop offset="80%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D040"/>
+    </linearGradient>
+    <linearGradient id="fgi" x1="0.3" y1="1" x2="0.4" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FDE870"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="90%" r="60%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- mark: flame base at y=100, tip at y=18, ghost node at y=130 -->
+  <!-- all in absolute coords, no negative y needed -->
+
+  <!-- glow -->
+  <ellipse cx="42" cy="136" rx="22" ry="7" fill="url(#glow)"/>
+
+  <!-- ghost node -->
+  <circle cx="42" cy="136" r="12" fill="#1C1C1C" opacity="0.22"/>
+
+  <!-- edge: ghost node top → flame base -->
+  <line x1="42" y1="124" x2="42" y2="104" stroke="#1C1C1C" stroke-width="2.2" opacity="0.42" stroke-linecap="round"/>
+
+  <!-- flame: wide natural teardrop. base ~32px wide at y=104, tapers to tip at y=18 -->
+  <path d="
+    M42,104
+    C26,96 16,80 18,60
+    C20,42 30,26 42,18
+    C54,26 64,42 66,60
+    C68,80 58,96 42,104
+    Z"
+    fill="url(#fg)" opacity="0.97"/>
+
+  <!-- inner highlight -->
+  <path d="
+    M42,96
+    C32,88 26,74 28,58
+    C30,44 36,32 42,26
+    C48,32 54,44 56,58
+    C58,74 52,88 42,96
+    Z"
+    fill="url(#fgi)" opacity="0.50"/>
+
+  <!-- wordmark vertically centered on flame (top=18, bottom=148, center=83) -->
+  <text
+    x="82" y="83"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="36"
+    font-weight="500"
+    letter-spacing="0.5"
+    fill="#1C1C1C"
+    dominant-baseline="middle">git-fire</text>
+</svg>

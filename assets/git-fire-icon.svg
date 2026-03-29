@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <defs>
+    <linearGradient id="fg" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#B82E00"/>
+      <stop offset="45%"  stop-color="#E5650A"/>
+      <stop offset="80%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D040"/>
+    </linearGradient>
+    <linearGradient id="fgi" x1="0.3" y1="1" x2="0.4" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FDE870"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="90%" r="60%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- same teardrop geometry as lockup, centered at x=60 -->
+  <!-- flame base at y=104, tip at y=18, ghost node at y=134 -->
+
+  <!-- glow -->
+  <ellipse cx="60" cy="140" rx="28" ry="9" fill="url(#glow)"/>
+
+  <!-- ghost node -->
+  <circle cx="60" cy="140" r="14" fill="#1C1C1C" opacity="0.22"/>
+
+  <!-- edge: ghost node top → flame base -->
+  <line x1="60" y1="126" x2="60" y2="106" stroke="#1C1C1C" stroke-width="2.2" opacity="0.42" stroke-linecap="round"/>
+
+  <!-- flame: same teardrop shape, centered on x=60 -->
+  <path d="
+    M60,106
+    C44,98 34,82 36,62
+    C38,44 48,28 60,20
+    C72,28 82,44 84,62
+    C86,82 76,98 60,106
+    Z"
+    fill="url(#fg)" opacity="0.97"/>
+
+  <!-- inner highlight -->
+  <path d="
+    M60,98
+    C50,90 44,76 46,60
+    C48,46 54,34 60,28
+    C66,34 72,46 74,60
+    C76,76 70,90 60,98
+    Z"
+    fill="url(#fgi)" opacity="0.50"/>
+</svg>
