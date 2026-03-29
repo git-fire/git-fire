@@ -62,6 +62,18 @@ func TestNewFireBackground_Negative_DoesNotPanic(t *testing.T) {
 	NewFireBackground(-5, -5)
 }
 
+// ---- Reset ----
+
+func TestFireBackground_Reset_ParticleCount(t *testing.T) {
+	fb := NewFireBackground(20, 4)
+	fb.Reset()
+
+	want := fb.Width * 2
+	if len(fb.Particles) != want {
+		t.Errorf("Reset() produced %d particles, want %d (Width*2)", len(fb.Particles), want)
+	}
+}
+
 // ---- Update ----
 
 func TestUpdate_Normal_DoesNotPanic(t *testing.T) {
@@ -107,6 +119,19 @@ func TestUpdate_IncreasesFrame(t *testing.T) {
 	fb.Update()
 	if fb.Frame != before+1 {
 		t.Errorf("Frame should increment by 1: got %d, want %d", fb.Frame, before+1)
+	}
+}
+
+func TestUpdate_MaintainsParticleCount(t *testing.T) {
+	fb := NewFireBackground(20, 4)
+	want := fb.Width * 2
+
+	for i := 0; i < 20; i++ {
+		fb.Update()
+	}
+
+	if len(fb.Particles) < want {
+		t.Errorf("after 20 updates, particle count = %d, want >= %d", len(fb.Particles), want)
 	}
 }
 
@@ -201,4 +226,12 @@ func TestRenderFireWave_NegativeWidth_DoesNotPanic(t *testing.T) {
 		}
 	}()
 	RenderFireWave(-1, 0)
+}
+
+func TestRenderFireWave_DifferentFrames(t *testing.T) {
+	a := RenderFireWave(40, 0)
+	b := RenderFireWave(40, 10)
+	if a == b {
+		t.Error("RenderFireWave() frame 0 and frame 10 produced identical output, expected variation")
+	}
 }
