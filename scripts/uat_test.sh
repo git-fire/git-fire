@@ -246,7 +246,7 @@ if [[ -n "$S1_FULL_BRANCH" ]]; then
         log_pass "S1: file_b.txt (unstaged) in full backup branch" || \
         log_fail "S1: file_b.txt (unstaged) MISSING from full backup branch"
 else
-    log_info "S1: no git-fire-full-* branch (expected when only staged changes exist)"
+    log_fail "S1: no git-fire-full-* branch on remote (unstaged changes were not backed up)"
 fi
 
 # =============================================================================
@@ -366,10 +366,10 @@ fi
 # Auto-commit goes to backup branches (not main); check backup branches locally
 S2_LOCAL_STAGED=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
 S2_LOCAL_FULL=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
-if [[ -n "$S2_LOCAL_STAGED" || -n "$S2_LOCAL_FULL" ]]; then
+if [[ -n "$S2_LOCAL_STAGED" && -n "$S2_LOCAL_FULL" ]]; then
     log_pass "S2: local backup branch(es) created before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
 else
-    log_fail "S2: no local backup branches found — auto-commit may have failed"
+    log_fail "S2: expected both local backup branches before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
 fi
 
 # Remote should NOT have local's main changes (push rejected)
@@ -384,10 +384,10 @@ fi
 # Backup branches SHOULD appear on remote (dual-branch backup is pushed before main push fails)
 S2_REMOTE_STAGED=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
 S2_REMOTE_FULL=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
-if [[ -n "$S2_REMOTE_STAGED" || -n "$S2_REMOTE_FULL" ]]; then
+if [[ -n "$S2_REMOTE_STAGED" && -n "$S2_REMOTE_FULL" ]]; then
     log_pass "S2: backup branch(es) pushed to remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 else
-    log_fail "S2: no backup branches on remote — changes may be stranded locally on conflict"
+    log_fail "S2: expected both backup branches on remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 fi
 
 # =============================================================================
@@ -445,10 +445,11 @@ else
 fi
 
 # Verify warning is emitted for local-only branches (Bug 3 fix: no longer silent)
-if echo "$S3_OUT" | grep -qi "warning\|warn\|no remote\|not backed up\|local.only"; then
+if echo "$S3_OUT" | grep -qF "has no remote tracking ref" \
+    && echo "$S3_OUT" | grep -qF "not backed up"; then
     log_pass "S3: warning emitted for local-only branches not backed up"
 else
-    log_info "S3: no explicit warning for local-only branches in output (acceptable if documented)"
+    log_fail "S3: missing warning for local-only branches not backed up"
 fi
 
 # Verify DefaultMode from config is applied (Bug 4 fix: scanner no longer hardcodes mode)
@@ -635,24 +636,19 @@ fi
 # Auto-commit goes to backup branches (not main); check for local backup branches
 S5_LOCAL_STAGED=$(git -C "$S5_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
 S5_LOCAL_FULL=$(git -C "$S5_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
-if [[ -n "$S5_LOCAL_STAGED" || -n "$S5_LOCAL_FULL" ]]; then
+if [[ -n "$S5_LOCAL_STAGED" && -n "$S5_LOCAL_FULL" ]]; then
     log_pass "S5: local backup branch(es) created before push attempt (staged=$S5_LOCAL_STAGED full=$S5_LOCAL_FULL)"
-else
-    log_fail "S5: no local backup branches — auto-commit may have failed too"
-fi
-
-# Verify staged+unstaged are preserved in the backup branch(es)
-if [[ -n "$S5_LOCAL_FULL" ]]; then
+    git -C "$S5_REPO" show "$S5_LOCAL_STAGED":staged.txt > /dev/null 2>&1 && \
+        log_pass "S5: staged file preserved in staged backup branch" || \
+        log_fail "S5: staged file NOT in staged backup branch"
     git -C "$S5_REPO" show "$S5_LOCAL_FULL":staged.txt > /dev/null 2>&1 && \
         log_pass "S5: staged file preserved in full backup branch" || \
         log_fail "S5: staged file NOT in full backup branch"
     git -C "$S5_REPO" show "$S5_LOCAL_FULL":unstaged.txt > /dev/null 2>&1 && \
         log_pass "S5: unstaged file preserved in full backup branch" || \
         log_fail "S5: unstaged file NOT in full backup branch"
-elif [[ -n "$S5_LOCAL_STAGED" ]]; then
-    git -C "$S5_REPO" show "$S5_LOCAL_STAGED":staged.txt > /dev/null 2>&1 && \
-        log_pass "S5: staged file preserved in staged backup branch" || \
-        log_fail "S5: staged file NOT in staged backup branch"
+else
+    log_fail "S5: expected both local backup branches before push attempt (staged=$S5_LOCAL_STAGED full=$S5_LOCAL_FULL)"
 fi
 
 # Check that error output contains meaningful info

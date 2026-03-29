@@ -18,16 +18,16 @@ Execute one last, strict validation round before public launch, proving core beh
 ## Source-of-Truth Inputs
 
 - Product docs/spec and behavior references:
-  - [README](/home/ben/projects/git-fire/README.md)
-  - [GIT_FIRE_SPEC](/home/ben/projects/git-fire/GIT_FIRE_SPEC.md)
-  - [Requirements Validation](/home/ben/projects/git-fire/docs/REQUIREMENTS_VALIDATION.md)
-  - [UAT Bugs/Resolutions](/home/ben/projects/git-fire/docs/UAT_BUGS.md)
-  - [OSS Publish Plan](/home/ben/projects/git-fire/docs/OSS_PUBLISH_PLAN.md)
+  - [README](../README.md)
+  - [GIT_FIRE_SPEC](../GIT_FIRE_SPEC.md)
+  - [Requirements Validation](REQUIREMENTS_VALIDATION.md)
+  - [UAT Bugs/Resolutions](UAT_BUGS.md)
+  - [OSS Publish Plan](OSS_PUBLISH_PLAN.md)
 - Existing UAT harness:
-  - [scripts/uat_test.sh](/home/ben/projects/git-fire/scripts/uat_test.sh)
+  - [scripts/uat_test.sh](../scripts/uat_test.sh)
 - Build/test/quality gates:
-  - [Makefile](/home/ben/projects/git-fire/Makefile)
-  - [CI workflow](/home/ben/projects/git-fire/.github/workflows/ci.yml)
+  - [Makefile](../Makefile)
+  - [CI workflow](../.github/workflows/ci.yml)
 
 ## Validation Architecture
 
@@ -57,14 +57,14 @@ flowchart TD
 
 ### Phase 2: Deterministic Local UAT (No Network)
 
-- Execute full [scripts/uat_test.sh](/home/ben/projects/git-fire/scripts/uat_test.sh) suite.
+- Execute full [scripts/uat_test.sh](../scripts/uat_test.sh) suite.
 - Validate each scenario family:
   - Dirty staged/unstaged behavior.
   - Conflict handling and backup branch behavior.
   - Multi-branch push semantics (`push-known-branches`, `push-all`).
   - Dry-run and `--skip-auto-commit` integrity.
   - No-remote robustness.
-- Cross-check failures against [docs/UAT_BUGS.md](/home/ben/projects/git-fire/docs/UAT_BUGS.md) to detect regressions vs fixed issues.
+- Cross-check failures against [UAT_BUGS.md](UAT_BUGS.md) to detect regressions vs fixed issues.
 
 ### Phase 3: Live GitHub Dummy-Repo Validation
 
