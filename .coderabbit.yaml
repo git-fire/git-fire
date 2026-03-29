@@ -3,19 +3,11 @@
 
 language: "en-US"
 
-# Since the developer is learning Go, ask CodeRabbit to explain the "why"
-# behind suggestions rather than just flagging issues.
+# CodeRabbit schema: tone_instructions max 250 chars (longer values fail validation).
 tone_instructions: >
-  Developer is a Java engineer learning Go. Frame Go idioms in Java
-  terms (e.g. errors vs exceptions, interfaces, goroutines vs threads).
-  Be direct; prioritize correctness and safety over style.
-
-  Do not post nitpick or trivial findings (including 🧹 Nitpick / 🔵 Trivial
-  severity). Skip style preferences, optional polish, minor doc wording,
-  consistency nits, and markdown formatting unless they cause real confusion
-  or incorrect behavior. Only flag bugs, security issues, incorrect or
-  misleading documentation of behavior, and meaningful design or reliability
-  risks.
+  Java dev learning Go: relate idioms to Java (errors, interfaces,
+  goroutines vs threads). Be direct; safety over style. No nitpick or
+  trivial comments—only bugs, security, misleading docs, reliability risks.
 
 reviews:
   # chill = fewer comments; assertive was generating endless doc/tool nits
@@ -42,6 +34,12 @@ reviews:
       enabled: false
 
   path_instructions:
+    - path: "**/*"
+      instructions: |
+        Do not post nitpick/trivial findings (including nitpick or trivial
+        severity labels). Skip style preferences, optional polish, minor wording,
+        and markdown layout unless it causes real confusion or incorrect behavior.
+
     - path: "**/*.md"
       instructions: |
         Do not nitpick Markdown (fenced-code language tags, MD0xx layout,
