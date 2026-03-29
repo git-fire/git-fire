@@ -83,7 +83,7 @@ jobs:
           GOARM: ${{ matrix.goarm }}
           CGO_ENABLED: "0"
         run: |
-          go build -trimpath -ldflags="-s -w" \
+          go build -trimpath -ldflags="-s -w -X github.com/TBRX103/git-fire/cmd.Version=${{ needs.tag.outputs.tag }}" \
             -o "git-fire-${{ matrix.name }}${{ matrix.ext }}" .
 
       - name: Upload artifact

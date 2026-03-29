@@ -2,6 +2,7 @@ package git
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -204,9 +205,10 @@ func PushKnownBranches(repoPath, remote string) error {
 		return fmt.Errorf("failed to get local branches: %w", err)
 	}
 
-	// Push each local branch that exists on remote
+	// Push each local branch that exists on remote, collecting errors so all
+	// branches are attempted even if one fails.
+	var errs []error
 	for _, localBranch := range localBranches {
-		// Check if this branch exists on remote
 		exists := false
 		for _, remoteBranch := range remoteBranches {
 			if remoteBranch == localBranch {
@@ -217,12 +219,12 @@ func PushKnownBranches(repoPath, remote string) error {
 
 		if exists {
 			if err := PushBranch(repoPath, remote, localBranch); err != nil {
-				return fmt.Errorf("failed to push branch %s: %w", localBranch, err)
+				errs = append(errs, fmt.Errorf("branch %s: %w", localBranch, err))
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // getRemoteBranches returns list of branches on a remote

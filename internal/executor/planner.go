@@ -94,11 +94,6 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 		})
 	}
 
-	// Step 2: Check for conflicts with remote
-	// For simplicity, we'll check the first remote
-	// In a real scenario, might want to check all remotes
-	remote := repo.Remotes[0]
-
 	// Get current branch (we'll simulate this - in real code would query git)
 	// For now, assume "main" or first branch
 	currentBranch := "main"
@@ -106,34 +101,33 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 		currentBranch = repo.Branches[0]
 	}
 
-	// Note: In dry-run mode, we can't actually check for conflicts
-	// without fetching from remote. For now, assume no conflicts in planning.
-	// Real conflict detection happens during execution.
+	// Step 2+3: Determine push strategy and add an action for every remote.
+	// In an emergency every configured remote is a backup destination.
+	for _, remote := range repo.Remotes {
+		switch repo.Mode {
+		case git.ModePushKnownBranches:
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushKnown,
+				Description: fmt.Sprintf("Push branches that exist on remote (%s)", remote.Name),
+				Remote:      remote.Name,
+			})
 
-	// Step 3: Determine push strategy based on mode
-	switch repo.Mode {
-	case git.ModePushKnownBranches:
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushKnown,
-			Description: "Push branches that exist on remote",
-			Remote:      remote.Name,
-		})
+		case git.ModePushAll:
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushAll,
+				Description: fmt.Sprintf("Push all branches (%s)", remote.Name),
+				Remote:      remote.Name,
+			})
 
-	case git.ModePushAll:
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushAll,
-			Description: "Push all branches",
-			Remote:      remote.Name,
-		})
-
-	default:
-		// Default to pushing current branch
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionPushBranch,
-			Description: fmt.Sprintf("Push branch %s", currentBranch),
-			Remote:      remote.Name,
-			Branch:      currentBranch,
-		})
+		default:
+			// Default to pushing current branch
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionPushBranch,
+				Description: fmt.Sprintf("Push branch %s (%s)", currentBranch, remote.Name),
+				Remote:      remote.Name,
+				Branch:      currentBranch,
+			})
+		}
 	}
 
 	return repoPlan, nil

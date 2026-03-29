@@ -186,17 +186,44 @@ func addKeyWithPassphrase(keyPath, passphrase string) error {
 	return nil
 }
 
-// TestPassphrase tests if a passphrase is correct for a key
-// Returns true if the passphrase unlocks the key
+// TestPassphrase tests if a passphrase is correct for a key.
+// Returns true if the passphrase unlocks the key.
+// Uses SSH_ASKPASS to avoid exposing the passphrase in process listings.
 func TestPassphrase(keyPath, passphrase string) bool {
-	// Try to extract public key using the passphrase
-	// This is a validation method that doesn't add to agent
+	// Write a temporary askpass helper script that outputs the passphrase.
+	// Using SSH_ASKPASS avoids putting the passphrase on the ssh-keygen
+	// command line where it would be visible in process listings (ps aux).
+	askpass, err := os.CreateTemp("", "gf-askpass-*.sh")
+	if err != nil {
+		return false
+	}
+	defer os.Remove(askpass.Name())
 
-	// Use ssh-keygen to test the key
-	cmd := exec.Command("ssh-keygen", "-y", "-P", passphrase, "-f", keyPath)
-	err := cmd.Run()
+	// Use printf to avoid a trailing newline that could mismatch the passphrase.
+	// Single-quote the passphrase; escape any embedded single quotes.
+	escaped := strings.ReplaceAll(passphrase, "'", `'\''`)
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\n", escaped)
+	if _, err := askpass.WriteString(script); err != nil {
+		askpass.Close()
+		return false
+	}
+	askpass.Close()
+	if err := os.Chmod(askpass.Name(), 0o700); err != nil {
+		return false
+	}
 
-	return err == nil
+	cmd := exec.Command("ssh-keygen", "-y", "-f", keyPath)
+	// SSH_ASKPASS_REQUIRE=force tells OpenSSH ≥8.4 to use SSH_ASKPASS even
+	// without a TTY. DISPLAY must be set (any non-empty value) for older versions.
+	cmd.Env = append(os.Environ(),
+		"SSH_ASKPASS="+askpass.Name(),
+		"SSH_ASKPASS_REQUIRE=force",
+		"DISPLAY=dummy",
+	)
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd.Run() == nil
 }
 
 // IsKeyEncrypted checks if an SSH key is encrypted (requires passphrase)

@@ -28,7 +28,7 @@ type LogEntry struct {
 // NewLogger creates a new logger
 func NewLogger(logDir string) (*Logger, error) {
 	// Create log directory if it doesn't exist
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -36,7 +36,7 @@ func NewLogger(logDir string) (*Logger, error) {
 	logFilename := fmt.Sprintf("git-fire-%s.log", time.Now().Format("20060102-150405"))
 	logPath := filepath.Join(logDir, logFilename)
 
-	file, err := os.Create(logPath)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
