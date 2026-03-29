@@ -42,7 +42,7 @@ func sampleRepos() []git.Repository {
 
 func TestNewRepoSelectorLiteModel_DefaultSelection(t *testing.T) {
 	repos := sampleRepos()
-	m := NewRepoSelectorLiteModel(repos)
+	m := NewRepoSelectorLiteModel(repos, nil, "")
 
 	// selected map should mirror repo.Selected
 	if !m.selected[0] {
@@ -57,14 +57,14 @@ func TestNewRepoSelectorLiteModel_DefaultSelection(t *testing.T) {
 }
 
 func TestNewRepoSelectorLiteModel_InitialCursor(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	if m.cursor != 0 {
 		t.Errorf("initial cursor = %d, want 0", m.cursor)
 	}
 }
 
 func TestRepoSelectorLiteModel_Init(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	cmd := m.Init()
 	if cmd != nil {
 		t.Error("Init() should return nil for the lite model")
@@ -72,7 +72,7 @@ func TestRepoSelectorLiteModel_Init(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_GetSelectedRepos(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	selected := m.GetSelectedRepos()
 
 	// Only alpha (0) and gamma (2) are selected
@@ -91,7 +91,7 @@ func TestRepoSelectorLiteModel_GetSelectedRepos_NoneSelected(t *testing.T) {
 		{Name: "a", Selected: false},
 		{Name: "b", Selected: false},
 	}
-	m := NewRepoSelectorLiteModel(repos)
+	m := NewRepoSelectorLiteModel(repos, nil, "")
 	if len(m.GetSelectedRepos()) != 0 {
 		t.Error("expected no selected repos")
 	}
@@ -100,7 +100,7 @@ func TestRepoSelectorLiteModel_GetSelectedRepos_NoneSelected(t *testing.T) {
 // --- View output ---
 
 func TestRepoSelectorLiteModel_View_Confirmed(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m.quitting = true
 	m.confirmed = true
 
@@ -111,7 +111,7 @@ func TestRepoSelectorLiteModel_View_Confirmed(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_View_Cancelled(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m.quitting = true
 	m.confirmed = false
 
@@ -122,7 +122,7 @@ func TestRepoSelectorLiteModel_View_Cancelled(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_View_ShowsRepos(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	view := m.View()
 
 	for _, name := range []string{"alpha", "beta", "gamma"} {
@@ -135,7 +135,7 @@ func TestRepoSelectorLiteModel_View_ShowsRepos(t *testing.T) {
 // --- Key handling ---
 
 func TestRepoSelectorLiteModel_Key_CursorDown(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 
 	m = updateLite(t, m, press('j'))
 	if m.cursor != 1 {
@@ -149,7 +149,7 @@ func TestRepoSelectorLiteModel_Key_CursorDown(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_CursorUp(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m.cursor = 2
 
 	m = updateLite(t, m, press('k'))
@@ -164,7 +164,7 @@ func TestRepoSelectorLiteModel_Key_CursorUp(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_CursorBounds(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 
 	// Should not go below 0
 	m = updateLite(t, m, pressSpecial(tea.KeyUp))
@@ -181,7 +181,7 @@ func TestRepoSelectorLiteModel_Key_CursorBounds(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_ToggleSelection(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	// Cursor is at 0 (alpha), which starts selected
 
 	m = updateLite(t, m, pressSpecial(tea.KeySpace))
@@ -196,7 +196,7 @@ func TestRepoSelectorLiteModel_Key_ToggleSelection(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_SelectAll(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m = updateLite(t, m, press('a'))
 
 	for i := range m.repos {
@@ -207,7 +207,7 @@ func TestRepoSelectorLiteModel_Key_SelectAll(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_SelectNone(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m = updateLite(t, m, press('n'))
 
 	for i := range m.repos {
@@ -221,7 +221,7 @@ func TestRepoSelectorLiteModel_Key_CycleMode(t *testing.T) {
 	repos := []git.Repository{
 		{Name: "x", Mode: git.ModeLeaveUntouched},
 	}
-	m := NewRepoSelectorLiteModel(repos)
+	m := NewRepoSelectorLiteModel(repos, nil, "")
 
 	m = updateLite(t, m, press('m'))
 	if m.repos[0].Mode != git.ModePushKnownBranches {
@@ -240,7 +240,7 @@ func TestRepoSelectorLiteModel_Key_CycleMode(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_Quit(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m = updateLite(t, m, press('q'))
 
 	if !m.quitting {
@@ -252,7 +252,7 @@ func TestRepoSelectorLiteModel_Key_Quit(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_Enter(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos())
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	m = updateLite(t, m, pressSpecial(tea.KeyEnter))
 
 	if !m.quitting {
@@ -264,7 +264,7 @@ func TestRepoSelectorLiteModel_Key_Enter(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_Key_EmptyRepos_NoPanic(t *testing.T) {
-	m := NewRepoSelectorLiteModel(nil)
+	m := NewRepoSelectorLiteModel(nil, nil, "")
 
 	assertNoPanic := func(msg tea.Msg) {
 		t.Helper()
@@ -288,7 +288,7 @@ func TestRepoSelectorLiteModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 
 func TestNewRepoSelectorModel_DefaultSelection(t *testing.T) {
 	repos := sampleRepos()
-	m := NewRepoSelectorModel(repos)
+	m := NewRepoSelectorModel(repos, nil, "")
 
 	if !m.selected[0] {
 		t.Error("repo 0 (Selected=true) should be selected initially")
@@ -299,7 +299,7 @@ func TestNewRepoSelectorModel_DefaultSelection(t *testing.T) {
 }
 
 func TestRepoSelectorModel_GetSelectedRepos(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos())
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	selected := m.GetSelectedRepos()
 
 	if len(selected) != 2 {
@@ -313,7 +313,7 @@ func TestRepoSelectorModel_GetSelectedRepos(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_Confirmed(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos())
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.quitting = true
 	m.confirmed = true
 
@@ -324,7 +324,7 @@ func TestRepoSelectorModel_View_Confirmed(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos())
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.quitting = true
 	m.confirmed = false
 
@@ -335,7 +335,7 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 }
 
 func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
-	m := NewRepoSelectorModel(nil)
+	m := NewRepoSelectorModel(nil, nil, "")
 
 	assertNoPanic := func(msg tea.Msg) {
 		t.Helper()

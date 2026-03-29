@@ -225,7 +225,8 @@ func CreateConflictScenario(t *testing.T) (*Scenario, *ScenarioRepo, *ScenarioRe
 	tempClone := scenario.CreateRepo("temp-clone").
 		WithRemote("origin", remote)
 
-	RunGitCmd(t, tempClone.path, "pull", "origin", defaultBranch)
+	RunGitCmd(t, tempClone.path, "fetch", "origin", defaultBranch)
+	RunGitCmd(t, tempClone.path, "reset", "--hard", "FETCH_HEAD")
 
 	// Remote adds commit B
 	tempClone.
