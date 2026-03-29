@@ -59,6 +59,13 @@ var fireFrames = []string{
 
 type tickMsg time.Time
 
+type repoSelectorView int
+
+const (
+	repoViewMain repoSelectorView = iota
+	repoViewIgnored
+)
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -67,18 +74,21 @@ func tickCmd() tea.Cmd {
 
 // RepoSelectorModel is the Bubble Tea model for selecting repositories
 type RepoSelectorModel struct {
-	repos        []git.Repository
-	cursor       int
-	selected     map[int]bool
-	quitting     bool
-	confirmed    bool
-	frameIndex   int             // For fire animation
-	fireBg       *FireBackground // Animated fire background
-	spinner      spinner.Model   // Loading spinner
-	windowWidth  int
-	windowHeight int
-	reg          *registry.Registry // persistent registry for write-through
-	regPath      string             // path to registry file
+	repos          []git.Repository
+	cursor         int // main list position
+	ignoredCursor  int // ignored list position
+	view           repoSelectorView
+	ignoredEntries []registry.RegistryEntry
+	selected       map[int]bool
+	quitting       bool
+	confirmed      bool
+	frameIndex     int             // For fire animation
+	fireBg         *FireBackground // Animated fire background
+	spinner        spinner.Model   // Loading spinner
+	windowWidth    int
+	windowHeight   int
+	reg            *registry.Registry // persistent registry for write-through
+	regPath        string             // path to registry file
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -142,33 +152,58 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 
+		case "i":
+			if m.view == repoViewIgnored {
+				m.view = repoViewMain
+			} else {
+				m.view = repoViewIgnored
+				m.ignoredEntries = IgnoredRegistryEntries(m.reg)
+				m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+			}
+			return m, tea.Batch(cmds...)
+
 		case "enter":
-			// Confirm selections
+			if m.view == repoViewIgnored {
+				m = m.restoreIgnoredAtCursor()
+				return m, tea.Batch(cmds...)
+			}
 			m.confirmed = true
 			m.quitting = true
 			return m, tea.Quit
 
+		case "u":
+			if m.view == repoViewIgnored {
+				m = m.restoreIgnoredAtCursor()
+				return m, tea.Batch(cmds...)
+			}
+
 		case "up", "k":
-			if m.cursor > 0 {
+			if m.view == repoViewIgnored {
+				if m.ignoredCursor > 0 {
+					m.ignoredCursor--
+				}
+			} else if m.cursor > 0 {
 				m.cursor--
 			}
 
 		case "down", "j":
-			if m.cursor < len(m.repos)-1 {
+			if m.view == repoViewIgnored {
+				if m.ignoredCursor < len(m.ignoredEntries)-1 {
+					m.ignoredCursor++
+				}
+			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
 			}
 
 		case " ":
-			// Toggle selection
-			if len(m.repos) == 0 {
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
 				break
 			}
 			m.selected[m.cursor] = !m.selected[m.cursor]
 			m.repos[m.cursor].Selected = m.selected[m.cursor]
 
 		case "m":
-			// Cycle through modes
-			if len(m.repos) == 0 {
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
 				break
 			}
 			repo := &m.repos[m.cursor]
@@ -180,40 +215,41 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case git.ModePushAll:
 				repo.Mode = git.ModeLeaveUntouched
 			}
-			// Write-through: persist the new mode immediately
 			m.persistMode(repo.Path, repo.Mode)
 
 		case "x":
-			// Mark current repo as ignored in the registry and remove from list
-			if len(m.repos) > 0 {
-				repo := m.repos[m.cursor]
-				m.persistIgnore(repo.Path)
-				// Remove from visible list
-				m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
-				// Rebuild selected map with shifted indices
-				newSelected := make(map[int]bool)
-				for i := range m.repos {
-					oldIdx := i
-					if i >= m.cursor {
-						oldIdx = i + 1
-					}
-					newSelected[i] = m.selected[oldIdx]
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
+				break
+			}
+			repo := m.repos[m.cursor]
+			m.persistIgnore(repo.Path)
+			m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
+			newSelected := make(map[int]bool)
+			for i := range m.repos {
+				oldIdx := i
+				if i >= m.cursor {
+					oldIdx = i + 1
 				}
-				m.selected = newSelected
-				if m.cursor >= len(m.repos) && m.cursor > 0 {
-					m.cursor--
-				}
+				newSelected[i] = m.selected[oldIdx]
+			}
+			m.selected = newSelected
+			if m.cursor >= len(m.repos) && m.cursor > 0 {
+				m.cursor--
 			}
 
 		case "a":
-			// Select all
+			if m.view == repoViewIgnored {
+				break
+			}
 			for i := range m.repos {
 				m.selected[i] = true
 				m.repos[i].Selected = true
 			}
 
 		case "n":
-			// Select none
+			if m.view == repoViewIgnored {
+				break
+			}
 			for i := range m.repos {
 				m.selected[i] = false
 				m.repos[i].Selected = false
@@ -231,6 +267,61 @@ func min(a, b int) int {
 	return b
 }
 
+func clampSelectorCursor(cursor, n int) int {
+	if n <= 0 {
+		return 0
+	}
+	if cursor < 0 {
+		return 0
+	}
+	if cursor >= n {
+		return n - 1
+	}
+	return cursor
+}
+
+func (m RepoSelectorModel) restoreIgnoredAtCursor() RepoSelectorModel {
+	if m.reg == nil || m.regPath == "" || len(m.ignoredEntries) == 0 {
+		return m
+	}
+	if m.ignoredCursor < 0 || m.ignoredCursor >= len(m.ignoredEntries) {
+		return m
+	}
+	entry := m.ignoredEntries[m.ignoredCursor]
+	absPath, err := filepath.Abs(entry.Path)
+	if err != nil {
+		return m
+	}
+	if !m.reg.SetStatus(entry.Path, registry.StatusActive) && !m.reg.SetStatus(absPath, registry.StatusActive) {
+		name := entry.Name
+		if name == "" {
+			name = filepath.Base(absPath)
+		}
+		m.reg.Upsert(registry.RegistryEntry{
+			Path:   absPath,
+			Name:   name,
+			Status: registry.StatusActive,
+			Mode:   entry.Mode,
+		})
+	}
+	_ = registry.Save(m.reg, m.regPath)
+
+	if repo, aerr := git.AnalyzeRepository(absPath); aerr == nil {
+		if entry.Mode != "" {
+			repo.Mode = git.ParseMode(entry.Mode)
+		}
+		repo.Selected = true
+		if !repoPathInRepos(m.repos, absPath) {
+			idx := len(m.repos)
+			m.repos = append(m.repos, repo)
+			m.selected[idx] = true
+		}
+	}
+	m.ignoredEntries = IgnoredRegistryEntries(m.reg)
+	m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+	return m
+}
+
 func (m RepoSelectorModel) View() string {
 	if m.quitting {
 		if m.confirmed {
@@ -243,6 +334,10 @@ func (m RepoSelectorModel) View() string {
 			return fmt.Sprintf("\n✅ Selected %d repositories for backup\n\n", selectedCount)
 		}
 		return "\n❌ Cancelled\n\n"
+	}
+
+	if m.view == repoViewIgnored {
+		return m.viewIgnoredMain()
 	}
 
 	var s strings.Builder
@@ -309,7 +404,7 @@ func (m RepoSelectorModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  enter  Confirm  |  q  Quit\n\n" +
+			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
 			"  [✓] = Selected  |  [ ] = Not selected",
@@ -319,6 +414,45 @@ func (m RepoSelectorModel) View() string {
 	// Wrap everything in a box
 	content := s.String()
 	return boxStyle.Render(content)
+}
+
+func (m RepoSelectorModel) viewIgnoredMain() string {
+	var s strings.Builder
+	s.WriteString(m.fireBg.Render())
+	s.WriteString("\n")
+	s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
+	s.WriteString("\n\n")
+
+	titleGradient := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ff4500")).
+		Background(lipgloss.Color("#1a1a1a")).
+		Padding(0, 2)
+	s.WriteString(titleGradient.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥"))
+	s.WriteString("\n\n")
+
+	if len(m.ignoredEntries) == 0 {
+		s.WriteString(unselectedStyle.Render("No ignored repositories."))
+		s.WriteString("\n")
+	} else {
+		for i, e := range m.ignoredEntries {
+			cursor := " "
+			if m.ignoredCursor == i {
+				cursor = ">"
+			}
+			line := fmt.Sprintf("%s %s", cursor, AbbreviateUserHome(e.Path))
+			s.WriteString(line)
+			s.WriteString("\n")
+		}
+	}
+
+	help := helpStyle.Render(
+		"\n" +
+			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
+			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
+	)
+	s.WriteString(help)
+	return boxStyle.Render(s.String())
 }
 
 // persistMode writes the repo's current mode to the registry synchronously.

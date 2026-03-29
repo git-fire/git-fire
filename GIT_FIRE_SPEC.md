@@ -1403,3 +1403,28 @@ path/filepath           - Filesystem scanning
 3. **Performant:** Scans 100+ repos in < 1 minute, pushes with reasonable speed
 4. **Portable:** Single binary, no dependencies beyond Go runtime
 5. **User-Friendly:** Clear UI, helpful error messages, intuitive controls
+
+---
+
+## Hypothetical product directions (not specifications)
+
+The items below are **exploratory roadmap notes**. They do **not** define current behavior, MVP scope, or acceptance criteria until promoted into an explicit phase or section of this document.
+
+### General non-emergency mode
+
+- A **general / everyday** entry point framed for routine use: sync, backup, or “save my work” without emergency metaphors, fire-drill wording, or dramatic prompts.
+- Could reuse the same scanner, registry, planner, and executor but offer calmer copy, different defaults, and workflows tuned for non-panic use (e.g. quieter progress, confirmation rules appropriate for casual runs).
+
+### Lazy uploads (product framing)
+
+- Position multi-repo **commit-and-push** as a **low-friction** action: one invocation covers many repositories when the user does not want to open each repo and run git manually.
+- Treated primarily as **positioning and UX** around existing capabilities unless a separate mode is specified later.
+
+### Automated git pushes
+
+- **User-orchestrated automation (pattern):** Invoke `git-fire` from **cron**, **systemd timers**, other OS schedulers, or **tool/editor/agent hooks** so remotes stay current without a manual `git push` per repository. Document operational expectations when this is promoted (SSH agent, non-interactive runs, logging, exit codes, failure alerts).
+- **First-class automation (hypothetical):** Future flags, subcommands, or config (e.g. schedule definitions, a small supervisor, or “unattended profile”) remain undefined until designed; this spec does not commit to a shape.
+
+### Standalone git integration test library
+
+- In-tree helpers that drive the **real `git` binary** to build temporary repos for tests may be **extracted as an open-source Go module** for reuse by other projects. Licensing, module path, and attribution would be decided at extraction time; see repository README and `internal/testutil` for context.

@@ -479,3 +479,16 @@ With focused effort on **Tasks #3, #4, #5, #6, #8, #9**, git-fire can reach prod
 3. Proceed with critical path (Tasks #3-#9)
 4. Final validation (Task #10)
 5. Tag v1.0.0 when acceptance criteria met
+
+---
+
+## Hypothetical features (out of validation scope)
+
+The following themes are captured for **roadmap discussion only** in [`GIT_FIRE_SPEC.md`](../GIT_FIRE_SPEC.md) under **“Hypothetical product directions (not specifications)”**:
+
+- General **non-emergency / everyday** mode (calmer UX than the fire narrative).
+- **Lazy uploads** as explicit product framing for multi-repo commit-and-push.
+- **Automated git pushes** (user-driven scheduling/hooks vs. future first-class automation).
+- **Standalone open-source** git integration test helpers (spin-out from `internal/testutil`).
+
+They are **not** rows in this validation matrix until promoted into a numbered phase or requirement in `GIT_FIRE_SPEC.md`.

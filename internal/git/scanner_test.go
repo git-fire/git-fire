@@ -512,6 +512,26 @@ func initBareRepo(t *testing.T, dir string) {
 	run("git", "commit", "-m", "init")
 }
 
+func TestAnalyzeRepository(t *testing.T) {
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "analyze-me",
+	})
+
+	repo, err := git.AnalyzeRepository(repoPath)
+	if err != nil {
+		t.Fatalf("AnalyzeRepository: %v", err)
+	}
+	if repo.Path != repoPath {
+		t.Errorf("Path = %q, want %q", repo.Path, repoPath)
+	}
+	if want := "analyze-me"; repo.Name != want {
+		t.Errorf("Name = %q, want %q", repo.Name, want)
+	}
+	if repo.IsDirty {
+		t.Error("expected clean repo")
+	}
+}
+
 func TestDefaultScanOptions(t *testing.T) {
 	opts := git.DefaultScanOptions()
 
