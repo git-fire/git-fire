@@ -186,48 +186,57 @@ func addKeyWithPassphrase(keyPath, passphrase string) error {
 	return nil
 }
 
-// TestPassphrase tests if a passphrase is correct for a key.
-// Returns true if the passphrase unlocks the key.
-// Uses SSH_ASKPASS to avoid exposing the passphrase in process listings.
-func TestPassphrase(keyPath, passphrase string) bool {
-	// Write a temporary askpass helper script that outputs the passphrase.
-	// Using SSH_ASKPASS avoids putting the passphrase on the ssh-keygen
-	// command line where it would be visible in process listings (ps aux).
-	// Use an app-owned directory rather than the system temp dir, which is
-	// often mounted noexec on hardened hosts — ssh-keygen cannot execute the
-	// askpass helper if the mount forbids it.
+// writeAskpassScript creates a temporary SSH_ASKPASS helper script in
+// ~/.cache/git-fire/ that outputs passphrase when invoked by ssh-keygen.
+// Using an app-owned directory avoids noexec tmpfs mounts on hardened hosts.
+// The caller must invoke the returned cleanup function when done.
+func writeAskpassScript(passphrase string) (name string, cleanup func(), err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return false
+		return "", func() {}, err
 	}
-	askpassDir := filepath.Join(home, ".cache", "git-fire")
-	if err := os.MkdirAll(askpassDir, 0o700); err != nil {
-		return false
+	dir := filepath.Join(home, ".cache", "git-fire")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", func() {}, err
 	}
-	askpass, err := os.CreateTemp(askpassDir, "gf-askpass-*.sh")
+	f, err := os.CreateTemp(dir, "gf-askpass-*.sh")
 	if err != nil {
-		return false
+		return "", func() {}, err
 	}
-	defer os.Remove(askpass.Name())
-
+	name = f.Name()
+	cleanup = func() { os.Remove(name) }
 	// Use printf to avoid a trailing newline that could mismatch the passphrase.
 	// Single-quote the passphrase; escape any embedded single quotes.
 	escaped := strings.ReplaceAll(passphrase, "'", `'\''`)
 	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\n", escaped)
-	if _, err := askpass.WriteString(script); err != nil {
-		askpass.Close()
+	if _, err := f.WriteString(script); err != nil {
+		f.Close()
+		cleanup()
+		return "", func() {}, err
+	}
+	f.Close()
+	if err := os.Chmod(name, 0o700); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+	return name, cleanup, nil
+}
+
+// TestPassphrase tests if a passphrase is correct for a key.
+// Returns true if the passphrase unlocks the key.
+// Uses SSH_ASKPASS to avoid exposing the passphrase in process listings.
+func TestPassphrase(keyPath, passphrase string) bool {
+	askpassName, cleanup, err := writeAskpassScript(passphrase)
+	if err != nil {
 		return false
 	}
-	askpass.Close()
-	if err := os.Chmod(askpass.Name(), 0o700); err != nil {
-		return false
-	}
+	defer cleanup()
 
 	cmd := exec.Command("ssh-keygen", "-y", "-f", keyPath)
 	// SSH_ASKPASS_REQUIRE=force tells OpenSSH ≥8.4 to use SSH_ASKPASS even
 	// without a TTY. DISPLAY must be set (any non-empty value) for older versions.
 	cmd.Env = append(os.Environ(),
-		"SSH_ASKPASS="+askpass.Name(),
+		"SSH_ASKPASS="+askpassName,
 		"SSH_ASKPASS_REQUIRE=force",
 		"DISPLAY=dummy",
 	)
@@ -264,15 +273,24 @@ func IsKeyEncrypted(keyPath string) (bool, error) {
 			return false, nil
 		}
 
-		// Try to extract public key without passphrase
-		cmd := exec.Command("ssh-keygen", "-y", "-P", "", "-f", keyPath)
-		output, err := cmd.CombinedOutput()
-		if err == nil && len(output) > 0 {
-			// Successfully extracted - not encrypted
+		// Try to extract public key with an empty passphrase via SSH_ASKPASS
+		// rather than the deprecated -P "" flag (OpenSSH ≥ 8.x).
+		askpassName, cleanup, askErr := writeAskpassScript("")
+		if askErr != nil {
+			return true, nil // safe default
+		}
+		defer cleanup()
+		cmd := exec.Command("ssh-keygen", "-y", "-f", keyPath)
+		cmd.Env = append(os.Environ(),
+			"SSH_ASKPASS="+askpassName,
+			"SSH_ASKPASS_REQUIRE=force",
+			"DISPLAY=dummy",
+		)
+		output, runErr := cmd.CombinedOutput()
+		if runErr == nil && len(output) > 0 {
 			return false, nil
 		}
-		// If it failed, likely encrypted (or invalid key)
-		// For invalid keys, we'll default to encrypted to be safe
+		// Failed → encrypted (or invalid key; default to encrypted for safety).
 		return true, nil
 	}
 

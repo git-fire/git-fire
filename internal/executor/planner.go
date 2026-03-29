@@ -94,15 +94,29 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 		})
 	}
 
-	// Get current branch (we'll simulate this - in real code would query git)
-	// For now, assume "main" or first branch
-	currentBranch := "main"
-	if len(repo.Branches) > 0 {
-		currentBranch = repo.Branches[0]
-	}
-
 	// Step 2+3: Determine push strategy and add an action for every remote.
 	// In an emergency every configured remote is a backup destination.
+	//
+	// The default mode pushes only the currently checked-out branch. We resolve
+	// it from git here rather than using Branches[0], which is in discovery
+	// order and may not match. The call is guarded so ModePushKnownBranches /
+	// ModePushAll repos (which don't need it) can skip the git invocation.
+	var currentBranch string
+	if repo.Mode != git.ModePushKnownBranches && repo.Mode != git.ModePushAll {
+		var err error
+		currentBranch, err = git.GetCurrentBranch(repo.Path)
+		if err != nil {
+			// Detached HEAD or damaged repo — can't safely target a single branch.
+			repoPlan.Skip = true
+			repoPlan.SkipReason = fmt.Sprintf("cannot determine current branch: %v", err)
+			repoPlan.Actions = append(repoPlan.Actions, Action{
+				Type:        ActionSkip,
+				Description: repoPlan.SkipReason,
+			})
+			return repoPlan, nil
+		}
+	}
+
 	for _, remote := range repo.Remotes {
 		switch repo.Mode {
 		case git.ModePushKnownBranches:
@@ -120,7 +134,6 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 			})
 
 		default:
-			// Default to pushing current branch
 			repoPlan.Actions = append(repoPlan.Actions, Action{
 				Type:        ActionPushBranch,
 				Description: fmt.Sprintf("Push branch %s (%s)", currentBranch, remote.Name),

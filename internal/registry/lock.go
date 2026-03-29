@@ -1,10 +1,12 @@
 package registry
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -46,10 +48,41 @@ func acquireLock(registryPath string) (release func(), err error) {
 			return func() {}, fmt.Errorf("acquiring registry lock: %w", createErr)
 		}
 
+		// If the owning process is gone (killed, OOM) the lock is stale.
+		// Break it immediately and retry rather than spinning for lockTimeout.
+		if staleLock(lockPath) {
+			fmt.Fprintf(os.Stderr, "⚠️  WARNING: removing stale registry lock (owner process is gone): %s\n", lockPath)
+			os.Remove(lockPath)
+			continue
+		}
+
 		if time.Now().After(deadline) {
 			return func() {}, fmt.Errorf("timed out waiting for registry lock %s", lockPath)
 		}
 
 		time.Sleep(lockPollInterval)
 	}
+}
+
+// staleLock reports whether lockPath was written by a process that no longer
+// exists. Returns false on any parse or system error (safe default: assume live).
+// Stale-lock detection works on Unix; on Windows Signal(0) returns a different
+// error code that will not match ESRCH, so the function safely returns false.
+func staleLock(lockPath string) bool {
+	data, err := os.ReadFile(lockPath)
+	if err != nil {
+		return false
+	}
+	var pid int
+	if _, err := fmt.Sscan(string(data), &pid); err != nil || pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return true
+	}
+	// Signal(0) probes liveness without delivering a real signal.
+	// ESRCH ("no such process") confirms the owner is gone.
+	err = proc.Signal(syscall.Signal(0))
+	return errors.Is(err, syscall.ESRCH) || errors.Is(err, os.ErrProcessDone)
 }

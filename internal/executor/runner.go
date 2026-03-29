@@ -126,12 +126,16 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	}
 	result.Duration = time.Since(startTime)
 
+	finalStatus := StatusSuccess
+	if firstErr != nil {
+		finalStatus = StatusFailed
+	}
 	r.sendProgress(Progress{
 		CurrentRepo: current,
 		TotalRepos:  total,
 		RepoName:    repoPlan.Repo.Name,
 		Action:      "Complete",
-		Status:      StatusSuccess,
+		Status:      finalStatus,
 	})
 
 	return result

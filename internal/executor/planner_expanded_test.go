@@ -5,23 +5,28 @@ import (
 
 	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/testutil"
 )
 
 func TestBuildPlan_DefaultMode(t *testing.T) {
+	// Default mode calls git.GetCurrentBranch, so we need a real repo.
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "repo1",
+		Files: map[string]string{"README.md": "hello"},
+	})
+
 	cfg := config.DefaultConfig()
 	planner := NewPlanner(&cfg)
 
-	// Repo with default mode (not push-all or push-known)
 	repos := []git.Repository{
 		{
-			Path:     "/home/user/repo1",
+			Path:     repoPath,
 			Name:     "repo1",
 			Selected: true,
-			Mode:     git.RepoMode(99), // Unknown mode (will use default behavior)
+			Mode:     git.RepoMode(99), // unknown mode → default push-branch behaviour
 			Remotes: []git.Remote{
 				{Name: "origin", URL: "git@github.com:user/repo1.git"},
 			},
-			Branches: []string{"main", "develop"},
 		},
 	}
 
@@ -36,7 +41,6 @@ func TestBuildPlan_DefaultMode(t *testing.T) {
 
 	repoPlan := plan.Repos[0]
 
-	// Should have push-branch action (default behavior)
 	foundPushBranch := false
 	for _, action := range repoPlan.Actions {
 		if action.Type == ActionPushBranch {
