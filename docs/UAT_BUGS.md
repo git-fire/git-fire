@@ -3,6 +3,37 @@
 Found during MVP UAT (`scripts/uat_test.sh`) — 2026-03-29.
 All bugs confirmed by running the compiled binary against real git repos with local bare remotes.
 
+## Spec and documentation revalidation (2026-03-29)
+
+Cross-checked project specs and design docs against the **current** codebase after the UAT fixes. Where text had drifted from behavior, linked docs were updated in the same effort.
+
+- [x] [CLAUDE.md](../CLAUDE.md) — reviewed and updated: dual-branch + conflict + `default_mode` registry behavior documented alongside existing invariants.
+- [x] [GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md) — “Key functions” appendix updated for `AutoCommitDirtyWithStrategy`, accurate `DetectConflict` / push helpers (signatures and wiring notes).
+- [x] [docs/REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md) — “Last updated” and evidence rows for auto-commit, conflict handling, and multi-remote push refreshed to match `internal/git` + `internal/executor` + `cmd`.
+- [x] [docs/IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) — dual-branch “Next steps” replaced with **done**: documents `internal/executor/runner.go` + planner integration.
+
+Deferred intentionally (unchanged by this pass): MVP UI blockers, backup-mode API, and other items already called out in `REQUIREMENTS_VALIDATION.md`.
+
+## Resolution Status (2026-03-29)
+
+- [x] Bug 1 fixed: runner now uses `AutoCommitDirtyWithStrategy()` and pushes created backup branches.
+- [x] Bug 2 fixed: planner now evaluates `conflict_strategy = "new-branch"` and schedules fire-branch backup flow.
+- [x] Bug 3 fixed: `PushKnownBranches()` now warns for local-only branches with no remote tracking ref.
+- [x] Bug 4 fixed: scanner no longer hardcodes final mode policy; `default_mode` is applied in registry upsert for new repos.
+- [x] Bug 5 fixed: Cobra usage output is silenced on runtime errors via `rootCmd.SilenceUsage = true`.
+
+## Spec Revalidation Notes (summary)
+
+- Dual-branch and conflict recovery are on the live path: `Planner.BuildRepoPlan` / `Runner.executeAction` (`ActionAutoCommit`, `ActionCreateFireBranch`).
+- `global.default_mode` is applied when upserting new registry entries in `cmd/root.go` (`upsertRepoIntoRegistry`); per-repo registry mode still wins.
+- Validation: `make test-race`, `make lint`, and targeted package tests for executor/git/cmd.
+
+---
+
+## Historical UAT findings (pre-fix archive)
+
+The sections below are the **original** UAT write-ups from 2026-03-29. They describe behavior **before** the fixes above; they are kept for audit trail only.
+
 ---
 
 ## [HIGH] Bug 1 — Dual-branch commit strategy is dead code

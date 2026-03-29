@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -101,10 +102,13 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		return result
 	}
 
+	actions := append([]Action(nil), repoPlan.Actions...)
+
 	// Execute each action. Continue past failures so every remote gets a
 	// best-effort push — collecting the first error to surface to the caller.
 	var firstErr error
-	for _, action := range repoPlan.Actions {
+	for i := 0; i < len(actions); i++ {
+		action := actions[i]
 		executedAction := r.executeAction(repoPlan.Repo, action, current, total)
 		result.Actions = append(result.Actions, executedAction)
 
@@ -117,6 +121,49 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		// Track successfully pushed branches only
 		if action.Type == ActionPushBranch && executedAction.Branch != "" && executedAction.Error == nil {
 			result.PushedBranches = append(result.PushedBranches, executedAction.Branch)
+		}
+
+		// Dual-branch auto-commit creates backup branch names. Replace pending
+		// push-branch actions to push those backup branches instead of the
+		// original current branch.
+		if action.Type == ActionAutoCommit && executedAction.Error == nil && executedAction.Branch != "" {
+			createdBranches := strings.Split(executedAction.Branch, ",")
+			var remotes []string
+			for _, pending := range actions[i+1:] {
+				if pending.Type == ActionPushBranch && pending.Remote != "" {
+					remotes = append(remotes, pending.Remote)
+				}
+			}
+			if len(remotes) == 0 {
+				for _, remote := range repoPlan.Repo.Remotes {
+					remotes = append(remotes, remote.Name)
+				}
+			}
+
+			replacementPushes := make([]Action, 0, len(remotes)*len(createdBranches))
+			for _, remote := range remotes {
+				for _, branch := range createdBranches {
+					branch = strings.TrimSpace(branch)
+					if branch == "" {
+						continue
+					}
+					replacementPushes = append(replacementPushes, Action{
+						Type:        ActionPushBranch,
+						Description: fmt.Sprintf("Push backup branch %s (%s)", branch, remote),
+						Remote:      remote,
+						Branch:      branch,
+					})
+				}
+			}
+
+			filteredTail := make([]Action, 0, len(actions[i+1:]))
+			for _, pending := range actions[i+1:] {
+				if pending.Type == ActionPushBranch {
+					continue
+				}
+				filteredTail = append(filteredTail, pending)
+			}
+			actions = append(actions[:i+1], append(replacementPushes, filteredTail...)...)
 		}
 	}
 
@@ -159,10 +206,23 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 	case ActionAutoCommit:
 		// Scan for secrets before committing — warn on stderr but always proceed
 		warnAboutSecrets(repo.Path)
-		err = git.AutoCommitDirty(repo.Path, git.CommitOptions{
-			AddAll:  true,
-			Message: fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
+		result, commitErr := git.AutoCommitDirtyWithStrategy(repo.Path, git.CommitOptions{
+			Message:          fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
+			UseDualBranch:    true,
+			ReturnToOriginal: true,
 		})
+		if commitErr != nil {
+			err = commitErr
+			break
+		}
+		created := make([]string, 0, 2)
+		if result.StagedBranch != "" {
+			created = append(created, result.StagedBranch)
+		}
+		if result.FullBranch != "" {
+			created = append(created, result.FullBranch)
+		}
+		executedAction.Branch = strings.Join(created, ",")
 
 	case ActionPushBranch:
 		// Apply rate limiting for push operations
@@ -189,16 +249,35 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 		err = git.PushKnownBranches(repo.Path, action.Remote)
 
 	case ActionCreateFireBranch:
-		// Get current branch and SHA
-		currentBranch, errBranch := git.GetCurrentBranch(repo.Path)
-		if errBranch != nil {
-			err = errBranch
+		branchForBackup := action.Branch
+		if branchForBackup == "" {
+			var errBranch error
+			branchForBackup, errBranch = git.GetCurrentBranch(repo.Path)
+			if errBranch != nil {
+				err = errBranch
+				break
+			}
+		}
+
+		localSHA, errSHA := git.GetCommitSHA(repo.Path, branchForBackup)
+		if errSHA != nil {
+			err = errSHA
 			break
 		}
 
-		// This would get the SHA, but we'd need to implement it
-		// For now, create fire branch without SHA in name
-		_, err = git.CreateFireBranch(repo.Path, currentBranch, "unknown")
+		fireBranch, errBranchCreate := git.CreateFireBranch(repo.Path, branchForBackup, localSHA)
+		if errBranchCreate != nil {
+			err = errBranchCreate
+			break
+		}
+		executedAction.Branch = fireBranch
+
+		if action.Remote != "" {
+			remoteURL := r.getRemoteURL(repo, action.Remote)
+			r.rateLimiter.Acquire(remoteURL)
+			defer r.rateLimiter.Release(remoteURL)
+			err = git.PushBranch(repo.Path, action.Remote, fireBranch)
+		}
 
 	case ActionSkip:
 		// Nothing to do

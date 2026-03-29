@@ -1270,11 +1270,13 @@ func ScanRepositories(scanPath string, excludes []string, maxDepth int) ([]Repos
 func GetRemotes(repoPath string) ([]Remote, error)  // Parse .git/config or use `git remote -v`
 func GetBranches(repoPath string) ([]Branch, error)  // Use `git branch -a` + `git rev-parse`
 
-// Operations
-func AutoCommitDirty(repoPath string) error  // git add -A && git commit -m "..."
-func DetectConflict(repoPath, branchName, remoteName string) (bool, error)  // Compare SHAs
+// Operations (see internal/git/operations.go — actual signatures)
+func AutoCommitDirty(repoPath string, opts CommitOptions) error  // optional add -A + commit
+func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoCommitResult, error)  // staged/full backup branches; used by executor on ActionAutoCommit
+func DetectConflict(repoPath, branchName, remoteName string) (hasConflict bool, localSHA, remoteSHA string, err error)  // fetch + rev-parse
+func CreateFireBranch(repoPath, originalBranch, localSHA string) (branchName string, err error)  // git-fire-backup-*; pushed by executor when planned
 func PushBranch(repoPath, remoteName, branchName string) error  // git push <remote> <branch>
-func CreateBranchAndPush(repoPath, newBranchName, remoteName string) error  // git checkout -b + git push
+// CreateBranchAndPush is not a single helper in-tree; planner/runner compose branch create + push actions.
 
 // Auth
 func DetectSSHKeys() ([]SSHKey, error)  // Scan ~/.ssh/ for keys

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -131,6 +132,11 @@ func getCommitSHA(repoPath, ref string) (string, error) {
 	return sha, nil
 }
 
+// GetCommitSHA returns the SHA for a ref in the repository.
+func GetCommitSHA(repoPath, ref string) (string, error) {
+	return getCommitSHA(repoPath, ref)
+}
+
 // CreateFireBranch creates a new fire backup branch
 // Returns the new branch name
 func CreateFireBranch(repoPath, originalBranch, localSHA string) (string, error) {
@@ -221,7 +227,10 @@ func PushKnownBranches(repoPath, remote string) error {
 			if err := PushBranch(repoPath, remote, localBranch); err != nil {
 				errs = append(errs, fmt.Errorf("branch %s: %w", localBranch, err))
 			}
+			continue
 		}
+
+		fmt.Fprintf(os.Stderr, "warning: branch '%s' has no remote tracking ref — not backed up\n", localBranch)
 	}
 
 	return errors.Join(errs...)

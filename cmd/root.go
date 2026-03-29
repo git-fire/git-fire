@@ -59,6 +59,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.Version = Version
+	rootCmd.SilenceUsage = true
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.Flags().BoolVar(&fireDrill, "fire-drill", false, "Alias for --dry-run")
 	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Fire mode: TUI repo selector, skips confirmation prompt")
@@ -192,8 +193,9 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	// Upsert all discovered repos into the registry.
 	now := time.Now()
+	defaultMode := git.ParseMode(cfg.Global.DefaultMode)
 	for i, repo := range repos {
-		repos[i], _ = upsertRepoIntoRegistry(reg, repo, now)
+		repos[i], _ = upsertRepoIntoRegistry(reg, repo, now, defaultMode)
 	}
 	saveRegistry(reg, regPath)
 
@@ -357,10 +359,11 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 
 	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
 	now := time.Now()
+	defaultMode := git.ParseMode(cfg.Global.DefaultMode)
 	go func() {
 		defer close(repoChan)
 		for repo := range scanChan {
-			repo, include := upsertRepoIntoRegistry(reg, repo, now)
+			repo, include := upsertRepoIntoRegistry(reg, repo, now, defaultMode)
 			atomic.AddInt64(&totalFound, 1)
 			if include {
 				repo.Selected = true
@@ -436,7 +439,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 // upsertRepoIntoRegistry adds or updates the registry entry for repo and
 // returns the (possibly mode-updated) repo and whether it should be backed up
 // (false only for StatusIgnored entries).
-func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now time.Time) (git.Repository, bool) {
+func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now time.Time, defaultMode git.RepoMode) (git.Repository, bool) {
 	absPath, err := filepath.Abs(repo.Path)
 	if err != nil {
 		// Can't resolve path — include repo to be safe (never silently drop backups).
@@ -446,6 +449,8 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	if existing != nil {
 		if existing.Mode != "" {
 			repo.Mode = git.ParseMode(existing.Mode)
+		} else {
+			repo.Mode = defaultMode
 		}
 		existing.LastSeen = now
 		if existing.Status == registry.StatusIgnored {
@@ -455,6 +460,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		return repo, true
 	}
 	// New discovery — register it immediately (opt-out model).
+	repo.Mode = defaultMode
 	reg.Upsert(registry.RegistryEntry{
 		Path:     absPath,
 		Name:     repo.Name,

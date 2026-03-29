@@ -1,8 +1,10 @@
 # Git-Fire Requirements Validation Matrix
 
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-03-29 (UAT backlog + spec/doc realignment pass)
 **Validation Scope:** MVP Feature Completeness vs. GIT_FIRE_SPEC.md
 **Purpose:** Identify gaps between specification and implementation before 1.0 release
+
+**UAT alignment (2026-03-29):** Items tracked in `docs/UAT_BUGS.md` (dual-branch on live path, conflict `new-branch` in planner/runner, push-known warnings, `default_mode` via registry upsert, `SilenceUsage`) were verified in code and tests. This matrix’s evidence rows below were refreshed where they had drifted; summary counts were not re-tallied.
 
 ---
 
@@ -48,10 +50,10 @@
 |-------------|--------|----------|----------|---------------|
 | Auto-commit dirty repos | ✅ Complete | `git/operations.go:36` | `AutoCommitDirty()` | ✓ Tested |
 | `git add -A` respects .gitignore | ✅ Verified | `operations.go:50` | Uses git command | ✓ Implicit |
-| **Dual-branch strategy** | ✅ Complete | `operations.go:89` | `AutoCommitDirtyWithStrategy()` | ✓ Tested |
-| Staged-only branch | ✅ Complete | `operations.go:102` | Creates branch from staged | ✓ Tested |
-| Full branch (staged + unstaged) | ✅ Complete | `operations.go:135` | Full state branch | ✓ Tested |
-| Restore original state | ✅ Complete | `operations.go:148` | Returns to original branch | ✓ Tested |
+| **Dual-branch strategy** | ✅ Complete | `git/operations.go` + `executor/runner.go` | `AutoCommitDirtyWithStrategy()`; `ActionAutoCommit` pushes `git-fire-staged-*` / `git-fire-full-*` | ✓ Tested |
+| Staged-only branch | ✅ Complete | `git/operations.go` | Creates branch from staged | ✓ Tested |
+| Full branch (staged + unstaged) | ✅ Complete | `git/operations.go` | Full state branch | ✓ Tested |
+| Restore original state | ✅ Complete | `git/operations.go` | `ReturnToOriginal` / soft reset | ✓ Tested |
 | Timestamp in commit message | ✅ Complete | `operations.go:15` | ISO8601 timestamp | ✓ Tested |
 | Skip auto-commit if clean | ✅ Complete | `operations.go:43` | Early return on clean | ✓ Tested |
 
@@ -63,11 +65,11 @@
 
 | Requirement | Status | Location | Evidence | Action Needed |
 |-------------|--------|----------|----------|---------------|
-| Detect conflicts | ✅ Complete | `git/operations.go:233` | `DetectConflict()` | ✓ Tested |
-| Create fire branches | ✅ Complete | `git/operations.go:258` | `CreateFireBranch()` | ✓ Tested |
+| Detect conflicts | ✅ Complete | `git/operations.go` | `DetectConflict()`; planner calls it per remote in branch-push mode | ✓ Tested |
+| Create fire branches | ✅ Complete | `git/operations.go` + `executor/runner.go` | `CreateFireBranch()`; `ActionCreateFireBranch` creates and pushes `git-fire-backup-*` | ✓ Tested |
 | Never force push | ✅ Enforced | Design principle | No `--force` in code | ✓ Verified |
-| Configurable conflict strategy | ✅ Complete | `config/types.go:56` | `ConflictStrategy` enum | ✓ Tested |
-| Fire branch naming template | ✅ Complete | `executor/planner.go:78` | Template substitution | ✓ Tested |
+| Configurable conflict strategy | ✅ Complete | `config/types.go` + `executor/planner.go` | `ConflictStrategy`; `new-branch` schedules fire backup instead of direct branch push | ✓ Tested |
+| Fire branch naming | ✅ Complete | `git/operations.go` | Fixed `git-fire-backup-{branch}-{timestamp}-{shortSHA}` (not a user-editable template today) | ✓ Tested |
 
 **Completion: 5/5 ✅ (100%)**
 
@@ -81,7 +83,7 @@
 | Push known branches mode | ✅ Complete | `executor/planner.go:48` | `ModePushKnownBranches` | ✓ Tested |
 | Push all branches mode | ✅ Complete | `executor/planner.go:51` | `ModePushAll` | ✓ Tested |
 | Per-repo overrides | ✅ Complete | `config/loader.go:67` | `FindRepoOverride()` | ✓ Tested |
-| Push to all remotes | 🔴 Partial | `executor/runner.go` | Only pushes to origin | Add multi-remote support |
+| Push to all remotes | ✅ Complete | `executor/planner.go` | One action per entry in `repo.Remotes` (origin, backup, etc.) | ✓ Verified |
 | Preferred remotes order | 🔲 Missing | N/A | No implementation | Implement config.PreferredRemotes |
 
 **Completion: 4/6 ✅ (67%)**

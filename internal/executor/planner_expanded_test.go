@@ -10,10 +10,14 @@ import (
 
 func TestBuildPlan_DefaultMode(t *testing.T) {
 	// Default mode calls git.GetCurrentBranch, so we need a real repo.
-	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{
-		Name: "repo1",
-		Files: map[string]string{"README.md": "hello"},
-	})
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("repo1").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("initial")
+	repo.Push("origin", repo.GetDefaultBranch())
+	repoPath := repo.Path()
 
 	cfg := config.DefaultConfig()
 	planner := NewPlanner(&cfg)
@@ -25,7 +29,7 @@ func TestBuildPlan_DefaultMode(t *testing.T) {
 			Selected: true,
 			Mode:     git.RepoMode(99), // unknown mode → default push-branch behaviour
 			Remotes: []git.Remote{
-				{Name: "origin", URL: "git@github.com:user/repo1.git"},
+				{Name: "origin", URL: remote.Path()},
 			},
 		},
 	}
@@ -366,5 +370,41 @@ func TestProgressStatus_String(t *testing.T) {
 				t.Errorf("String() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("local").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base")
+
+	branch := repo.GetDefaultBranch()
+	repo.Push("origin", branch)
+
+	// Create local divergence from remote.
+	repo.AddFile("local-only.txt", "local\n").Commit("local diverged")
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.RepoMode(99), // branch-push path
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict to be detected")
+	}
+	if len(plan.Actions) == 0 || plan.Actions[0].Type != ActionCreateFireBranch {
+		t.Fatalf("Expected first action to be create-fire-branch, got %#v", plan.Actions)
 	}
 }

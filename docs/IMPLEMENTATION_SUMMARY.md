@@ -278,32 +278,18 @@ branch refs/heads/feature/auth
 
 Parsed into `Worktree` structs for easy iteration.
 
-## Next Steps
+## CLI integration (done)
 
-### Integration with Main CLI
+Dual-branch backup is wired through the **executor**, not ad-hoc loops in `cmd`:
 
-Update `cmd/root.go` to use new strategy:
+- `internal/executor/runner.go` — `ActionAutoCommit` calls `git.AutoCommitDirtyWithStrategy(...)`, then replaces pending `ActionPushBranch` steps with pushes for each created `git-fire-staged-*` / `git-fire-full-*` branch (per remote from the plan).
+- `internal/executor/planner.go` — builds the push plan; branch-push mode still targets the current branch unless conflict handling substitutes a fire backup action.
+- `cmd/root.go` — orchestrates scan → registry upsert → `Planner` / `Runner` (batch or stream).
+
+Historical reference (equivalent logical flow):
 ```go
-// Scan repos
-repos, _ := git.ScanRepositories(opts)
-
-// For each repo
-for _, repo := range repos {
-    // Use new dual branch strategy
-    result, err := git.AutoCommitDirtyWithStrategy(repo.Path, git.CommitOptions{
-        ReturnToOriginal: true,
-    })
-
-    if result.BothCreated {
-        // Push both branches
-        git.PushBranch(repo.Path, "origin", result.StagedBranch)
-        git.PushBranch(repo.Path, "origin", result.FullBranch)
-    } else if result.StagedBranch != "" {
-        git.PushBranch(repo.Path, "origin", result.StagedBranch)
-    } else if result.FullBranch != "" {
-        git.PushBranch(repo.Path, "origin", result.FullBranch)
-    }
-}
+result, err := git.AutoCommitDirtyWithStrategy(repoPath, git.CommitOptions{ReturnToOriginal: true})
+// … then PushBranch per remote for result.StagedBranch / result.FullBranch — performed by Runner today.
 ```
 
 ### Worktree Scanning
@@ -360,6 +346,7 @@ Add to output:
   - `HasUnstagedChanges()`
   - `ListWorktrees()`
   - Helper functions: `commitChanges()`, `createBranch()`
+- `internal/executor/runner.go` - Invokes dual-branch strategy on auto-commit and schedules backup-branch pushes
 
 **Types:**
 - `internal/git/operations.go` - New types

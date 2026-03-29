@@ -148,8 +148,9 @@ func analyzeRepository(repoPath string) (Repository, error) {
 	repo := Repository{
 		Path:     repoPath,
 		Name:     filepath.Base(repoPath),
-		Selected: true,                  // Default: selected
-		Mode:     ModePushKnownBranches, // Default: push known branches
+		Selected: true, // Default: selected
+		// Mode is intentionally left at zero-value here. The registry/config
+		// layer is the source of truth for default mode policy.
 	}
 
 	// Extract remotes

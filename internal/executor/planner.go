@@ -134,6 +134,23 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 			})
 
 		default:
+			if p.config.Global.ConflictStrategy == "new-branch" {
+				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
+				if conflictErr != nil {
+					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
+				}
+				if hasConflict {
+					repoPlan.HasConflict = true
+					repoPlan.Actions = append(repoPlan.Actions, Action{
+						Type:        ActionCreateFireBranch,
+						Description: fmt.Sprintf("Create and push fire backup branch for %s (%s)", currentBranch, remote.Name),
+						Remote:      remote.Name,
+						Branch:      currentBranch,
+					})
+					continue
+				}
+			}
+
 			repoPlan.Actions = append(repoPlan.Actions, Action{
 				Type:        ActionPushBranch,
 				Description: fmt.Sprintf("Push branch %s (%s)", currentBranch, remote.Name),
