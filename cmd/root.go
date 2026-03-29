@@ -409,6 +409,9 @@ func handleStatus() error {
 	// Show repositories
 	// Merge registry known paths so --status counts match normal runs.
 	cfg := config.LoadOrDefault()
+	if scanPath != "." {
+		cfg.Global.ScanPath = scanPath
+	}
 
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
