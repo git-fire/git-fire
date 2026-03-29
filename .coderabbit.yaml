@@ -22,6 +22,14 @@ reviews:
     enabled: true
     drafts: false
 
+  # Go idiom: godoc on exported symbols and non-obvious internals — not every
+  # private helper needs a comment. CodeRabbit's % is PR-diff-based and skews
+  # low when a change adds many small unexported functions (e.g. cmd/root.go).
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 70
+
   tools:
     golangci-lint:
       enabled: true

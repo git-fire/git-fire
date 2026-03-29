@@ -713,3 +713,47 @@ func TestDryRun_SecretWarning(t *testing.T) {
 		t.Errorf("expected AWS pattern name in warning, got: %q", stderr)
 	}
 }
+
+// TestRunner_ExecuteStream verifies that ExecuteStream processes repos fed
+// through a channel and returns correct aggregate counts. It uses repos with
+// no remotes so each is skipped — no real git pushes occur.
+func TestRunner_ExecuteStream(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+	defer runner.Close()
+
+	scenario := testutil.NewScenario(t)
+	repoA := scenario.CreateRepo("repo-a")
+	repoB := scenario.CreateRepo("repo-b")
+
+	// Drain progress channel in background.
+	go func() {
+		for range runner.ProgressChan() {
+		}
+	}()
+
+	repos := []git.Repository{
+		{Path: repoA.Path(), Name: "repo-a", Selected: true, Mode: git.ModePushKnownBranches},
+		{Path: repoB.Path(), Name: "repo-b", Selected: true, Mode: git.ModePushKnownBranches},
+	}
+
+	repoChan := make(chan git.Repository, len(repos))
+	for _, r := range repos {
+		repoChan <- r
+	}
+	close(repoChan)
+
+	planner := NewPlanner(&cfg)
+	var total int64 = int64(len(repos))
+
+	result, err := runner.ExecuteStream(repoChan, planner, false, &total)
+	if err != nil {
+		t.Fatalf("ExecuteStream error: %v", err)
+	}
+
+	processed := result.Success + result.Failed + result.Skipped
+	if processed != len(repos) {
+		t.Errorf("want %d repos processed, got %d (success=%d failed=%d skipped=%d)",
+			len(repos), processed, result.Success, result.Failed, result.Skipped)
+	}
+}

@@ -10,23 +10,21 @@ import (
 	"time"
 )
 
-// ScanRepositories finds all git repositories under the given root path.
-// If opts.KnownPaths is populated, repos at those absolute paths are
-// analyzed immediately without re-walking their directory tree (unless the
-// per-path rescan_submodules flag is true), which significantly speeds up
-// startup when many repos are already tracked.
-func ScanRepositories(opts ScanOptions) ([]Repository, error) {
-	repos := make([]Repository, 0)
-	reposMutex := &sync.Mutex{}
-
-	// Use a channel to limit concurrent workers
+// ScanRepositoriesStream finds all git repositories and sends each one to out
+// as soon as it is analyzed. out is closed when scanning is complete (or on
+// early error). The caller must drain out; a goroutine that drains out should
+// be running before calling this function.
+//
+// Registry entries in opts.KnownPaths are included regardless of whether they
+// fall under opts.RootPath — the registry is global.
+func ScanRepositoriesStream(opts ScanOptions, out chan<- Repository) error {
 	semaphore := make(chan struct{}, opts.Workers)
 	var wg sync.WaitGroup
 
-	// Resolve root to an absolute path so KnownPaths lookups work correctly.
 	absRoot, err := filepath.Abs(opts.RootPath)
 	if err != nil {
-		return nil, fmt.Errorf("resolving scan path: %w", err)
+		close(out)
+		return fmt.Errorf("resolving scan path: %w", err)
 	}
 
 	spawnAnalysis := func(repoPath string) {
@@ -35,14 +33,11 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 		go func(p string) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
-
 			repo, err := analyzeRepository(p)
 			if err != nil {
 				return
 			}
-			reposMutex.Lock()
-			repos = append(repos, repo)
-			reposMutex.Unlock()
+			out <- repo
 		}(repoPath)
 	}
 
@@ -50,16 +45,14 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 	// if the walk skips them. This also handles nested known repos correctly
 	// (a parent skipped by the walker does not prevent inner repos from being
 	// analyzed, since they were already queued here).
+	// Known paths outside the scan root are included too — the registry is
+	// global and should not be filtered by the current working directory.
 	for knownPath := range opts.KnownPaths {
-		rel, relErr := filepath.Rel(absRoot, knownPath)
-		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-			continue
-		}
 		spawnAnalysis(knownPath)
 	}
 
 	// Walk the directory tree to discover new (unknown) repos.
-	err = filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// Skip directories we can't access
 			return nil
@@ -107,14 +100,36 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 		return nil
 	})
 
-	// Wait for all workers to finish
+	// Wait for all workers, then signal end-of-stream.
 	wg.Wait()
+	close(out)
 
-	if err != nil {
-		return nil, fmt.Errorf("error scanning repositories: %w", err)
+	if walkErr != nil {
+		return fmt.Errorf("error scanning repositories: %w", walkErr)
 	}
+	return nil
+}
 
-	return repos, nil
+// ScanRepositories finds all git repositories under the given root path and
+// returns them as a slice. It is a convenience wrapper around
+// ScanRepositoriesStream for callers that need the full list before proceeding
+// (e.g. the TUI repo selector).
+func ScanRepositories(opts ScanOptions) ([]Repository, error) {
+	out := make(chan Repository, opts.Workers)
+	var repos []Repository
+
+	// Drain the channel in a goroutine so workers never block on sends.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for repo := range out {
+			repos = append(repos, repo)
+		}
+	}()
+
+	err := ScanRepositoriesStream(opts, out)
+	<-done // wait for draining goroutine to finish
+	return repos, err
 }
 
 // analyzeRepository extracts metadata from a git repository
