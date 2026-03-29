@@ -352,7 +352,7 @@ func TestRunner_Execute_UsesDualBranchPushes(t *testing.T) {
 			Path:     repo.Path(),
 			Name:     "dirty-repo",
 			Selected: true,
-			Mode:     git.RepoMode(99), // default branch-push mode
+			Mode:     git.ModePushCurrentBranch,
 			IsDirty:  true,
 			Remotes: []git.Remote{
 				{Name: "origin", URL: remote.Path()},

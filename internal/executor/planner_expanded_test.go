@@ -27,7 +27,7 @@ func TestBuildPlan_DefaultMode(t *testing.T) {
 			Path:     repoPath,
 			Name:     "repo1",
 			Selected: true,
-			Mode:     git.RepoMode(99), // unknown mode → default push-branch behaviour
+			Mode:     git.ModePushCurrentBranch,
 			Remotes: []git.Remote{
 				{Name: "origin", URL: remote.Path()},
 			},
@@ -374,18 +374,7 @@ func TestProgressStatus_String(t *testing.T) {
 }
 
 func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
-	scenario := testutil.NewScenario(t)
-	remote := scenario.CreateBareRepo("remote")
-	repo := scenario.CreateRepo("local").
-		WithRemote("origin", remote).
-		AddFile("base.txt", "base\n").
-		Commit("base")
-
-	branch := repo.GetDefaultBranch()
-	repo.Push("origin", branch)
-
-	// Create local divergence from remote.
-	repo.AddFile("local-only.txt", "local\n").Commit("local diverged")
+	_, repo, remote := testutil.CreateConflictScenario(t)
 
 	cfg := config.DefaultConfig()
 	cfg.Global.ConflictStrategy = "new-branch"
@@ -395,7 +384,7 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 		Path:     repo.Path(),
 		Name:     "local",
 		Selected: true,
-		Mode:     git.RepoMode(99), // branch-push path
+		Mode:     git.ModePushCurrentBranch,
 		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
 	})
 	if err != nil {

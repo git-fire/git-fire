@@ -262,6 +262,8 @@ git -C "$S1B_REPO" add staged_file.txt
 log_info "Setup: staged=staged_file.txt, nothing unstaged"
 
 S1B_OUT=$(HOME="$S1B_HOME" "$BINARY" --path "$S1B" 2>&1) && S1B_RC=0 || S1B_RC=$?
+log_info "git-fire output:"
+echo "$S1B_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1B_RC" "S1b: exit code"
 assert_remote_commit_count "$S1B_REMOTE" main 2 "S1b: remote commit count"
 git -C "$S1B_REMOTE" show main:staged_file.txt > /dev/null 2>&1 && \
@@ -285,6 +287,8 @@ echo "unstaged only" > "$S1C_REPO/unstaged_file.txt"
 log_info "Setup: nothing staged, unstaged=unstaged_file.txt"
 
 S1C_OUT=$(HOME="$S1C_HOME" "$BINARY" --path "$S1C" 2>&1) && S1C_RC=0 || S1C_RC=$?
+log_info "git-fire output:"
+echo "$S1C_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1C_RC" "S1c: exit code"
 assert_remote_commit_count "$S1C_REMOTE" main 2 "S1c: remote commit count"
 git -C "$S1C_REMOTE" show main:unstaged_file.txt > /dev/null 2>&1 && \

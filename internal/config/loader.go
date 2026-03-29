@@ -108,9 +108,10 @@ func (c *Config) Validate() error {
 		"push-known-branches": true,
 		"push-all":            true,
 		"leave-untouched":     true,
+		"push-current-branch": true,
 	}
 	if !validModes[c.Global.DefaultMode] {
-		return fmt.Errorf("invalid default_mode: %s (must be push-known-branches, push-all, or leave-untouched)", c.Global.DefaultMode)
+		return fmt.Errorf("invalid default_mode: %s (must be push-known-branches, push-all, push-current-branch, or leave-untouched)", c.Global.DefaultMode)
 	}
 
 	// Validate conflict strategy

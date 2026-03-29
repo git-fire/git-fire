@@ -165,6 +165,16 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 			}
 			actions = append(actions[:i+1], append(replacementPushes, filteredTail...)...)
 		}
+
+		// Fire-branch creation runs once; replace pending placeholder pushes so
+		// each conflicting remote pushes the created backup branch.
+		if action.Type == ActionCreateFireBranch && executedAction.Error == nil && executedAction.Branch != "" {
+			for j := i + 1; j < len(actions); j++ {
+				if actions[j].Type == ActionPushBranch && actions[j].Branch == fireBranchPlaceholder {
+					actions[j].Branch = executedAction.Branch
+				}
+			}
+		}
 	}
 
 	result.Success = firstErr == nil

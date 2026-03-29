@@ -10,6 +10,7 @@ func TestRepoMode_String(t *testing.T) {
 		{ModeLeaveUntouched, "leave-untouched"},
 		{ModePushKnownBranches, "push-known-branches"},
 		{ModePushAll, "push-all"},
+		{ModePushCurrentBranch, "push-current-branch"},
 		{RepoMode(99), "unknown"},
 	}
 
@@ -30,6 +31,7 @@ func TestParseMode(t *testing.T) {
 		{"leave-untouched", ModeLeaveUntouched},
 		{"push-known-branches", ModePushKnownBranches},
 		{"push-all", ModePushAll},
+		{"push-current-branch", ModePushCurrentBranch},
 		// Empty string defaults to push-known-branches (safe default)
 		{"", ModePushKnownBranches},
 		// Unknown strings fail closed (no accidental pushes)
@@ -47,7 +49,7 @@ func TestParseMode(t *testing.T) {
 }
 
 func TestParseMode_RoundTrip(t *testing.T) {
-	modes := []RepoMode{ModeLeaveUntouched, ModePushKnownBranches, ModePushAll}
+	modes := []RepoMode{ModeLeaveUntouched, ModePushKnownBranches, ModePushAll, ModePushCurrentBranch}
 	for _, m := range modes {
 		t.Run(m.String(), func(t *testing.T) {
 			if got := ParseMode(m.String()); got != m {
