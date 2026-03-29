@@ -20,9 +20,10 @@ func DefaultConfig() Config {
 				"build",
 				"target",
 			},
-			ScanDepth:   10,
-			ScanWorkers: 8,
-			CacheTTL:    24 * time.Hour,
+			ScanDepth:        10,
+			ScanWorkers:      8,
+			CacheTTL:         24 * time.Hour,
+			RescanSubmodules: false,
 		},
 		Backup: BackupConfig{
 			Platform:         "github",
@@ -77,6 +78,9 @@ scan_workers = 8
 # Cache TTL (e.g., "24h", "1h30m")
 cache_ttl = "24h"
 
+# Re-scan known repos for new submodules (global default; overridable per-repo in registry)
+rescan_submodules = false
+
 [backup]
 # Backup mode: Push to a different remote (creates repos automatically)
 # Leave empty to use existing remotes
@@ -110,6 +114,7 @@ use_ssh_agent = true
 # path = "/home/user/critical-project"
 # mode = "push-all"
 # skip_auto_commit = false
+# rescan_submodules = true   # override global rescan_submodules for this repo
 
 # [[repos]]
 # remote = "github.com/company/*"

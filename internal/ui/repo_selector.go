@@ -3,10 +3,12 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -75,10 +77,12 @@ type RepoSelectorModel struct {
 	spinner      spinner.Model   // Loading spinner
 	windowWidth  int
 	windowHeight int
+	reg          *registry.Registry // persistent registry for write-through
+	regPath      string             // path to registry file
 }
 
 // NewRepoSelectorModel creates a new repo selector
-func NewRepoSelectorModel(repos []git.Repository) RepoSelectorModel {
+func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath string) RepoSelectorModel {
 	// Initialize all repos as selected by default
 	selected := make(map[int]bool)
 	for i := range repos {
@@ -101,6 +105,8 @@ func NewRepoSelectorModel(repos []git.Repository) RepoSelectorModel {
 		spinner:      s,
 		windowWidth:  80,
 		windowHeight: 40,
+		reg:          reg,
+		regPath:      regPath,
 	}
 }
 
@@ -154,11 +160,17 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case " ":
 			// Toggle selection
+			if len(m.repos) == 0 {
+				break
+			}
 			m.selected[m.cursor] = !m.selected[m.cursor]
 			m.repos[m.cursor].Selected = m.selected[m.cursor]
 
 		case "m":
 			// Cycle through modes
+			if len(m.repos) == 0 {
+				break
+			}
 			repo := &m.repos[m.cursor]
 			switch repo.Mode {
 			case git.ModeLeaveUntouched:
@@ -167,6 +179,30 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				repo.Mode = git.ModePushAll
 			case git.ModePushAll:
 				repo.Mode = git.ModeLeaveUntouched
+			}
+			// Write-through: persist the new mode immediately
+			m.persistMode(repo.Path, repo.Mode)
+
+		case "x":
+			// Mark current repo as ignored in the registry and remove from list
+			if len(m.repos) > 0 {
+				repo := m.repos[m.cursor]
+				m.persistIgnore(repo.Path)
+				// Remove from visible list
+				m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
+				// Rebuild selected map with shifted indices
+				newSelected := make(map[int]bool)
+				for i := range m.repos {
+					oldIdx := i
+					if i >= m.cursor {
+						oldIdx = i + 1
+					}
+					newSelected[i] = m.selected[oldIdx]
+				}
+				m.selected = newSelected
+				if m.cursor >= len(m.repos) && m.cursor > 0 {
+					m.cursor--
+				}
 			}
 
 		case "a":
@@ -271,7 +307,7 @@ func (m RepoSelectorModel) View() string {
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode\n" +
+			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
 			"  a  Select all  |  n  Select none  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
@@ -282,6 +318,49 @@ func (m RepoSelectorModel) View() string {
 	// Wrap everything in a box
 	content := s.String()
 	return boxStyle.Render(content)
+}
+
+// persistMode writes the repo's current mode to the registry synchronously.
+// Errors are silently ignored — this is best-effort during an emergency.
+func (m RepoSelectorModel) persistMode(repoPath string, mode git.RepoMode) {
+	if m.reg == nil || m.regPath == "" {
+		return
+	}
+	absPath, err := filepath.Abs(repoPath)
+	if err != nil {
+		return
+	}
+	entry := m.reg.FindByPath(absPath)
+	if entry != nil {
+		entry.Mode = mode.String()
+	} else {
+		m.reg.Upsert(registry.RegistryEntry{
+			Path:   absPath,
+			Name:   filepath.Base(absPath),
+			Status: registry.StatusActive,
+			Mode:   mode.String(),
+		})
+	}
+	_ = registry.Save(m.reg, m.regPath)
+}
+
+// persistIgnore marks the repo as ignored in the registry synchronously.
+func (m RepoSelectorModel) persistIgnore(repoPath string) {
+	if m.reg == nil || m.regPath == "" {
+		return
+	}
+	absPath, err := filepath.Abs(repoPath)
+	if err != nil {
+		return
+	}
+	if !m.reg.SetStatus(absPath, registry.StatusIgnored) {
+		m.reg.Upsert(registry.RegistryEntry{
+			Path:   absPath,
+			Name:   filepath.Base(absPath),
+			Status: registry.StatusIgnored,
+		})
+	}
+	_ = registry.Save(m.reg, m.regPath)
 }
 
 // GetSelectedRepos returns the selected repositories
@@ -295,9 +374,11 @@ func (m RepoSelectorModel) GetSelectedRepos() []git.Repository {
 	return selected
 }
 
-// RunRepoSelector runs the interactive repo selector and returns selected repos
-func RunRepoSelector(repos []git.Repository) ([]git.Repository, error) {
-	model := NewRepoSelectorModel(repos)
+// RunRepoSelector runs the interactive repo selector and returns selected repos.
+// reg and regPath are used for write-through persistence of mode changes and
+// ignored repos; pass nil/empty to disable persistence.
+func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath string) ([]git.Repository, error) {
+	model := NewRepoSelectorModel(repos, reg, regPath)
 	p := tea.NewProgram(model)
 
 	finalModel, err := p.Run()
