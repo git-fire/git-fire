@@ -252,11 +252,6 @@ func (r *Runner) ExecuteStream(
 		repoPlan.Repo.Selected = true
 
 		current++
-		totalStr := "?"
-		if t := *total; t > 0 {
-			totalStr = fmt.Sprintf("%d", t)
-		}
-		_ = totalStr // used in progress display below
 
 		var repoResult RepoResult
 		if dryRun {
