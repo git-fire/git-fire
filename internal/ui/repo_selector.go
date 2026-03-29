@@ -129,13 +129,14 @@ type RepoSelectorModel struct {
 	regPath        string             // path to registry file
 
 	// Streaming scan state (nil channels = batch/static mode)
-	scanChan       <-chan git.Repository
-	progressChan   <-chan string
-	scanDone       bool   // true once scanChan is closed
-	progDone       bool   // true once progressChan is closed
-	scanDisabled   bool   // --no-scan / disable_scan = true
-	scanCurrentPath string // latest folder the scanner is visiting
-	scanNewCount   int    // repos discovered during this TUI session
+	scanChan            <-chan git.Repository
+	progressChan        <-chan string
+	scanDone            bool   // true once scanChan is closed
+	progDone            bool   // true once progressChan is closed
+	scanDisabled        bool   // disable_scan = true in config OR --no-scan flag
+	scanDisabledRunOnly bool   // true when disabled by --no-scan flag (not persisted config)
+	scanCurrentPath     string // latest folder the scanner is visiting
+	scanNewCount        int    // repos discovered during this TUI session
 
 	// Config menu state
 	cfg          *config.Config
@@ -179,6 +180,7 @@ func NewRepoSelectorModelStream(
 	scanChan <-chan git.Repository,
 	progressChan <-chan string,
 	scanDisabled bool,
+	scanDisabledRunOnly bool,
 	cfg *config.Config,
 	cfgPath string,
 	reg *registry.Registry,
@@ -202,11 +204,12 @@ func NewRepoSelectorModelStream(
 		regPath:      regPath,
 		scanChan:     scanChan,
 		progressChan: progressChan,
-		scanDone:     scanDisabled, // if scan is disabled there's nothing to wait for
-		progDone:     scanDisabled,
-		scanDisabled: scanDisabled,
-		cfg:          cfg,
-		cfgPath:      cfgPath,
+		scanDone:             scanDisabled, // if scan is disabled there's nothing to wait for
+		progDone:             scanDisabled,
+		scanDisabled:         scanDisabled,
+		scanDisabledRunOnly:  scanDisabledRunOnly,
+		cfg:                  cfg,
+		cfgPath:              cfgPath,
 	}
 }
 
@@ -576,13 +579,10 @@ func (m RepoSelectorModel) renderScanStatus() string {
 	switch {
 	case m.scanDisabled:
 		var label string
-		// noScan is a run-time flag; if config has disable_scan = true it persists.
-		// We can't distinguish here so we show the permanent variant — callers set
-		// scanDisabled based on the effective config value.
-		if m.cfg != nil && m.cfg.Global.DisableScan {
-			label = "⚠️  Scanning Disabled"
-		} else {
+		if m.scanDisabledRunOnly {
 			label = "⚠️  Scanning Disabled (this run only)"
+		} else {
+			label = "⚠️  Scanning Disabled"
 		}
 		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00")).Render(label))
 
@@ -689,18 +689,20 @@ func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath str
 //
 // scanDisabled should be true when --no-scan / disable_scan is set so the
 // panel shows the appropriate "Scanning Disabled" indicator instead of
-// progress.  cfg and cfgPath enable the in-TUI config menu (pass nil/empty to
-// disable).
+// progress. scanDisabledRunOnly should be true only when --no-scan was passed
+// (run-time), so the label differs from persisted disable_scan in config.
+// cfg and cfgPath enable the in-TUI config menu (pass nil/empty to disable).
 func RunRepoSelectorStream(
 	scanChan <-chan git.Repository,
 	progressChan <-chan string,
 	scanDisabled bool,
+	scanDisabledRunOnly bool,
 	cfg *config.Config,
 	cfgPath string,
 	reg *registry.Registry,
 	regPath string,
 ) ([]git.Repository, error) {
-	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, cfg, cfgPath, reg, regPath)
+	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, scanDisabledRunOnly, cfg, cfgPath, reg, regPath)
 	p := tea.NewProgram(model)
 
 	finalModel, err := p.Run()

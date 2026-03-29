@@ -191,7 +191,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 		wg        sync.WaitGroup
 	)
 
-	fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	if opts.DisableScan {
+		fmt.Printf("⏳ Loading %d known repositories from registry (filesystem scan disabled)...\n", len(opts.KnownPaths))
+	} else {
+		fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	}
 	fmt.Println()
 
 	wg.Add(2)
@@ -367,6 +371,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		tuiRepoChan,
 		folderProgress,
 		cfg.Global.DisableScan,
+		noScan,
 		cfg,
 		config.DefaultConfigPath(),
 		reg,
@@ -464,7 +469,11 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 // After all backups complete, if the filesystem scan is still running the user
 // is prompted to wait or press Ctrl+C / Enter to abort the scan.
 func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
-	fmt.Println("🔥 Scanning and backing up repositories...")
+	if opts.DisableScan {
+		fmt.Println("🔥 Backing up known repositories (filesystem scan disabled)...")
+	} else {
+		fmt.Println("🔥 Scanning and backing up repositories...")
+	}
 	fmt.Println()
 
 	// Start SSH check in the background — we'll show the result at the end.
@@ -730,9 +739,13 @@ func handleStatus() error {
 	if scanPath != "." {
 		cfg.Global.ScanPath = scanPath
 	}
+	if noScan {
+		cfg.Global.DisableScan = true
+	}
 
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
+	opts.DisableScan = cfg.Global.DisableScan
 
 	reg := &registry.Registry{}
 	if p, err := registry.DefaultRegistryPath(); err != nil {
@@ -743,6 +756,15 @@ func handleStatus() error {
 		reg = loaded
 	}
 	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
+
+	if cfg.Global.DisableScan {
+		if noScan {
+			fmt.Println("⚠️  Scanning Disabled (this run only)")
+		} else {
+			fmt.Println("⚠️  Scanning Disabled")
+		}
+		fmt.Println()
+	}
 
 	repos, err := git.ScanRepositories(opts)
 	if err != nil {
