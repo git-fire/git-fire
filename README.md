@@ -1,6 +1,10 @@
 # 🔥 Git Fire - Emergency Git Backup Tool
 
 <p align="center">
+  <img src="assets/git-fire-lockup.svg" alt="git-fire: flame and git node with wordmark" width="280" height="160" />
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/status-MVP-green" alt="Status: MVP">
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
@@ -273,6 +277,10 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 | Active | ✅ 2026 | ❌ 2015 (archived) |
 
 ## 🌐 Website
+
+<p align="center">
+  <img src="assets/git-fire-icon.svg" alt="git-fire flame mark" width="72" height="96" />
+</p>
 
 [git-fire.com](https://git-fire.com) — coming soon.
 
