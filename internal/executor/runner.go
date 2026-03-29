@@ -237,6 +237,7 @@ func (r *Runner) ExecuteStream(
 	}
 
 	current := 0
+	var planErrors []error
 	for repo := range repos {
 		if !repo.Selected {
 			continue
@@ -247,6 +248,32 @@ func (r *Runner) ExecuteStream(
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.
 			fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", repo.Path, err)
+
+			// Create a failed RepoResult for this repo
+			current++
+			failedResult := RepoResult{
+				Path:    repo.Path,
+				Success: false,
+				Error:   err,
+				Actions: make([]Action, 0),
+			}
+			result.RepoResults = append(result.RepoResults, failedResult)
+			result.Failed++
+
+			// Collect the error to propagate to caller
+			planErrors = append(planErrors, fmt.Errorf("failed to plan %s: %w", repo.Path, err))
+
+			// Send progress update
+			tot := int(atomic.LoadInt64(total))
+			r.sendProgress(Progress{
+				CurrentRepo: current,
+				TotalRepos:  tot,
+				RepoName:    repo.Name,
+				Action:      "Failed to build plan",
+				Status:      StatusFailed,
+				Error:       err,
+			})
+
 			continue
 		}
 		repoPlan.Repo.Selected = true
@@ -301,7 +328,14 @@ func (r *Runner) ExecuteStream(
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
-	return result, nil
+
+	// Return aggregated plan errors if any occurred
+	var returnErr error
+	if len(planErrors) > 0 {
+		returnErr = fmt.Errorf("%d repo(s) failed during plan building", len(planErrors))
+	}
+
+	return result, returnErr
 }
 
 // dryRunExecute simulates execution without making changes
