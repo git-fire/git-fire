@@ -128,7 +128,7 @@ args = [
 when = "after-push"
 ```
 
-Or write the result to a file that an agent can read:
+Or write the result to a file that an agent can read (`jq` must be on `PATH`; values are passed as `--arg` so `jq` emits valid JSON):
 
 ```toml
 [[plugins.command]]
@@ -136,7 +136,7 @@ name = "write-backup-manifest"
 command = "sh"
 args = [
   "-c",
-  "echo '{\"repo\":\"{repo_name}\",\"sha\":\"{commit_sha}\",\"branch\":\"{branch}\",\"time\":\"{timestamp}\"}' >> ~/.cache/git-fire/session-manifest.ndjson"
+  "jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/session-manifest.ndjson"
 ]
 when = "on-success"
 ```
@@ -163,9 +163,9 @@ The registry persists at `~/.git-fire/repos.toml` — agents or orchestration sc
 No config file needed for agent environments:
 
 ```bash
-GIT_FIRE_SCAN_PATH=~/projects \
-GIT_FIRE_DEFAULT_MODE=push-known-branches \
-GIT_FIRE_AUTO_COMMIT_DIRTY=true \
+GIT_FIRE_GLOBAL_SCAN_PATH=~/projects \
+GIT_FIRE_GLOBAL_DEFAULT_MODE=push-known-branches \
+GIT_FIRE_GLOBAL_AUTO_COMMIT_DIRTY=true \
 git-fire
 ```
 
@@ -350,7 +350,7 @@ git-fire --output=ndjson
 
 Emits one JSON object per line to stdout as work progresses:
 
-```
+```json
 {"event":"start","total_repos":12,"timestamp":"..."}
 {"event":"repo_start","repo":"api","actions":["auto-commit","push-branch"]}
 {"event":"repo_success","repo":"api","duration":"1.2s","commit_sha":"abc1234"}
@@ -503,7 +503,7 @@ enabled = ["session-log"]
 [[plugins.command]]
 name = "session-log"
 command = "sh"
-args = ["-c", "echo '{\"repo\":\"{repo_name}\",\"sha\":\"{commit_sha}\",\"branch\":\"{branch}\",\"time\":\"{timestamp}\"}' >> ~/.cache/git-fire/agent-sessions.ndjson"]
+args = ["-c", "jq -nc --arg repo '{repo_name}' --arg sha '{commit_sha}' --arg branch '{branch}' --arg time '{timestamp}' '{repo: $repo, sha: $sha, branch: $branch, time: $time}' >> ~/.cache/git-fire/agent-sessions.ndjson"]
 when = "on-success"
 ```
 
