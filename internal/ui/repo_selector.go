@@ -74,21 +74,23 @@ func tickCmd() tea.Cmd {
 
 // RepoSelectorModel is the Bubble Tea model for selecting repositories
 type RepoSelectorModel struct {
-	repos          []git.Repository
-	cursor         int // main list position
-	ignoredCursor  int // ignored list position
-	view           repoSelectorView
-	ignoredEntries []registry.RegistryEntry
-	selected       map[int]bool
-	quitting       bool
-	confirmed      bool
-	frameIndex     int             // For fire animation
-	fireBg         *FireBackground // Animated fire background
-	spinner        spinner.Model   // Loading spinner
-	windowWidth    int
-	windowHeight   int
-	reg            *registry.Registry // persistent registry for write-through
-	regPath        string             // path to registry file
+	repos               []git.Repository
+	cursor              int // main list position
+	scrollOffset        int // first visible repo index
+	ignoredCursor       int // ignored list position
+	ignoredScrollOffset int // first visible ignored entry index
+	view                repoSelectorView
+	ignoredEntries      []registry.RegistryEntry
+	selected            map[int]bool
+	quitting            bool
+	confirmed           bool
+	frameIndex          int             // For fire animation
+	fireBg              *FireBackground // Animated fire background
+	spinner             spinner.Model   // Loading spinner
+	windowWidth         int
+	windowHeight        int
+	reg                 *registry.Registry // persistent registry for write-through
+	regPath             string             // path to registry file
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -132,8 +134,15 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
 		m.windowHeight = msg.Height
-		// Resize fire background
-		m.fireBg = NewFireBackground(min(msg.Width-4, 70), 5)
+		// Resize fire background to available content width (box border+padding = 6 cols)
+		contentW := msg.Width - 6
+		if contentW < 10 {
+			contentW = 10
+		}
+		m.fireBg = NewFireBackground(min(contentW, 70), 5)
+		// Re-clamp scroll offsets for new height
+		m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
+		m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
 
 	case tickMsg:
 		// Advance animation frame
@@ -181,18 +190,22 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == repoViewIgnored {
 				if m.ignoredCursor > 0 {
 					m.ignoredCursor--
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
 			}
 
 		case "down", "j":
 			if m.view == repoViewIgnored {
 				if m.ignoredCursor < len(m.ignoredEntries)-1 {
 					m.ignoredCursor++
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
 			}
 
 		case " ":
@@ -236,6 +249,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.repos) && m.cursor > 0 {
 				m.cursor--
 			}
+			m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
 
 		case "a":
 			if m.view == repoViewIgnored {
@@ -278,6 +292,56 @@ func clampSelectorCursor(cursor, n int) int {
 		return n - 1
 	}
 	return cursor
+}
+
+// repoListVisibleCount returns how many repo lines can be shown given the current
+// window height. The repo list is the flex element: it absorbs all spare vertical
+// space but is always at least 1 line tall.
+//
+// Fixed vertical overhead inside the box:
+//   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
+//   + help marginTop (1) + help body (8) + box border+padding top+bottom (4)
+//   = 25
+func (m RepoSelectorModel) repoListVisibleCount() int {
+	const overhead = 25
+	n := m.windowHeight - overhead
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
+// Slightly less overhead (no help icons section):
+//   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
+//   + help (3) + box border+padding (4) = 19
+func (m RepoSelectorModel) ignoredListVisibleCount() int {
+	const overhead = 19
+	n := m.windowHeight - overhead
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// clampScroll returns a scroll offset that keeps cursor within the visible window.
+func (m RepoSelectorModel) clampScroll(offset, cursor, visible int) int {
+	if cursor < offset {
+		return cursor
+	}
+	if cursor >= offset+visible {
+		return cursor - visible + 1
+	}
+	return offset
+}
+
+// contentWidth returns the usable inner width for rendered content (box border+padding = 6 cols).
+func (m RepoSelectorModel) contentWidth() int {
+	w := m.windowWidth - 6
+	if w < 10 {
+		w = 10
+	}
+	return w
 }
 
 func (m RepoSelectorModel) restoreIgnoredAtCursor() RepoSelectorModel {
@@ -340,6 +404,9 @@ func (m RepoSelectorModel) View() string {
 		return m.viewIgnoredMain()
 	}
 
+	cw := m.contentWidth()
+	fireW := min(cw, 70)
+
 	var s strings.Builder
 
 	// Animated fire background at top
@@ -347,7 +414,7 @@ func (m RepoSelectorModel) View() string {
 	s.WriteString("\n")
 
 	// Animated fire wave separator
-	s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
+	s.WriteString(RenderFireWave(fireW, m.frameIndex))
 	s.WriteString("\n\n")
 
 	// Title with gradient
@@ -360,11 +427,46 @@ func (m RepoSelectorModel) View() string {
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
 
-	// Repository list
-	for i, repo := range m.repos {
-		cursor := " "
+	// Repository list — flex element, scrollable
+	visible := m.repoListVisibleCount()
+	// Re-clamp in case View is called before a scroll-adjusting Update
+	scrollOffset := m.clampScroll(m.scrollOffset, m.cursor, visible)
+
+	// Scroll indicators each consume 1 line; subtract them from the viewport
+	// so the box never overflows.
+	hasAbove := scrollOffset > 0
+	hasBelow := len(m.repos) > scrollOffset+visible
+	indicators := 0
+	if hasAbove {
+		indicators++
+	}
+	if hasBelow {
+		indicators++
+	}
+	end := scrollOffset + visible - indicators
+	if end > len(m.repos) {
+		end = len(m.repos)
+	}
+
+	// Fixed parts of a repo line (before the path): "> [✓]  [mode] (N remotes) 💥"
+	// "> " (2) + "[✓] " (4) + "  [" (3) + mode + "] " (2) + remotes + " 💥" (4) ≈ 15 + mode + remotes
+	// Reserve ~35 cols for the non-path parts; remainder goes to the path.
+	const nonPathCols = 35
+	maxPathCols := cw - nonPathCols
+	if maxPathCols < 10 {
+		maxPathCols = 10
+	}
+
+	if hasAbove {
+		s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↑ %d more", scrollOffset)))
+		s.WriteString("\n")
+	}
+
+	for i := scrollOffset; i < end; i++ {
+		repo := m.repos[i]
+		cur := " "
 		if m.cursor == i {
-			cursor = ">"
+			cur = ">"
 		}
 
 		checked := "[ ]"
@@ -374,7 +476,6 @@ func (m RepoSelectorModel) View() string {
 			style = selectedStyle
 		}
 
-		// Repo line: cursor, checkbox, name, mode, status
 		dirtyIndicator := ""
 		if repo.IsDirty {
 			dirtyIndicator = "💥"
@@ -386,16 +487,25 @@ func (m RepoSelectorModel) View() string {
 		}
 
 		displayPath := AbbreviateUserHome(repo.Path)
+		if len([]rune(displayPath)) > maxPathCols {
+			displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
+		}
+
 		line := fmt.Sprintf("%s %s %s  [%s] %s %s",
-			cursor,
+			cur,
 			checked,
 			style.Render(displayPath),
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
 		)
-
 		s.WriteString(line)
+		s.WriteString("\n")
+	}
+
+	if hasBelow {
+		below := len(m.repos) - end
+		s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↓ %d more", below)))
 		s.WriteString("\n")
 	}
 
@@ -411,16 +521,22 @@ func (m RepoSelectorModel) View() string {
 	)
 	s.WriteString(help)
 
-	// Wrap everything in a box
-	content := s.String()
-	return boxStyle.Render(content)
+	// Wrap in a box sized to the terminal width
+	innerW := m.windowWidth - 6 // border(2) + padding(4)
+	if innerW < 10 {
+		innerW = 10
+	}
+	return boxStyle.Width(innerW).Render(s.String())
 }
 
 func (m RepoSelectorModel) viewIgnoredMain() string {
+	cw := m.contentWidth()
+	fireW := min(cw, 70)
+
 	var s strings.Builder
 	s.WriteString(m.fireBg.Render())
 	s.WriteString("\n")
-	s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
+	s.WriteString(RenderFireWave(fireW, m.frameIndex))
 	s.WriteString("\n\n")
 
 	titleGradient := lipgloss.NewStyle().
@@ -435,13 +551,50 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		s.WriteString(unselectedStyle.Render("No ignored repositories."))
 		s.WriteString("\n")
 	} else {
-		for i, e := range m.ignoredEntries {
-			cursor := " "
+		visible := m.ignoredListVisibleCount()
+		scrollOffset := m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, visible)
+
+		hasAbove := scrollOffset > 0
+		hasBelow := len(m.ignoredEntries) > scrollOffset+visible
+		indicators := 0
+		if hasAbove {
+			indicators++
+		}
+		if hasBelow {
+			indicators++
+		}
+
+		maxPathCols := cw - 4
+		if maxPathCols < 10 {
+			maxPathCols = 10
+		}
+
+		end := scrollOffset + visible - indicators
+		if end > len(m.ignoredEntries) {
+			end = len(m.ignoredEntries)
+		}
+
+		if hasAbove {
+			s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↑ %d more", scrollOffset)))
+			s.WriteString("\n")
+		}
+
+		for i := scrollOffset; i < end; i++ {
+			e := m.ignoredEntries[i]
+			cur := " "
 			if m.ignoredCursor == i {
-				cursor = ">"
+				cur = ">"
 			}
-			line := fmt.Sprintf("%s %s", cursor, AbbreviateUserHome(e.Path))
-			s.WriteString(line)
+			displayPath := AbbreviateUserHome(e.Path)
+			if len([]rune(displayPath)) > maxPathCols {
+				displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
+			}
+			s.WriteString(fmt.Sprintf("%s %s\n", cur, displayPath))
+		}
+
+		if hasBelow {
+			below := len(m.ignoredEntries) - end
+			s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↓ %d more", below)))
 			s.WriteString("\n")
 		}
 	}
@@ -452,7 +605,12 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
 	)
 	s.WriteString(help)
-	return boxStyle.Render(s.String())
+
+	innerW := m.windowWidth - 6
+	if innerW < 10 {
+		innerW = 10
+	}
+	return boxStyle.Width(innerW).Render(s.String())
 }
 
 // persistMode writes the repo's current mode to the registry synchronously.
@@ -476,7 +634,7 @@ func (m RepoSelectorModel) GetSelectedRepos() []git.Repository {
 // ignored repos; pass nil/empty to disable persistence.
 func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath string) ([]git.Repository, error) {
 	model := NewRepoSelectorModel(repos, reg, regPath)
-	p := tea.NewProgram(model)
+	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	finalModel, err := p.Run()
 	if err != nil {
