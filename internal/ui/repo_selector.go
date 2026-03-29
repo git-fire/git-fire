@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/git"
 	"github.com/TBRX103/git-fire/internal/registry"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -59,17 +60,54 @@ var fireFrames = []string{
 
 type tickMsg time.Time
 
+// repoDiscoveredMsg is sent when a new repo arrives via the scan channel.
+type repoDiscoveredMsg git.Repository
+
+// scanProgressMsg carries the path the scanner is currently visiting.
+type scanProgressMsg string
+
+// repoChanDoneMsg is sent when the repo scan channel is closed.
+type repoChanDoneMsg struct{}
+
+// progressChanDoneMsg is sent when the folder-progress channel is closed.
+type progressChanDoneMsg struct{}
+
 type repoSelectorView int
 
 const (
 	repoViewMain repoSelectorView = iota
 	repoViewIgnored
+	repoViewConfig
 )
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+// waitForRepo listens for the next repo on scanChan. Returns repoDiscoveredMsg
+// or repoChanDoneMsg when the channel closes.
+func waitForRepo(ch <-chan git.Repository) tea.Cmd {
+	return func() tea.Msg {
+		repo, ok := <-ch
+		if !ok {
+			return repoChanDoneMsg{}
+		}
+		return repoDiscoveredMsg(repo)
+	}
+}
+
+// waitForProgress listens for the next folder path on progressChan. Returns
+// scanProgressMsg or progressChanDoneMsg when the channel closes.
+func waitForProgress(ch <-chan string) tea.Cmd {
+	return func() tea.Msg {
+		path, ok := <-ch
+		if !ok {
+			return progressChanDoneMsg{}
+		}
+		return scanProgressMsg(path)
+	}
 }
 
 // RepoSelectorModel is the Bubble Tea model for selecting repositories
@@ -89,6 +127,20 @@ type RepoSelectorModel struct {
 	windowHeight   int
 	reg            *registry.Registry // persistent registry for write-through
 	regPath        string             // path to registry file
+
+	// Streaming scan state (nil channels = batch/static mode)
+	scanChan       <-chan git.Repository
+	progressChan   <-chan string
+	scanDone       bool   // true once scanChan is closed
+	progDone       bool   // true once progressChan is closed
+	scanDisabled   bool   // --no-scan / disable_scan = true
+	scanCurrentPath string // latest folder the scanner is visiting
+	scanNewCount   int    // repos discovered during this TUI session
+
+	// Config menu state
+	cfg          *config.Config
+	cfgPath      string
+	configCursor int // selected row in config view
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -120,8 +172,53 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	}
 }
 
+// NewRepoSelectorModelStream creates a model that populates its repo list
+// progressively as repos arrive on scanChan. Use RunRepoSelectorStream as the
+// entry point; do not call this directly.
+func NewRepoSelectorModelStream(
+	scanChan <-chan git.Repository,
+	progressChan <-chan string,
+	scanDisabled bool,
+	cfg *config.Config,
+	cfgPath string,
+	reg *registry.Registry,
+	regPath string,
+) RepoSelectorModel {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+
+	fireBg := NewFireBackground(70, 5)
+
+	return RepoSelectorModel{
+		repos:        nil,
+		cursor:       0,
+		selected:     make(map[int]bool),
+		fireBg:       fireBg,
+		spinner:      s,
+		windowWidth:  80,
+		windowHeight: 40,
+		reg:          reg,
+		regPath:      regPath,
+		scanChan:     scanChan,
+		progressChan: progressChan,
+		scanDone:     scanDisabled, // if scan is disabled there's nothing to wait for
+		progDone:     scanDisabled,
+		scanDisabled: scanDisabled,
+		cfg:          cfg,
+		cfgPath:      cfgPath,
+	}
+}
+
 func (m RepoSelectorModel) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), m.spinner.Tick)
+	cmds := []tea.Cmd{tickCmd(), m.spinner.Tick}
+	if m.scanChan != nil && !m.scanDone {
+		cmds = append(cmds, waitForRepo(m.scanChan))
+	}
+	if m.progressChan != nil && !m.progDone {
+		cmds = append(cmds, waitForProgress(m.progressChan))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -129,16 +226,38 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	// --- Streaming scan messages ---
+	case repoDiscoveredMsg:
+		repo := git.Repository(msg)
+		repo.Selected = true
+		idx := len(m.repos)
+		m.repos = append(m.repos, repo)
+		m.selected[idx] = true
+		m.scanNewCount++
+		if m.scanChan != nil {
+			cmds = append(cmds, waitForRepo(m.scanChan))
+		}
+
+	case scanProgressMsg:
+		m.scanCurrentPath = string(msg)
+		if m.progressChan != nil && !m.progDone {
+			cmds = append(cmds, waitForProgress(m.progressChan))
+		}
+
+	case repoChanDoneMsg:
+		m.scanDone = true
+
+	case progressChanDoneMsg:
+		m.progDone = true
+
+	// --- Animation / spinner ---
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
 		m.windowHeight = msg.Height
-		// Resize fire background
 		m.fireBg = NewFireBackground(min(msg.Width-4, 70), 5)
 
 	case tickMsg:
-		// Advance animation frame
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
-		// Update fire background
 		m.fireBg.Update()
 		return m, tickCmd()
 
@@ -146,11 +265,23 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
 
+	// --- Keyboard ---
 	case tea.KeyMsg:
+		// Config view handles its own keys first.
+		if m.view == repoViewConfig {
+			return m.updateConfigView(msg, cmds)
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			m.quitting = true
 			return m, tea.Quit
+
+		case "c":
+			if m.view == repoViewMain && m.cfg != nil {
+				m.view = repoViewConfig
+			}
+			return m, tea.Batch(cmds...)
 
 		case "i":
 			if m.view == repoViewIgnored {
@@ -340,6 +471,10 @@ func (m RepoSelectorModel) View() string {
 		return m.viewIgnoredMain()
 	}
 
+	if m.view == repoViewConfig {
+		return m.viewConfig()
+	}
+
 	var s strings.Builder
 
 	// Animated fire background at top
@@ -360,7 +495,11 @@ func (m RepoSelectorModel) View() string {
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
 
-	// Repository list
+	// Repository list (or placeholder when streaming hasn't found any yet)
+	if len(m.repos) == 0 && !m.scanDone {
+		s.WriteString(unselectedStyle.Render("  Waiting for repositories..."))
+		s.WriteString("\n")
+	}
 	for i, repo := range m.repos {
 		cursor := " "
 		if m.cursor == i {
@@ -400,20 +539,71 @@ func (m RepoSelectorModel) View() string {
 	}
 
 	// Help text
+	configHint := ""
+	if m.cfg != nil {
+		configHint = "  c  Settings  |  "
+	}
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
+			"  a  Select all  |  n  Select none  |  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
 			"  [✓] = Selected  |  [ ] = Not selected",
 	)
 	s.WriteString(help)
 
+	// Scan-status panel (only in streaming mode)
+	if m.scanChan != nil || m.scanDisabled {
+		s.WriteString("\n")
+		s.WriteString(m.renderScanStatus())
+	}
+
 	// Wrap everything in a box
 	content := s.String()
 	return boxStyle.Render(content)
+}
+
+// renderScanStatus produces the scan-status line shown at the bottom of the
+// main repo selector view when running in streaming mode.
+func (m RepoSelectorModel) renderScanStatus() string {
+	scanStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#555555")).
+		Padding(0, 1)
+
+	switch {
+	case m.scanDisabled:
+		var label string
+		// noScan is a run-time flag; if config has disable_scan = true it persists.
+		// We can't distinguish here so we show the permanent variant — callers set
+		// scanDisabled based on the effective config value.
+		if m.cfg != nil && m.cfg.Global.DisableScan {
+			label = "⚠️  Scanning Disabled"
+		} else {
+			label = "⚠️  Scanning Disabled (this run only)"
+		}
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00")).Render(label))
+
+	case m.scanDone:
+		msg := fmt.Sprintf("✅ Scan Complete  (%d new repos found)", m.scanNewCount)
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#00CC66")).Render(msg))
+
+	default:
+		folder := m.scanCurrentPath
+		if folder == "" {
+			folder = "..."
+		}
+		// Truncate long paths to keep the panel narrow.
+		maxLen := 50
+		if len(folder) > maxLen {
+			folder = "..." + folder[len(folder)-maxLen+3:]
+		}
+		line1 := fmt.Sprintf("🔍 Scanning: %s", folder)
+		line2 := fmt.Sprintf("   New repos found this session: %d", m.scanNewCount)
+		return scanStyle.Render(line1 + "\n" + line2)
+	}
 }
 
 func (m RepoSelectorModel) viewIgnoredMain() string {
@@ -486,6 +676,39 @@ func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath str
 	// Type assert back to our model
 	m := finalModel.(RepoSelectorModel)
 
+	if !m.confirmed {
+		return nil, ErrCancelled
+	}
+
+	return m.GetSelectedRepos(), nil
+}
+
+// RunRepoSelectorStream runs the interactive repo selector in streaming mode:
+// repos are added to the list as they arrive on scanChan, and a scan-status
+// panel shows live scanning progress via progressChan.
+//
+// scanDisabled should be true when --no-scan / disable_scan is set so the
+// panel shows the appropriate "Scanning Disabled" indicator instead of
+// progress.  cfg and cfgPath enable the in-TUI config menu (pass nil/empty to
+// disable).
+func RunRepoSelectorStream(
+	scanChan <-chan git.Repository,
+	progressChan <-chan string,
+	scanDisabled bool,
+	cfg *config.Config,
+	cfgPath string,
+	reg *registry.Registry,
+	regPath string,
+) ([]git.Repository, error) {
+	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, cfg, cfgPath, reg, regPath)
+	p := tea.NewProgram(model)
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	m := finalModel.(RepoSelectorModel)
 	if !m.confirmed {
 		return nil, ErrCancelled
 	}
