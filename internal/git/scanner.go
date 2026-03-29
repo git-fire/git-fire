@@ -136,6 +136,13 @@ func ScanRepositories(opts ScanOptions) ([]Repository, error) {
 	return repos, err
 }
 
+// AnalyzeRepository extracts metadata from a git repository at repoPath by
+// shelling out to git. repoPath should be the repository root (directory
+// containing .git).
+func AnalyzeRepository(repoPath string) (Repository, error) {
+	return analyzeRepository(repoPath)
+}
+
 // analyzeRepository extracts metadata from a git repository
 func analyzeRepository(repoPath string) (Repository, error) {
 	repo := Repository{

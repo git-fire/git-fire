@@ -37,14 +37,17 @@ var (
 
 // RepoSelectorLiteModel is the simple, non-animated version
 type RepoSelectorLiteModel struct {
-	repos     []git.Repository
-	cursor    int
-	selected  map[int]bool
-	quitting  bool
-	confirmed bool
-	reg       *registry.Registry
-	regPath   string
-	lastErr   error
+	repos          []git.Repository
+	cursor         int
+	ignoredCursor  int
+	view           repoSelectorView
+	ignoredEntries []registry.RegistryEntry
+	selected       map[int]bool
+	quitting       bool
+	confirmed      bool
+	reg            *registry.Registry
+	regPath        string
+	lastErr        error
 }
 
 // NewRepoSelectorLiteModel creates a new lite repo selector
@@ -75,30 +78,59 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 
+		case "i":
+			m.lastErr = nil
+			if m.view == repoViewIgnored {
+				m.view = repoViewMain
+			} else {
+				m.view = repoViewIgnored
+				m.ignoredEntries = IgnoredRegistryEntries(m.reg)
+				m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+			}
+			return m, nil
+
 		case "enter":
+			if m.view == repoViewIgnored {
+				m = m.restoreIgnoredAtCursorLite()
+				return m, nil
+			}
 			m.confirmed = true
 			m.quitting = true
 			return m, tea.Quit
 
+		case "u":
+			if m.view == repoViewIgnored {
+				m = m.restoreIgnoredAtCursorLite()
+				return m, nil
+			}
+
 		case "up", "k":
-			if m.cursor > 0 {
+			if m.view == repoViewIgnored {
+				if m.ignoredCursor > 0 {
+					m.ignoredCursor--
+				}
+			} else if m.cursor > 0 {
 				m.cursor--
 			}
 
 		case "down", "j":
-			if m.cursor < len(m.repos)-1 {
+			if m.view == repoViewIgnored {
+				if m.ignoredCursor < len(m.ignoredEntries)-1 {
+					m.ignoredCursor++
+				}
+			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
 			}
 
 		case " ":
-			if len(m.repos) == 0 {
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
 				return m, nil
 			}
 			m.selected[m.cursor] = !m.selected[m.cursor]
 			m.repos[m.cursor].Selected = m.selected[m.cursor]
 
 		case "m":
-			if len(m.repos) == 0 {
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
 				return m, nil
 			}
 			repo := &m.repos[m.cursor]
@@ -113,31 +145,38 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastErr = m.persistMode(repo.Path, repo.Mode)
 
 		case "x":
-			if len(m.repos) > 0 {
-				repo := m.repos[m.cursor]
-				m.lastErr = m.persistIgnore(repo.Path)
-				m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
-				newSelected := make(map[int]bool)
-				for i := range m.repos {
-					oldIdx := i
-					if i >= m.cursor {
-						oldIdx = i + 1
-					}
-					newSelected[i] = m.selected[oldIdx]
+			if m.view == repoViewIgnored || len(m.repos) == 0 {
+				return m, nil
+			}
+			repo := m.repos[m.cursor]
+			m.lastErr = m.persistIgnore(repo.Path)
+			m.repos = append(m.repos[:m.cursor], m.repos[m.cursor+1:]...)
+			newSelected := make(map[int]bool)
+			for i := range m.repos {
+				oldIdx := i
+				if i >= m.cursor {
+					oldIdx = i + 1
 				}
-				m.selected = newSelected
-				if m.cursor >= len(m.repos) && m.cursor > 0 {
-					m.cursor--
-				}
+				newSelected[i] = m.selected[oldIdx]
+			}
+			m.selected = newSelected
+			if m.cursor >= len(m.repos) && m.cursor > 0 {
+				m.cursor--
 			}
 
 		case "a":
+			if m.view == repoViewIgnored {
+				return m, nil
+			}
 			for i := range m.repos {
 				m.selected[i] = true
 				m.repos[i].Selected = true
 			}
 
 		case "n":
+			if m.view == repoViewIgnored {
+				return m, nil
+			}
 			for i := range m.repos {
 				m.selected[i] = false
 				m.repos[i].Selected = false
@@ -160,6 +199,10 @@ func (m RepoSelectorLiteModel) View() string {
 			return fmt.Sprintf("\n✅ Selected %d repositories for backup\n\n", selectedCount)
 		}
 		return "\n❌ Cancelled\n\n"
+	}
+
+	if m.view == repoViewIgnored {
+		return m.viewIgnoredLite()
 	}
 
 	var s strings.Builder
@@ -211,7 +254,7 @@ func (m RepoSelectorLiteModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  enter  Confirm  |  q  Quit\n\n" +
+			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
 			"  [✓] = Selected  |  [ ] = Not selected\n\n" +
@@ -224,6 +267,80 @@ func (m RepoSelectorLiteModel) View() string {
 	}
 
 	return liteBoxStyle.Render(s.String())
+}
+
+func (m RepoSelectorLiteModel) viewIgnoredLite() string {
+	var s strings.Builder
+	s.WriteString(liteTitleStyle.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED)"))
+	s.WriteString("\n\n")
+	if len(m.ignoredEntries) == 0 {
+		s.WriteString(liteUnselectedStyle.Render("No ignored repositories."))
+		s.WriteString("\n")
+	} else {
+		for i, e := range m.ignoredEntries {
+			cursor := " "
+			if m.ignoredCursor == i {
+				cursor = ">"
+			}
+			s.WriteString(fmt.Sprintf("%s %s\n", cursor, AbbreviateUserHome(e.Path)))
+		}
+	}
+	help := liteHelpStyle.Render(
+		"\n" +
+			"Excluded from backup. Restore with enter or u.\n" +
+			"↑/k ↓/j  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
+	)
+	s.WriteString(help)
+	if m.lastErr != nil {
+		s.WriteString(fmt.Sprintf("\n\n⚠️  %v", m.lastErr))
+	}
+	return liteBoxStyle.Render(s.String())
+}
+
+func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteModel {
+	m.lastErr = nil
+	if m.reg == nil || m.regPath == "" || len(m.ignoredEntries) == 0 {
+		return m
+	}
+	if m.ignoredCursor < 0 || m.ignoredCursor >= len(m.ignoredEntries) {
+		return m
+	}
+	entry := m.ignoredEntries[m.ignoredCursor]
+	absPath, err := filepath.Abs(entry.Path)
+	if err != nil {
+		m.lastErr = err
+		return m
+	}
+	if !m.reg.SetStatus(entry.Path, registry.StatusActive) && !m.reg.SetStatus(absPath, registry.StatusActive) {
+		name := entry.Name
+		if name == "" {
+			name = filepath.Base(absPath)
+		}
+		m.reg.Upsert(registry.RegistryEntry{
+			Path:   absPath,
+			Name:   name,
+			Status: registry.StatusActive,
+			Mode:   entry.Mode,
+		})
+	}
+	if err := registry.Save(m.reg, m.regPath); err != nil {
+		m.lastErr = err
+		return m
+	}
+	if repo, aerr := git.AnalyzeRepository(absPath); aerr == nil {
+		if entry.Mode != "" {
+			repo.Mode = git.ParseMode(entry.Mode)
+		}
+		repo.Selected = true
+		if !repoPathInRepos(m.repos, absPath) {
+			idx := len(m.repos)
+			m.repos = append(m.repos, repo)
+			m.selected[idx] = true
+		}
+	}
+	m.ignoredEntries = IgnoredRegistryEntries(m.reg)
+	m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+	return m
 }
 
 func (m RepoSelectorLiteModel) persistMode(repoPath string, mode git.RepoMode) error {

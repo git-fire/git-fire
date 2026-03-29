@@ -50,6 +50,26 @@ cd git-fire
 go build -o git-fire .
 ```
 
+## Getting started
+
+After you install git-fire, **populate the registry** so future runs know about your repositories. The registry lives at `~/.config/git-fire/repos.toml` (next to `config.toml`).
+
+1. **Discover repos (safe)** — From each directory tree where you keep git repositories, run a fire drill so paths are recorded without pushing:
+
+   ```bash
+   git-fire --dry-run --path ~/projects
+   ```
+
+   Repeat with `--path` for other roots, or use `git-fire repos scan [path]` (defaults to your config `scan_path`).
+
+2. **Exclude repos you do not want backed up** — In `git-fire --fire`, press `x` on a repo to mark it **ignored** in the registry, or run `git-fire repos ignore <path>`. Ignored repos are hidden from the fire selector and are not backed up.
+
+3. **Track a repo again** — Run `git-fire repos unignore <path>`, or in `git-fire --fire` press `i` to open the ignored list, then `enter` or `u` on a row to restore tracking.
+
+4. **Inspect the registry** — `git-fire repos list` shows every tracked path and its status.
+
+See **Usage** below for `--fire`, `--dry-run`, and `--path`.
+
 ## 🎯 Features
 
 ### Core Features
@@ -144,6 +164,14 @@ go test ./...
 # With coverage
 go test -cover ./...
 ```
+
+### Git integration test helpers
+
+The [`internal/testutil`](internal/testutil) package drives the **real `git` binary** to create temporary repositories, commits, remotes, branches, and dirty trees. That lets integration tests exercise the same behavior users see, without mocking git. The same building blocks are useful for **other Go projects** that need reproducible repo fixtures in tests.
+
+We intend to **extract and open source** this helper library as a standalone module when it is mature enough to stand on its own. If you publish a compatible extraction or fork **before** we do, please **link back to this repository** (and ideally mention git-fire in the readme) so people can discover the upstream project. We will **review and, where it makes sense, adopt or align** with a well-maintained community version rather than duplicate effort.
+
+**License and credit:** git-fire is released under the **MIT License**. MIT already requires that the **copyright notice and permission text** be preserved in copies and substantial portions—that is the legal baseline for credit. A clear **link or citation to git-fire** in addition to that notice is appreciated and helps users find the canonical source; it does **not** require changing away from MIT. A standalone spin-out of the test helpers can remain **MIT** (or another permissive license you choose) as long as you comply with MIT’s notice requirement for any code derived from this repo.
 
 ## 📊 Architecture
 
