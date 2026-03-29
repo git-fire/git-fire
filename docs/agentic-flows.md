@@ -375,14 +375,14 @@ Emits one JSON object per line to stdout as work progresses:
 
 **Why this matters for agents:** HTTP callbacks are the standard integration point for orchestration systems. Without webhook plugins, agents must poll or use command plugins with `curl`, which is fragile.
 
-**Config example (already supported by config types, needs implementation):**
+**Config example (already supported by config types, needs implementation):** placeholders use the same `{name}` style as command plugins (`{session_id}` aligns with planned session tagging).
 
 ```toml
 [[plugins.webhook]]
 name = "agent-callback"
 url = "http://localhost:9000/hooks/git-fire"
 method = "POST"
-headers = { "X-Session-ID" = "${AGENT_SESSION_ID}" }
+headers = { "X-Session-ID" = "{session_id}" }
 body = '{"repo":"{repo_name}","sha":"{commit_sha}","status":"backed-up"}'
 when = "after-push"
 timeout = "10s"
