@@ -45,7 +45,7 @@ Add to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . --skip-auto-commit >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path . --skip-auto-commit >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -85,7 +85,7 @@ For aggressive safety — auto-commit everything the agent touched:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path . >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -450,7 +450,7 @@ for _, repo := range result.Repos {
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path . --skip-auto-commit --output=json >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path . --skip-auto-commit --output=json >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
@@ -518,7 +518,7 @@ And in Claude Code settings:
         "hooks": [
           {
             "type": "command",
-            "command": "git-fire --path ~/projects >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path ~/projects >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
           }
         ]
       }
