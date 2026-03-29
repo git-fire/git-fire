@@ -295,7 +295,11 @@ func TestDefaultRegistryPath(t *testing.T) {
 	if filepath.Base(path) != "repos.toml" {
 		t.Errorf("expected filename repos.toml, got %q", filepath.Base(path))
 	}
-	if filepath.Base(filepath.Dir(path)) != ".git-fire" {
-		t.Errorf("expected parent dir .git-fire, got %q", filepath.Base(filepath.Dir(path)))
+	parent := filepath.Dir(path)
+	if filepath.Base(parent) != "git-fire" {
+		t.Errorf("expected parent dir git-fire, got %q", filepath.Base(parent))
+	}
+	if filepath.Base(filepath.Dir(parent)) != ".config" {
+		t.Errorf("expected ~/.config/git-fire/repos.toml, got parent of git-fire = %q", filepath.Base(filepath.Dir(parent)))
 	}
 }

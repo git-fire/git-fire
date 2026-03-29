@@ -134,6 +134,121 @@ func TestScanRepositories_FindsMultipleRepos(t *testing.T) {
 	}
 }
 
+// KnownPaths may list registry entries whose directories were removed; those
+// must not produce scan results (only real paths under RootPath should).
+func TestScanRepositories_KnownPathAbsentSkipped(t *testing.T) {
+	tempRoot := t.TempDir()
+	repoDir := filepath.Join(tempRoot, "real")
+	if err := os.MkdirAll(repoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	readme := filepath.Join(repoDir, "README.md")
+	if err := os.WriteFile(readme, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"config", "user.email", "t@e.com"},
+		{"config", "user.name", "T"},
+		{"add", "."},
+		{"commit", "-m", "i"},
+	} {
+		c := exec.Command("git", args...)
+		c.Dir = repoDir
+		if err := c.Run(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	gone := filepath.Join(tempRoot, "nope", "ghost")
+	absGone, err := filepath.Abs(gone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.UseCache = false
+	opts.KnownPaths = map[string]bool{absGone: false}
+
+	repos, err := git.ScanRepositories(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repos) != 1 {
+		t.Fatalf("got %d repos, want 1 (absent known path skipped)", len(repos))
+	}
+	want, _ := filepath.Abs(repoDir)
+	got, _ := filepath.Abs(repos[0].Path)
+	if got != want {
+		t.Errorf("repo path = %q, want %q", got, want)
+	}
+}
+
+// KnownPaths may point at a plain file; that must be skipped like a missing path.
+func TestScanRepositories_KnownPathFileSkipped(t *testing.T) {
+	tempRoot := t.TempDir()
+	repoDir := filepath.Join(tempRoot, "real")
+	if err := os.MkdirAll(repoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	readme := filepath.Join(repoDir, "README.md")
+	if err := os.WriteFile(readme, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"config", "user.email", "t@e.com"},
+		{"config", "user.name", "T"},
+		{"add", "."},
+		{"commit", "-m", "i"},
+	} {
+		c := exec.Command("git", args...)
+		c.Dir = repoDir
+		if err := c.Run(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	filePath := filepath.Join(tempRoot, "nope", "ghost")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("not a directory"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.UseCache = false
+	opts.KnownPaths = map[string]bool{absFile: false}
+
+	repos, err := git.ScanRepositories(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repos) != 1 {
+		t.Fatalf("got %d repos, want 1 (known path that is a file skipped)", len(repos))
+	}
+	want, _ := filepath.Abs(repoDir)
+	got, _ := filepath.Abs(repos[0].Path)
+	if got != want {
+		t.Errorf("repo path = %q, want %q", got, want)
+	}
+}
+
 func TestScanRepositories_DetectsDirtyRepo(t *testing.T) {
 	// Create a dirty repo
 	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{

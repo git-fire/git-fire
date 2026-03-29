@@ -10,13 +10,13 @@ import (
 )
 
 // DefaultRegistryPath returns the default path for the registry file:
-// ~/.git-fire/repos.toml
+// ~/.config/git-fire/repos.toml (same directory as config.toml).
 func DefaultRegistryPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not determine home directory: %w", err)
 	}
-	return filepath.Join(home, ".git-fire", "repos.toml"), nil
+	return filepath.Join(home, ".config", "git-fire", "repos.toml"), nil
 }
 
 // Load reads the registry from disk. If the file or directory does not exist

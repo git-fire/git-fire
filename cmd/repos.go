@@ -17,7 +17,8 @@ import (
 var reposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Manage the persistent repository registry",
-	Long: `Manage the persistent repository registry stored at ~/.git-fire/repos.toml.
+	Long: `Manage the persistent repository registry stored at ~/.config/git-fire/repos.toml
+(same directory as config.toml).
 
 The registry tracks all git repositories that git-fire has discovered, so that
 future runs load them instantly without re-scanning the filesystem.`,
@@ -245,11 +246,17 @@ func setRepoStatus(rawPath, status, label string) error {
 	return nil
 }
 
-// buildKnownPaths constructs the KnownPaths map from active registry entries.
+// buildKnownPaths constructs the KnownPaths map for the scanner. Active,
+// missing, and empty-status entries are included so repos persist across
+// runs from different working directories; ignored entries are excluded.
+// Paths that no longer exist are skipped at analysis time (see scanner).
 func buildKnownPaths(reg *registry.Registry, globalRescan bool) map[string]bool {
 	m := make(map[string]bool, len(reg.Repos))
 	for _, e := range reg.Repos {
-		if e.Status != registry.StatusActive {
+		if e.Status == registry.StatusIgnored {
+			continue
+		}
+		if e.Status != registry.StatusActive && e.Status != registry.StatusMissing && e.Status != "" {
 			continue
 		}
 		abs, err := filepath.Abs(e.Path)
@@ -268,7 +275,7 @@ func buildKnownPaths(reg *registry.Registry, globalRescan bool) map[string]bool 
 // statusLabel returns a short coloured-ish label for a registry status.
 func statusLabel(s string) string {
 	switch s {
-	case registry.StatusActive:
+	case registry.StatusActive, "":
 		return "active "
 	case registry.StatusMissing:
 		return "MISSING"

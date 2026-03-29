@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,10 +44,11 @@ func updateLite(t *testing.T, m RepoSelectorLiteModel, msg tea.Msg) RepoSelector
 
 // sampleRepos builds a small slice of git.Repository for tests.
 func sampleRepos() []git.Repository {
+	root := filepath.Join(os.TempDir(), "gitfire-ui-sample")
 	return []git.Repository{
-		{Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
-		{Name: "beta", Selected: false, Mode: git.ModePushKnownBranches},
-		{Name: "gamma", Selected: true, Mode: git.ModePushAll},
+		{Path: filepath.Join(root, "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+		{Path: filepath.Join(root, "beta"), Name: "beta", Selected: false, Mode: git.ModePushKnownBranches},
+		{Path: filepath.Join(root, "gamma"), Name: "gamma", Selected: true, Mode: git.ModePushAll},
 	}
 }
 
@@ -140,12 +143,14 @@ func TestRepoSelectorLiteModel_View_Cancelled(t *testing.T) {
 }
 
 func TestRepoSelectorLiteModel_View_ShowsRepos(t *testing.T) {
-	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	repos := sampleRepos()
+	m := NewRepoSelectorLiteModel(repos, nil, "")
 	view := m.View()
 
-	for _, name := range []string{"alpha", "beta", "gamma"} {
-		if !strings.Contains(view, name) {
-			t.Errorf("view should contain repo name %q", name)
+	for _, r := range repos {
+		want := AbbreviateUserHome(r.Path)
+		if !strings.Contains(view, want) {
+			t.Errorf("view should contain display path %q", want)
 		}
 	}
 }
@@ -339,6 +344,19 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "Cancelled") {
 		t.Errorf("cancelled view should contain 'Cancelled', got: %q", view)
+	}
+}
+
+func TestRepoSelectorModel_View_ShowsRepos(t *testing.T) {
+	repos := sampleRepos()
+	m := NewRepoSelectorModel(repos, nil, "")
+	view := m.View()
+
+	for _, r := range repos {
+		want := AbbreviateUserHome(r.Path)
+		if !strings.Contains(view, want) {
+			t.Errorf("view should contain display path %q", want)
+		}
 	}
 }
 

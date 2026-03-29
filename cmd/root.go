@@ -118,12 +118,12 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 			}
 			continue
 		}
-		if entry.Status == registry.StatusMissing {
+		if entry.Status == registry.StatusMissing || entry.Status == "" {
 			reg.Repos[i].Status = registry.StatusActive
 		}
 	}
 
-	// Build KnownPaths for the scanner: active entries only.
+	// Build KnownPaths for the scanner (active, missing, and empty status).
 	knownPaths := buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
 	// Build scan options

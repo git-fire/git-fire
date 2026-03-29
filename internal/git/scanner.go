@@ -33,6 +33,10 @@ func ScanRepositoriesStream(opts ScanOptions, out chan<- Repository) error {
 		go func(p string) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
+			fi, err := os.Stat(p)
+			if err != nil || !fi.IsDir() {
+				return
+			}
 			repo, err := analyzeRepository(p)
 			if err != nil {
 				return

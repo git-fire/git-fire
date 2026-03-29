@@ -34,7 +34,7 @@ type RegistryEntry struct {
 	LastSeen time.Time `toml:"last_seen"`
 }
 
-// Registry is the top-level structure persisted to repos.toml
+// Registry is the top-level structure persisted to ~/.config/git-fire/repos.toml
 type Registry struct {
 	Repos []RegistryEntry `toml:"repos"`
 }

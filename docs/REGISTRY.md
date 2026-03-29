@@ -1,6 +1,6 @@
 # Persistent Repository Registry
 
-`git-fire` maintains a registry at `~/.git-fire/repos.toml` that accumulates every git repo discovered across runs. Known repos are loaded instantly at startup; the filesystem walker only descends into directories not already in the registry.
+`git-fire` maintains a registry at `~/.config/git-fire/repos.toml` (next to `config.toml`) that accumulates every git repo discovered across runs. Known repos are loaded instantly at startup; the filesystem walker only descends into directories not already in the registry.
 
 ## Architecture Diagrams
 
@@ -14,7 +14,7 @@ sequenceDiagram
     participant Scanner as git.ScanRepositories
 
     Main->>Reg: DefaultRegistryPath()
-    Reg-->>Main: ~/.git-fire/repos.toml
+    Reg-->>Main: ~/.config/git-fire/repos.toml
 
     Main->>Reg: Load(path)
     Reg->>FS: MkdirAll + ReadFile
