@@ -275,7 +275,7 @@ func buildKnownPaths(reg *registry.Registry, globalRescan bool) map[string]bool 
 // statusLabel returns a short coloured-ish label for a registry status.
 func statusLabel(s string) string {
 	switch s {
-	case registry.StatusActive:
+	case registry.StatusActive, "":
 		return "active "
 	case registry.StatusMissing:
 		return "MISSING"

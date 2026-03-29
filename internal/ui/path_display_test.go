@@ -15,6 +15,11 @@ func TestAbbreviateUserHome(t *testing.T) {
 	if err := os.MkdirAll(sub, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// Directory name starts with ".." — must not be treated as outside $HOME.
+	dotDotName := filepath.Join(home, "..repo")
+	if err := os.MkdirAll(dotDotName, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	outside := filepath.Join(t.TempDir(), "other", "repo")
 	if err := os.MkdirAll(outside, 0o700); err != nil {
 		t.Fatal(err)
@@ -30,6 +35,7 @@ func TestAbbreviateUserHome(t *testing.T) {
 	}{
 		{home, "~"},
 		{sub, "~/projects/git-fire"},
+		{dotDotName, "~/..repo"},
 		{outside, filepath.ToSlash(outsideAbs)},
 	}
 

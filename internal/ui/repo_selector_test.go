@@ -347,6 +347,19 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_View_ShowsRepos(t *testing.T) {
+	repos := sampleRepos()
+	m := NewRepoSelectorModel(repos, nil, "")
+	view := m.View()
+
+	for _, r := range repos {
+		want := AbbreviateUserHome(r.Path)
+		if !strings.Contains(view, want) {
+			t.Errorf("view should contain display path %q", want)
+		}
+	}
+}
+
 func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 	m := NewRepoSelectorModel(nil, nil, "")
 

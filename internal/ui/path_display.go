@@ -27,7 +27,8 @@ func AbbreviateUserHome(path string) string {
 	homeAbs = filepath.Clean(homeAbs)
 
 	rel, err := filepath.Rel(homeAbs, absPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	// Require an actual parent traversal (.. segment), not a name like "..repo".
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return filepath.ToSlash(absPath)
 	}
 	if rel == "." {

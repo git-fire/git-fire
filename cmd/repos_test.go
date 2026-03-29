@@ -91,6 +91,15 @@ func TestBuildKnownPaths_EmptyRegistry(t *testing.T) {
 	}
 }
 
+func TestStatusLabel_EmptyString(t *testing.T) {
+	if got := statusLabel(""); got != "active " {
+		t.Errorf("statusLabel(\"\") = %q, want \"active \"", got)
+	}
+	if got := statusLabel(registry.StatusActive); got != "active " {
+		t.Errorf("statusLabel(active) = %q, want \"active \"", got)
+	}
+}
+
 // ---- handleStatus registry integration ----
 
 func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
