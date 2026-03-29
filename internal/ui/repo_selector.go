@@ -139,9 +139,10 @@ type RepoSelectorModel struct {
 	scanNewCount        int    // repos discovered during this TUI session
 
 	// Config menu state
-	cfg          *config.Config
-	cfgPath      string
-	configCursor int // selected row in config view
+	cfg           *config.Config
+	cfgPath       string
+	configCursor  int // selected row in config view
+	configSaveErr error // last SaveConfig error; cleared on successful save
 }
 
 // NewRepoSelectorModel creates a new repo selector

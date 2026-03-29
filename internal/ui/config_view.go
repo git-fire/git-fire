@@ -120,22 +120,27 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
-		m.saveConfig()
+		m = m.saveConfig()
 
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
-		m.saveConfig()
+		m = m.saveConfig()
 	}
 
 	return m, tea.Batch(cmds...)
 }
 
-// saveConfig writes the current config to disk (best-effort; errors are silently ignored).
-func (m RepoSelectorModel) saveConfig() {
+// saveConfig writes the current config to disk and records success or failure on the model.
+func (m RepoSelectorModel) saveConfig() RepoSelectorModel {
 	if m.cfg == nil || m.cfgPath == "" {
-		return
+		return m
 	}
-	_ = config.SaveConfig(m.cfg, m.cfgPath)
+	if err := config.SaveConfig(m.cfg, m.cfgPath); err != nil {
+		m.configSaveErr = err
+	} else {
+		m.configSaveErr = nil
+	}
+	return m
 }
 
 // viewConfig renders the settings screen.
@@ -187,18 +192,27 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString("\n")
 	}
 
-	cfgPathStr := m.cfgPath
-	if cfgPathStr == "" {
-		cfgPathStr = "(config path unknown — changes not saved)"
-	} else {
-		cfgPathStr = AbbreviateUserHome(cfgPathStr)
-	}
-
 	s.WriteString("\n")
-	s.WriteString(helpStyle.Render(
-		"Changes saved immediately to " + cfgPathStr + "\n" +
-			"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
-	))
+	if m.configSaveErr != nil {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6666"))
+		s.WriteString(errStyle.Render("⚠️  Save failed: " + m.configSaveErr.Error()))
+		s.WriteString("\n")
+		s.WriteString(helpStyle.Render(
+			"In-memory settings updated; fix the error above to persist to disk.\n" +
+				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+		))
+	} else {
+		cfgPathStr := m.cfgPath
+		if cfgPathStr == "" {
+			cfgPathStr = "(config path unknown — changes not saved)"
+		} else {
+			cfgPathStr = AbbreviateUserHome(cfgPathStr)
+		}
+		s.WriteString(helpStyle.Render(
+			"Changes saved immediately to " + cfgPathStr + "\n" +
+				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+		))
+	}
 
 	return boxStyle.Render(s.String())
 }
