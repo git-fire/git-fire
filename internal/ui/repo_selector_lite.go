@@ -48,6 +48,8 @@ type RepoSelectorLiteModel struct {
 	reg            *registry.Registry
 	regPath        string
 	lastErr        error
+	windowWidth    int
+	pathScrollOffset int // manual path scroll offset for the focused repo row
 }
 
 // NewRepoSelectorLiteModel creates a new lite repo selector
@@ -58,11 +60,12 @@ func NewRepoSelectorLiteModel(repos []git.Repository, reg *registry.Registry, re
 	}
 
 	return RepoSelectorLiteModel{
-		repos:    repos,
-		cursor:   0,
-		selected: selected,
-		reg:      reg,
-		regPath:  regPath,
+		repos:       repos,
+		cursor:      0,
+		selected:    selected,
+		reg:         reg,
+		regPath:     regPath,
+		windowWidth: 80,
 	}
 }
 
@@ -72,6 +75,10 @@ func (m RepoSelectorLiteModel) Init() tea.Cmd {
 
 func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -111,6 +118,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
+				m.pathScrollOffset = 0
 			}
 
 		case "down", "j":
@@ -120,6 +128,24 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				m.pathScrollOffset = 0
+			}
+
+		case "left":
+			if m.view == repoViewMain && m.pathScrollOffset > 0 {
+				m.pathScrollOffset--
+			}
+
+		case "right":
+			if m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+				repo := m.repos[m.cursor]
+				parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+				pathLen := len([]rune(parentPath))
+				pWidth := PathWidthFor(m.windowWidth, repo)
+				maxOffset := pathLen - pWidth
+				if maxOffset > 0 && m.pathScrollOffset < maxOffset {
+					m.pathScrollOffset++
+				}
 			}
 
 		case " ":
@@ -227,7 +253,7 @@ func (m RepoSelectorLiteModel) View() string {
 
 		dirtyIndicator := ""
 		if repo.IsDirty {
-			dirtyIndicator = "💥"
+			dirtyIndicator = " 💥"
 		}
 
 		remotesInfo := fmt.Sprintf("(%d remotes)", len(repo.Remotes))
@@ -235,11 +261,26 @@ func (m RepoSelectorLiteModel) View() string {
 			remotesInfo = "(no remotes!)"
 		}
 
-		displayPath := AbbreviateUserHome(repo.Path)
-		line := fmt.Sprintf("%s %s %s  [%s] %s %s",
+		parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+		pWidth := PathWidthFor(m.windowWidth, repo)
+		scrollOff := 0
+		if m.cursor == i {
+			scrollOff = m.pathScrollOffset
+		}
+		visible, hasLeft, hasRight := TruncatePath(parentPath, pWidth, scrollOff)
+		leftInd, rightInd := " ", " "
+		if hasLeft {
+			leftInd = "‹"
+		}
+		if hasRight {
+			rightInd = "›"
+		}
+
+		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s",
 			cursor,
 			checked,
-			style.Render(displayPath),
+			style.Render(repo.Name),
+			leftInd, visible, rightInd,
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
@@ -253,11 +294,12 @@ func (m RepoSelectorLiteModel) View() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path  |  space  Toggle selection\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
-			"  [✓] = Selected  |  [ ] = Not selected\n\n" +
+			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable\n\n" +
 			"💡 Tip: Run with --fire flag for animated fire background!",
 	)
 	s.WriteString(help)

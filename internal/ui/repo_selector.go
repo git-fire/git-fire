@@ -89,6 +89,12 @@ type RepoSelectorModel struct {
 	windowHeight   int
 	reg            *registry.Registry // persistent registry for write-through
 	regPath        string             // path to registry file
+
+	// Path scrolling state for the focused repo row
+	pathScrollOffset int // current rune offset into the parent-dir path
+	pathScrollDir    int // +1 = scrolling right, -1 = scrolling left
+	pathScrollPause  int // ticks remaining to pause at each end
+	pathScrollTick   int // tick counter; advances scroll every N ticks
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -108,15 +114,16 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	fireBg := NewFireBackground(70, 5)
 
 	return RepoSelectorModel{
-		repos:        repos,
-		cursor:       0,
-		selected:     selected,
-		fireBg:       fireBg,
-		spinner:      s,
-		windowWidth:  80,
-		windowHeight: 40,
-		reg:          reg,
-		regPath:      regPath,
+		repos:           repos,
+		cursor:          0,
+		selected:        selected,
+		fireBg:          fireBg,
+		spinner:         s,
+		windowWidth:     80,
+		windowHeight:    40,
+		reg:             reg,
+		regPath:         regPath,
+		pathScrollDir:   1,
 	}
 }
 
@@ -140,6 +147,34 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
 		// Update fire background
 		m.fireBg.Update()
+		// Auto-scroll the path of the focused repo (every 2 ticks ≈ 600 ms)
+		m.pathScrollTick++
+		if m.pathScrollTick >= 2 && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+			m.pathScrollTick = 0
+			repo := m.repos[m.cursor]
+			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+			pathLen := len([]rune(parentPath))
+			pWidth := PathWidthFor(m.windowWidth, repo)
+			if pathLen > pWidth {
+				maxOffset := pathLen - pWidth
+				if m.pathScrollPause > 0 {
+					m.pathScrollPause--
+				} else {
+					m.pathScrollOffset += m.pathScrollDir
+					if m.pathScrollOffset >= maxOffset {
+						m.pathScrollOffset = maxOffset
+						m.pathScrollDir = -1
+						m.pathScrollPause = 5
+					} else if m.pathScrollOffset <= 0 {
+						m.pathScrollOffset = 0
+						m.pathScrollDir = 1
+						m.pathScrollPause = 5
+					}
+				}
+			} else {
+				m.pathScrollOffset = 0
+			}
+		}
 		return m, tickCmd()
 
 	case spinner.TickMsg:
@@ -184,6 +219,10 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
+				m.pathScrollOffset = 0
+				m.pathScrollDir = 1
+				m.pathScrollPause = 0
+				m.pathScrollTick = 0
 			}
 
 		case "down", "j":
@@ -193,6 +232,31 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				m.pathScrollOffset = 0
+				m.pathScrollDir = 1
+				m.pathScrollPause = 0
+				m.pathScrollTick = 0
+			}
+
+		case "left":
+			if m.view == repoViewMain && m.pathScrollOffset > 0 {
+				m.pathScrollOffset--
+				m.pathScrollDir = -1
+				m.pathScrollPause = 0
+			}
+
+		case "right":
+			if m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+				repo := m.repos[m.cursor]
+				parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+				pathLen := len([]rune(parentPath))
+				pWidth := PathWidthFor(m.windowWidth, repo)
+				maxOffset := pathLen - pWidth
+				if maxOffset > 0 && m.pathScrollOffset < maxOffset {
+					m.pathScrollOffset++
+					m.pathScrollDir = 1
+					m.pathScrollPause = 0
+				}
 			}
 
 		case " ":
@@ -374,10 +438,9 @@ func (m RepoSelectorModel) View() string {
 			style = selectedStyle
 		}
 
-		// Repo line: cursor, checkbox, name, mode, status
 		dirtyIndicator := ""
 		if repo.IsDirty {
-			dirtyIndicator = "💥"
+			dirtyIndicator = " 💥"
 		}
 
 		remotesInfo := fmt.Sprintf("(%d remotes)", len(repo.Remotes))
@@ -385,11 +448,26 @@ func (m RepoSelectorModel) View() string {
 			remotesInfo = "(no remotes!)"
 		}
 
-		displayPath := AbbreviateUserHome(repo.Path)
-		line := fmt.Sprintf("%s %s %s  [%s] %s %s",
+		parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+		pWidth := PathWidthFor(m.windowWidth, repo)
+		scrollOff := 0
+		if m.cursor == i {
+			scrollOff = m.pathScrollOffset
+		}
+		visible, hasLeft, hasRight := TruncatePath(parentPath, pWidth, scrollOff)
+		leftInd, rightInd := " ", " "
+		if hasLeft {
+			leftInd = "‹"
+		}
+		if hasRight {
+			rightInd = "›"
+		}
+
+		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s",
 			cursor,
 			checked,
-			style.Render(displayPath),
+			style.Render(repo.Name),
+			leftInd, visible, rightInd,
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
@@ -403,11 +481,12 @@ func (m RepoSelectorModel) View() string {
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path  |  space  Toggle selection\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
-			"  [✓] = Selected  |  [ ] = Not selected",
+			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
 	)
 	s.WriteString(help)
 
