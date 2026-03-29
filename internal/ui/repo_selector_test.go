@@ -18,6 +18,17 @@ func pressSpecial(t tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: t}
 }
 
+// assertUpdateNoPanic runs m.Update(msg) and fails the test if it panics.
+func assertUpdateNoPanic(t *testing.T, m tea.Model, msg tea.Msg) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Update panicked for empty repos and msg %T: %v", msg, r)
+		}
+	}()
+	_, _ = m.Update(msg)
+}
+
 // updateLite sends a message to a RepoSelectorLiteModel and returns the updated model.
 func updateLite(t *testing.T, m RepoSelectorLiteModel, msg tea.Msg) RepoSelectorLiteModel {
 	t.Helper()
@@ -75,14 +86,21 @@ func TestRepoSelectorLiteModel_GetSelectedRepos(t *testing.T) {
 	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
 	selected := m.GetSelectedRepos()
 
-	// Only alpha (0) and gamma (2) are selected
 	if len(selected) != 2 {
-		t.Errorf("GetSelectedRepos() returned %d repos, want 2", len(selected))
+		t.Fatalf("GetSelectedRepos() returned %d repos, want 2", len(selected))
 	}
+	names := make(map[string]struct{})
 	for _, r := range selected {
-		if r.Name != "alpha" && r.Name != "gamma" {
-			t.Errorf("unexpected repo in selection: %s", r.Name)
-		}
+		names[r.Name] = struct{}{}
+	}
+	if len(names) != 2 {
+		t.Errorf("expected 2 distinct repo names in selection, got %d distinct: %v", len(names), names)
+	}
+	if _, ok := names["alpha"]; !ok {
+		t.Error(`GetSelectedRepos() missing expected repo "alpha"`)
+	}
+	if _, ok := names["gamma"]; !ok {
+		t.Error(`GetSelectedRepos() missing expected repo "gamma"`)
 	}
 }
 
@@ -266,20 +284,10 @@ func TestRepoSelectorLiteModel_Key_Enter(t *testing.T) {
 func TestRepoSelectorLiteModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 	m := NewRepoSelectorLiteModel(nil, nil, "")
 
-	assertNoPanic := func(msg tea.Msg) {
-		t.Helper()
-		defer func() {
-			if r := recover(); r != nil {
-				t.Fatalf("Update panicked for empty repos and msg %T: %v", msg, r)
-			}
-		}()
-		_, _ = m.Update(msg)
-	}
-
-	assertNoPanic(press('m'))
-	assertNoPanic(pressSpecial(tea.KeySpace))
-	assertNoPanic(pressSpecial(tea.KeyUp))
-	assertNoPanic(pressSpecial(tea.KeyDown))
+	assertUpdateNoPanic(t, m, press('m'))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeySpace))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyUp))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyDown))
 }
 
 // --- RepoSelectorModel (full, animated) ---
@@ -337,18 +345,8 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 	m := NewRepoSelectorModel(nil, nil, "")
 
-	assertNoPanic := func(msg tea.Msg) {
-		t.Helper()
-		defer func() {
-			if r := recover(); r != nil {
-				t.Fatalf("Update panicked for empty repos and msg %T: %v", msg, r)
-			}
-		}()
-		_, _ = m.Update(msg)
-	}
-
-	assertNoPanic(press('m'))
-	assertNoPanic(pressSpecial(tea.KeySpace))
-	assertNoPanic(pressSpecial(tea.KeyUp))
-	assertNoPanic(pressSpecial(tea.KeyDown))
+	assertUpdateNoPanic(t, m, press('m'))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeySpace))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyUp))
+	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyDown))
 }

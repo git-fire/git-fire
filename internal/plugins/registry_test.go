@@ -18,7 +18,9 @@ func (m *mockPlugin) Validate() error           { return m.validateErr }
 func (m *mockPlugin) Execute(_ Context) error   { return nil }
 func (m *mockPlugin) Cleanup() error            { return nil }
 
-// newRegistry returns an empty registry for test isolation.
+// newTestRegistry returns an empty registry for test isolation, constructing
+// Registry directly so tests stay explicit. If a dedicated Registry constructor
+// is added later, prefer switching to it to avoid drift from production init.
 func newTestRegistry() *Registry {
 	return &Registry{plugins: make(map[string]Plugin)}
 }
@@ -161,25 +163,46 @@ func TestRegistry_Exists(t *testing.T) {
 }
 
 func TestRegistry_ConcurrentAccess(t *testing.T) {
-	// Smoke test: concurrent reads and writes should not race.
-	// Run with: go test -race ./internal/plugins/...
+	// Concurrent Register, List, Get, and Exists should not race and should
+	// leave the registry consistent. Run with: go test -race ./internal/plugins/...
+	const n = 50
 	r := newTestRegistry()
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for i := 0; i < n; i++ {
 			_ = r.Register(&mockPlugin{name: fmt.Sprintf("plugin-%d", i)})
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for i := 0; i < n; i++ {
 			r.List()
 		}
 	}()
 
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			name := fmt.Sprintf("plugin-%d", i)
+			_, _ = r.Get(name)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			name := fmt.Sprintf("plugin-%d", i)
+			_ = r.Exists(name)
+		}
+	}()
+
 	wg.Wait()
+
+	if got := len(r.List()); got != n {
+		t.Errorf("List() after concurrent access = %d plugins, want %d", got, n)
+	}
 }
