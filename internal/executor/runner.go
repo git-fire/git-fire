@@ -114,8 +114,8 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 			}
 		}
 
-		// Track pushed branches regardless of other action outcomes
-		if action.Type == ActionPushBranch && executedAction.Branch != "" {
+		// Track successfully pushed branches only
+		if action.Type == ActionPushBranch && executedAction.Branch != "" && executedAction.Error == nil {
 			result.PushedBranches = append(result.PushedBranches, executedAction.Branch)
 		}
 	}
