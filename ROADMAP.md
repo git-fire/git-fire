@@ -11,6 +11,71 @@
 
 ---
 
+## Agentic Flows
+
+AI coding agents (Claude Code, Cursor, Windsurf, etc.) touch many repos in a session and rarely commit. Git-fire is a natural safety net for agentic workflows. See [docs/agentic-flows.md](docs/agentic-flows.md) for integration guides and background.
+
+**Planned enhancements, prioritized:**
+
+### P0 — Machine-Readable Output
+
+- `--output=json` flag returning structured JSON on stdout (single object after run)
+- Apply to all subcommands: `repos list --output=json`, `--status --output=json`
+- Required for: agents parsing subprocess output, orchestration pipelines
+
+### P0 — Plan Subcommand
+
+- `git-fire plan --output=json` returns full execution plan without running it
+- Includes: repos, actions per repo, dirty state, secret warnings, conflict detection
+- Required for: agents inspecting intent before committing to execution
+
+### P1 — MCP Server Mode
+
+- `git-fire mcp` starts an MCP server on stdio
+- Tools: `backup_repos`, `plan_backup`, `get_status`, `scan_repos`, `list_repos`, `ignore_repo`
+- Required for: native integration with Claude Code, Cursor, and other MCP-compatible agents without subprocess overhead
+
+### P1 — Webhook Plugin Implementation
+
+- Implement `internal/plugins/webhook.go` (config types already exist, implementation is stub)
+- HTTP POST/GET with template vars in URL/headers/body
+- Configurable timeout, retry, and dry-run support
+- Required for: agent orchestration callbacks when backup completes
+
+### P1 — Session Tagging
+
+- `--session-id <id>` flag propagated to all JSON log entries and output JSON
+- Required for: correlating backup events with specific agent sessions in audit logs
+
+### P1 — NDJSON Progress Streaming
+
+- `--output=ndjson` for streaming progress (one event per line during execution)
+- Required for: real-time agent feedback during long backups (see [docs/agentic-flows.md](docs/agentic-flows.md))
+
+### P2 — Repo Targeting via Flag or Stdin
+
+- `--repos path1,path2` for explicit repo list (skip full scan)
+- `--repos-from-stdin` for piped NDJSON input
+- Required for: agents that know exactly which repos they touched
+
+### P2 — Go Library Mode
+
+- Export stable public API from `pkg/gitfire` package
+- Required for: Go-based agent frameworks embedding git-fire without subprocess overhead
+
+### P3 — Pre-Tool Hook Mode
+
+- Document and test Claude Code `PreToolUse` hook integration pattern
+- Back up before destructive Bash operations
+- Required for: rollback safety before agent-executed shell commands
+
+### P3 — Restore/Replay from Logs
+
+- `git-fire log --list` / `--session <id>` / `--undo <id> --dry-run`
+- Required for: fast recovery when an agent auto-committed the wrong files
+
+---
+
 ## Phase 2: Weeks 5-8 (Current)
 
 ### Week 5: Plugin System Foundation

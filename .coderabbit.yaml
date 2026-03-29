@@ -3,20 +3,20 @@
 
 language: "en-US"
 
-# Since the developer is learning Go, ask CodeRabbit to explain the "why"
-# behind suggestions rather than just flagging issues.
+# CodeRabbit schema: tone_instructions max 250 chars (longer values fail validation).
 tone_instructions: >
-  Developer is a Java engineer learning Go. Frame Go idioms in Java
-  terms (e.g. errors vs exceptions, interfaces, goroutines vs threads).
-  Be direct; prioritize correctness and safety over style.
+  Java dev learning Go: relate idioms to Java (errors, interfaces,
+  goroutines vs threads). Be direct; safety over style. No nitpick or
+  trivial comments—only bugs, security, misleading docs, reliability risks.
 
 reviews:
-  profile: "assertive"
+  # chill = fewer comments; assertive was generating endless doc/tool nits
+  profile: "chill"
   request_changes_workflow: true
   high_level_summary: true
   poem: true
   review_status: true
-  collapse_walkthrough: false
+  collapse_walkthrough: true
 
   auto_review:
     enabled: true
@@ -29,8 +29,24 @@ reviews:
       essential_rules: true
     shellcheck:
       enabled: true  # catches issues in fire.sh, scripts/
+    # markdownlint drove noisy MD022/MD040 false positives on fenced examples
+    markdownlint:
+      enabled: false
 
   path_instructions:
+    - path: "**/*"
+      instructions: |
+        Do not post nitpick/trivial findings (including nitpick or trivial
+        severity labels). Skip style preferences, optional polish, minor wording,
+        and markdown layout unless it causes real confusion or incorrect behavior.
+
+    - path: "**/*.md"
+      instructions: |
+        Do not nitpick Markdown (fenced-code language tags, MD0xx layout,
+        heading spacing, minor phrasing). Only comment when documentation is
+        factually wrong about git-fire behavior, omits a serious hazard, or would
+        mislead users integrating the tool.
+
     - path: "**/*.go"
       instructions: |
         Review Go code with the following priorities (in order):

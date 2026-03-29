@@ -203,7 +203,7 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 | Config | ✅ TOML + env | ❌ None |
 | Background scan | ✅ Yes | ❌ No |
 | Plugins | ✅ Extensible | ❌ No |
-| Tests | ✅ 43 tests | ❌ No tests |
+| Tests | ✅ 200+ tests | ❌ No tests |
 | Active | ✅ 2026 | ❌ 2015 (archived) |
 
 ## 🌐 Website
@@ -213,6 +213,34 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 ## 📝 License
 
 MIT License
+
+## 🤖 Agentic Coding
+
+AI coding agents edit files at high speed across multiple repos without committing. Git-fire is a natural safety net: run it at the end of every agent session to ensure nothing is lost.
+
+**Quick setup with Claude Code** — add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path . >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+This runs git-fire automatically after every Claude Code session ends.
+
+See [docs/agentic-flows.md](docs/agentic-flows.md) for the full integration guide, including plugin callbacks, registry management, and the roadmap for MCP server mode and structured JSON output.
 
 ## 😴 End-of-Day Use
 
