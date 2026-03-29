@@ -1,8 +1,8 @@
 # 🔥 Git Fire - Emergency Git Backup Tool
 
 <p align="center">
-  <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire" width="280">
-  <img src="assets/git-fire-lockup-dark.svg#gh-dark-mode-only" alt="git-fire" width="280">
+  <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
+  <img src="assets/git-fire-lockup-dark.svg#gh-dark-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
 </p>
 
 <p align="center">
@@ -280,8 +280,8 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 ## 🌐 Website
 
 <p align="center">
-  <img src="assets/git-fire-icon.svg#gh-light-mode-only" alt="" width="90" height="120">
-  <img src="assets/git-fire-icon-dark.svg#gh-dark-mode-only" alt="" width="90" height="120">
+  <img src="assets/git-fire-icon.svg#gh-light-mode-only" alt="git-fire flame mark" width="72" height="96">
+  <img src="assets/git-fire-icon-dark.svg#gh-dark-mode-only" alt="git-fire flame mark" width="72" height="96">
 </p>
 
 [git-fire.com](https://git-fire.com) — coming soon.
