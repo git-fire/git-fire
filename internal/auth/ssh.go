@@ -196,7 +196,11 @@ func TestPassphrase(keyPath, passphrase string) bool {
 	// Use an app-owned directory rather than the system temp dir, which is
 	// often mounted noexec on hardened hosts — ssh-keygen cannot execute the
 	// askpass helper if the mount forbids it.
-	askpassDir := filepath.Join(func() string { h, _ := os.UserHomeDir(); return h }(), ".cache", "git-fire")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	askpassDir := filepath.Join(home, ".cache", "git-fire")
 	if err := os.MkdirAll(askpassDir, 0o700); err != nil {
 		return false
 	}

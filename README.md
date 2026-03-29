@@ -58,8 +58,12 @@ git-fire supports tab completion for bash, zsh, fish, and PowerShell:
 # zsh
 git-fire completion zsh > "${fpath[1]}/_git-fire"
 
-# bash
-git-fire completion bash > /etc/bash_completion.d/git-fire
+# bash (system-wide, usually requires root)
+sudo sh -c 'git-fire completion bash > /etc/bash_completion.d/git-fire'
+
+# bash (user-local, no root required)
+mkdir -p ~/.local/share/bash-completion/completions
+git-fire completion bash > ~/.local/share/bash-completion/completions/git-fire
 
 # fish
 git-fire completion fish > ~/.config/fish/completions/git-fire.fish
