@@ -77,18 +77,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
-		// Clamp path scroll offset to the new available width.
-		if m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
-			repo := m.repos[m.cursor]
-			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
-			pathLen := len([]rune(parentPath))
-			pWidth := PathWidthFor(msg.Width, repo)
-			if maxOffset := pathLen - pWidth; maxOffset <= 0 {
-				m.pathScrollOffset = 0
-			} else if m.pathScrollOffset > maxOffset {
-				m.pathScrollOffset = maxOffset
-			}
-		}
+		m = m.withClampedPathScroll()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -130,7 +119,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
-				m.pathScrollOffset = 0
+				m = m.withResetPathScroll()
 			}
 
 		case "down", "j":
@@ -140,7 +129,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
-				m.pathScrollOffset = 0
+				m = m.withResetPathScroll()
 			}
 
 		case "left":
@@ -201,7 +190,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.repos) && m.cursor > 0 {
 				m.cursor--
 			}
-			m.pathScrollOffset = 0
+			m = m.withResetPathScroll()
 
 		case "a":
 			if m.view == repoViewIgnored {
@@ -395,6 +384,34 @@ func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteMode
 	}
 	m.ignoredEntries = IgnoredRegistryEntries(m.reg)
 	m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+	return m
+}
+
+// withResetPathScroll returns m with path-scroll offset zeroed.
+// Call whenever the focused repo changes (up/down/x/…).
+func (m RepoSelectorLiteModel) withResetPathScroll() RepoSelectorLiteModel {
+	m.pathScrollOffset = 0
+	return m
+}
+
+// withClampedPathScroll returns m with pathScrollOffset clamped to the valid
+// range for the current focused repo and window width.
+// Call whenever windowWidth changes.
+func (m RepoSelectorLiteModel) withClampedPathScroll() RepoSelectorLiteModel {
+	if len(m.repos) == 0 || m.cursor >= len(m.repos) {
+		m.pathScrollOffset = 0
+		return m
+	}
+	repo := m.repos[m.cursor]
+	parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+	pathLen := len([]rune(parentPath))
+	pWidth := PathWidthFor(m.windowWidth, repo)
+	maxOffset := pathLen - pWidth
+	if maxOffset <= 0 {
+		m.pathScrollOffset = 0
+	} else if m.pathScrollOffset > maxOffset {
+		m.pathScrollOffset = maxOffset
+	}
 	return m
 }
 
