@@ -77,6 +77,18 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
+		// Clamp path scroll offset to the new available width.
+		if m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+			repo := m.repos[m.cursor]
+			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+			pathLen := len([]rune(parentPath))
+			pWidth := PathWidthFor(msg.Width, repo)
+			if maxOffset := pathLen - pWidth; maxOffset <= 0 {
+				m.pathScrollOffset = 0
+			} else if m.pathScrollOffset > maxOffset {
+				m.pathScrollOffset = maxOffset
+			}
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -189,6 +201,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.repos) && m.cursor > 0 {
 				m.cursor--
 			}
+			m.pathScrollOffset = 0
 
 		case "a":
 			if m.view == repoViewIgnored {

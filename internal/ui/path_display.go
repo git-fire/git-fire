@@ -73,7 +73,7 @@ func PathWidthFor(windowWidth int, repo git.Repository) int {
 	if len(repo.Remotes) == 0 {
 		remotesInfo = "(no remotes!)"
 	}
-	overhead := 26 + len(repo.Name) + len(repo.Mode.String()) + len(remotesInfo)
+	overhead := 26 + len([]rune(repo.Name)) + len([]rune(repo.Mode.String())) + len([]rune(remotesInfo))
 	w := windowWidth - overhead
 	if w < 8 {
 		w = 8
