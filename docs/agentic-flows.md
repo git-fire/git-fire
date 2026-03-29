@@ -156,7 +156,7 @@ git-fire repos list
 git-fire repos ignore ~/projects/vendor-lib
 ```
 
-The registry persists at `~/.git-fire/repos.toml` — agents or orchestration scripts can read it directly. For writes or updates, prefer `git-fire repos scan`, `ignore`, `unignore`, or `remove` so validation and invariants are preserved.
+The registry persists at `~/.config/git-fire/repos.toml` — agents or orchestration scripts can read it directly. For writes or updates, prefer `git-fire repos scan`, `ignore`, `unignore`, or `remove` so validation and invariants are preserved.
 
 ### 5. Environment Variable Configuration (Available Today)
 

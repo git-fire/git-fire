@@ -192,10 +192,11 @@ func (m RepoSelectorLiteModel) View() string {
 			remotesInfo = "(no remotes!)"
 		}
 
+		displayPath := AbbreviateUserHome(repo.Path)
 		line := fmt.Sprintf("%s %s %s  [%s] %s %s",
 			cursor,
 			checked,
-			style.Render(repo.Name),
+			style.Render(displayPath),
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,

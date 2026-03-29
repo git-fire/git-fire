@@ -15,13 +15,16 @@ import (
 
 // ---- buildKnownPaths ----
 
-func TestBuildKnownPaths_ActiveOnly(t *testing.T) {
+func TestBuildKnownPaths_ActiveMissingEmptyNotIgnored(t *testing.T) {
 	dir := t.TempDir()
+	missingPath := filepath.Join(dir, "missing")
+	emptyStatusPath := filepath.Join(dir, "legacy")
 	reg := &registry.Registry{
 		Repos: []registry.RegistryEntry{
 			{Path: dir, Status: registry.StatusActive},
 			{Path: filepath.Join(dir, "ignored"), Status: registry.StatusIgnored},
-			{Path: filepath.Join(dir, "missing"), Status: registry.StatusMissing},
+			{Path: missingPath, Status: registry.StatusMissing},
+			{Path: emptyStatusPath, Status: ""},
 		},
 	}
 
@@ -31,8 +34,16 @@ func TestBuildKnownPaths_ActiveOnly(t *testing.T) {
 	if _, ok := m[abs]; !ok {
 		t.Error("active entry should be in KnownPaths")
 	}
-	if len(m) != 1 {
-		t.Errorf("expected 1 entry, got %d (ignored/missing should be excluded)", len(m))
+	absMissing, _ := filepath.Abs(missingPath)
+	if _, ok := m[absMissing]; !ok {
+		t.Error("missing entry should be in KnownPaths (scanner skips if path gone)")
+	}
+	absEmpty, _ := filepath.Abs(emptyStatusPath)
+	if _, ok := m[absEmpty]; !ok {
+		t.Error("empty-status entry should be in KnownPaths")
+	}
+	if len(m) != 3 {
+		t.Errorf("expected 3 entries (active+missing+empty), got %d", len(m))
 	}
 }
 
@@ -101,7 +112,7 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 			{Path: repo.Path(), Name: "tracked", Status: registry.StatusActive},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".git-fire", "repos.toml")
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -123,7 +134,7 @@ func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	os.Setenv("HOME", tmpHome)
 
 	// Write a corrupt registry file
-	regDir := filepath.Join(tmpHome, ".git-fire")
+	regDir := filepath.Join(tmpHome, ".config", "git-fire")
 	if err := os.MkdirAll(regDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +185,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 			{Path: targetPath, Name: "locked", Status: registry.StatusMissing},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".git-fire", "repos.toml")
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -210,7 +221,7 @@ func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	os.Setenv("HOME", tmpHome)
 
 	// Corrupt the registry file
-	regDir := filepath.Join(tmpHome, ".git-fire")
+	regDir := filepath.Join(tmpHome, ".config", "git-fire")
 	if err := os.MkdirAll(regDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +283,7 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 			{Path: ignored.Path(), Name: "ignored", Status: registry.StatusIgnored},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".git-fire", "repos.toml")
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
