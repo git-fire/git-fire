@@ -152,3 +152,17 @@ func (r *Registry) FindByPath(path string) *RegistryEntry {
 	}
 	return nil
 }
+
+// UpdateByPath finds the entry at path, calls fn with a write-locked pointer,
+// and returns true if found. All mutations must happen inside fn.
+func (r *Registry) UpdateByPath(path string, fn func(*RegistryEntry)) bool {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
+	for i := range r.Repos {
+		if r.Repos[i].Path == path {
+			fn(&r.Repos[i])
+			return true
+		}
+	}
+	return false
+}

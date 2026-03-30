@@ -641,19 +641,24 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		// Can't resolve path — include repo to be safe (never silently drop backups).
 		return repo, true
 	}
-	existing := reg.FindByPath(absPath)
-	if existing != nil {
-		if existing.Mode != "" {
-			repo.Mode = git.ParseMode(existing.Mode)
+	var modeStr string
+	var ignored bool
+	found := reg.UpdateByPath(absPath, func(e *registry.RegistryEntry) {
+		modeStr = e.Mode
+		e.LastSeen = now
+		if e.Status == registry.StatusIgnored {
+			ignored = true
+			return
+		}
+		e.Status = registry.StatusActive
+	})
+	if found {
+		if modeStr != "" {
+			repo.Mode = git.ParseMode(modeStr)
 		} else {
 			repo.Mode = defaultMode
 		}
-		existing.LastSeen = now
-		if existing.Status == registry.StatusIgnored {
-			return repo, false
-		}
-		existing.Status = registry.StatusActive
-		return repo, true
+		return repo, !ignored
 	}
 	// New discovery — register it immediately (opt-out model).
 	repo.Mode = defaultMode
