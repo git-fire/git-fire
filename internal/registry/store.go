@@ -92,6 +92,8 @@ func Save(reg *Registry, path string) error {
 // Upsert adds a new entry or updates an existing one (matched by path).
 // The AddedAt field is preserved when updating an existing entry.
 func (r *Registry) Upsert(entry RegistryEntry) {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
 	for i, e := range r.Repos {
 		if e.Path == entry.Path {
 			// Preserve the original AddedAt and per-repo RescanSubmodules override
@@ -111,6 +113,8 @@ func (r *Registry) Upsert(entry RegistryEntry) {
 
 // SetStatus sets the status of the entry at path. Returns false if not found.
 func (r *Registry) SetStatus(path, status string) bool {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
 	for i, e := range r.Repos {
 		if e.Path == path {
 			r.Repos[i].Status = status
@@ -125,6 +129,8 @@ func (r *Registry) SetStatus(path, status string) bool {
 
 // Remove hard-deletes an entry by path. Returns false if not found.
 func (r *Registry) Remove(path string) bool {
+	pkgMu.Lock()
+	defer pkgMu.Unlock()
 	for i, e := range r.Repos {
 		if e.Path == path {
 			r.Repos = append(r.Repos[:i], r.Repos[i+1:]...)
@@ -137,6 +143,8 @@ func (r *Registry) Remove(path string) bool {
 // FindByPath returns a pointer to the entry matching path, or nil if not found.
 // The pointer is into the slice — do not store it beyond the next mutation.
 func (r *Registry) FindByPath(path string) *RegistryEntry {
+	pkgMu.RLock()
+	defer pkgMu.RUnlock()
 	for i := range r.Repos {
 		if r.Repos[i].Path == path {
 			return &r.Repos[i]

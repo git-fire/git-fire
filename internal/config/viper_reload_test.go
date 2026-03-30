@@ -3,7 +3,6 @@ package config_test
 import (
     "os"
     "path/filepath"
-    "strings"
     "testing"
     "time"
 
@@ -24,7 +23,10 @@ func TestSaveConfigRoundTripViaViper(t *testing.T) {
         t.Fatalf("SaveConfig: %v", err)
     }
 
-    data, _ := os.ReadFile(cfgPath)
+    data, err := os.ReadFile(cfgPath)
+    if err != nil {
+        t.Fatalf("ReadFile(%s): %v", cfgPath, err)
+    }
     t.Logf("Saved config:\n%s", string(data))
 
     // Load via Viper (same as production)
@@ -49,5 +51,4 @@ func TestSaveConfigRoundTripViaViper(t *testing.T) {
     if loaded.Global.CacheTTL != 24*time.Hour {
         t.Errorf("CacheTTL: want 24h (%v), got %v", 24*time.Hour, loaded.Global.CacheTTL)
     }
-    _ = strings.NewReplacer // avoid unused import
 }
