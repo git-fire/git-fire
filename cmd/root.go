@@ -377,10 +377,11 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		reg,
 		regPath,
 	)
-	// Cancel scan and drain tuiRepoChan so the upsert goroutine can exit,
-	// then wait for the scan goroutine before reading scanErr.
-	cancelScan()
+	// Drain tuiRepoChan BEFORE cancelling so there is no window where the
+	// upsert goroutine blocks on a full channel while neither the TUI nor the
+	// drain goroutine is consuming it. Only then cancel the scan and wait.
 	go func() { for range tuiRepoChan {} }()
+	cancelScan()
 	<-scanDone
 
 	if err != nil {
