@@ -2,6 +2,8 @@
 
 Git-fire is designed to be extensible beyond just git operations. This document describes how to add external tools, remote services, and custom backup strategies.
 
+For quick project onboarding, see [README.md](README.md). For docs navigation, see [docs/README.md](docs/README.md). For a working example, see [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
+
 ## Implementation Status
 
 | Plugin Type | Status | Notes |
@@ -11,6 +13,8 @@ Git-fire is designed to be extensible beyond just git operations. This document 
 | Webhook/HTTP plugins | 🗓 Planned (Phase 2) | REST API callbacks |
 
 Only **command plugins** are available today. All other types are documented here as the intended design for when they are built.
+
+Use planned sections in this document as design reference, not as currently supported configuration.
 
 ---
 

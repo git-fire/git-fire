@@ -2,6 +2,11 @@
 
 `git-fire` maintains a registry at `~/.config/git-fire/repos.toml` (next to `config.toml`) that accumulates every git repo discovered across runs. Known repos are loaded instantly at startup; the filesystem walker only descends into directories not already in the registry.
 
+Related docs:
+- quickstart and CLI usage: [../README.md](../README.md)
+- full behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- docs index: [README.md](README.md)
+
 ## Architecture Diagrams
 
 ### 1. Startup Registry Flow (`runGitFire`)
