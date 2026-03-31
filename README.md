@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-MVP-green" alt="Status: MVP">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: alpha">
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
@@ -25,15 +25,15 @@ Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-
 ### One-line emergency mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emergency.sh | bash
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
 ```
 
 ### Install
 
 | Method | Command | Platform |
 |---|---|---|
-| Go | `go install github.com/TBRX103/git-fire@latest` | All (Go 1.24.2+) |
-| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
+| Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
+| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
 
 For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
 Homebrew/Scoop publishing will be enabled in a later stable release.

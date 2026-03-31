@@ -119,7 +119,7 @@ release:
     owner: git-fire
     name: git-fire
   draft: false
-  prerelease: true
+  prerelease: auto
   make_latest: false
   name_template: "{{ .Tag }}"
   footer: |
