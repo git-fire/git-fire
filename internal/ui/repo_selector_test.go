@@ -148,9 +148,13 @@ func TestRepoSelectorLiteModel_View_ShowsRepos(t *testing.T) {
 	view := m.View()
 
 	for _, r := range repos {
-		want := AbbreviateUserHome(r.Path)
-		if !strings.Contains(view, want) {
-			t.Errorf("view should contain display path %q", want)
+		// View now shows repo name and parent directory separately.
+		if !strings.Contains(view, r.Name) {
+			t.Errorf("view should contain repo name %q", r.Name)
+		}
+		wantParent := AbbreviateUserHome(filepath.Dir(r.Path))
+		if !strings.Contains(view, wantParent) {
+			t.Errorf("view should contain parent path %q", wantParent)
 		}
 	}
 }
@@ -353,9 +357,13 @@ func TestRepoSelectorModel_View_ShowsRepos(t *testing.T) {
 	view := m.View()
 
 	for _, r := range repos {
-		want := AbbreviateUserHome(r.Path)
-		if !strings.Contains(view, want) {
-			t.Errorf("view should contain display path %q", want)
+		// View now shows repo name and parent directory separately.
+		if !strings.Contains(view, r.Name) {
+			t.Errorf("view should contain repo name %q", r.Name)
+		}
+		wantParent := AbbreviateUserHome(filepath.Dir(r.Path))
+		if !strings.Contains(view, wantParent) {
+			t.Errorf("view should contain parent path %q", wantParent)
 		}
 	}
 }

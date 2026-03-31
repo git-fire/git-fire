@@ -48,6 +48,8 @@ type RepoSelectorLiteModel struct {
 	reg            *registry.Registry
 	regPath        string
 	lastErr        error
+	windowWidth    int
+	pathScrollOffset int // manual path scroll offset for the focused repo row
 }
 
 // NewRepoSelectorLiteModel creates a new lite repo selector
@@ -58,11 +60,12 @@ func NewRepoSelectorLiteModel(repos []git.Repository, reg *registry.Registry, re
 	}
 
 	return RepoSelectorLiteModel{
-		repos:    repos,
-		cursor:   0,
-		selected: selected,
-		reg:      reg,
-		regPath:  regPath,
+		repos:       repos,
+		cursor:      0,
+		selected:    selected,
+		reg:         reg,
+		regPath:     regPath,
+		windowWidth: 80,
 	}
 }
 
@@ -72,6 +75,11 @@ func (m RepoSelectorLiteModel) Init() tea.Cmd {
 
 func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
+		m = m.withClampedPathScroll()
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -111,6 +119,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
+				m = m.withResetPathScroll()
 			}
 
 		case "down", "j":
@@ -120,6 +129,24 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				m = m.withResetPathScroll()
+			}
+
+		case "left":
+			if m.view == repoViewMain && m.pathScrollOffset > 0 {
+				m.pathScrollOffset--
+			}
+
+		case "right":
+			if m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+				repo := m.repos[m.cursor]
+				parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+				pathLen := len([]rune(parentPath))
+				pWidth := PathWidthFor(m.windowWidth, repo)
+				maxOffset := pathLen - pWidth
+				if maxOffset > 0 && m.pathScrollOffset < maxOffset {
+					m.pathScrollOffset++
+				}
 			}
 
 		case " ":
@@ -163,6 +190,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.repos) && m.cursor > 0 {
 				m.cursor--
 			}
+			m = m.withResetPathScroll()
 
 		case "a":
 			if m.view == repoViewIgnored {
@@ -227,7 +255,7 @@ func (m RepoSelectorLiteModel) View() string {
 
 		dirtyIndicator := ""
 		if repo.IsDirty {
-			dirtyIndicator = "💥"
+			dirtyIndicator = " 💥"
 		}
 
 		remotesInfo := fmt.Sprintf("(%d remotes)", len(repo.Remotes))
@@ -235,11 +263,26 @@ func (m RepoSelectorLiteModel) View() string {
 			remotesInfo = "(no remotes!)"
 		}
 
-		displayPath := AbbreviateUserHome(repo.Path)
-		line := fmt.Sprintf("%s %s %s  [%s] %s %s",
+		parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+		pWidth := PathWidthFor(m.windowWidth, repo)
+		scrollOff := 0
+		if m.cursor == i {
+			scrollOff = m.pathScrollOffset
+		}
+		visible, hasLeft, hasRight := TruncatePath(parentPath, pWidth, scrollOff)
+		leftInd, rightInd := " ", " "
+		if hasLeft {
+			leftInd = "‹"
+		}
+		if hasRight {
+			rightInd = "›"
+		}
+
+		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s",
 			cursor,
 			checked,
-			style.Render(displayPath),
+			style.Render(repo.Name),
+			leftInd, visible, rightInd,
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
@@ -253,11 +296,12 @@ func (m RepoSelectorLiteModel) View() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  space  Toggle selection  |  m  Change mode  |  x  Ignore repo\n" +
-			"  a  Select all  |  n  Select none  |  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path  |  space  Toggle selection\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
-			"  [✓] = Selected  |  [ ] = Not selected\n\n" +
+			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable\n\n" +
 			"💡 Tip: Run with --fire flag for animated fire background!",
 	)
 	s.WriteString(help)
@@ -340,6 +384,34 @@ func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteMode
 	}
 	m.ignoredEntries = IgnoredRegistryEntries(m.reg)
 	m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+	return m
+}
+
+// withResetPathScroll returns m with path-scroll offset zeroed.
+// Call whenever the focused repo changes (up/down/x/…).
+func (m RepoSelectorLiteModel) withResetPathScroll() RepoSelectorLiteModel {
+	m.pathScrollOffset = 0
+	return m
+}
+
+// withClampedPathScroll returns m with pathScrollOffset clamped to the valid
+// range for the current focused repo and window width.
+// Call whenever windowWidth changes.
+func (m RepoSelectorLiteModel) withClampedPathScroll() RepoSelectorLiteModel {
+	if len(m.repos) == 0 || m.cursor >= len(m.repos) {
+		m.pathScrollOffset = 0
+		return m
+	}
+	repo := m.repos[m.cursor]
+	parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+	pathLen := len([]rune(parentPath))
+	pWidth := PathWidthFor(m.windowWidth, repo)
+	maxOffset := pathLen - pWidth
+	if maxOffset <= 0 {
+		m.pathScrollOffset = 0
+	} else if m.pathScrollOffset > maxOffset {
+		m.pathScrollOffset = maxOffset
+	}
 	return m
 }
 
