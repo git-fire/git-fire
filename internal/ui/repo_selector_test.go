@@ -399,12 +399,15 @@ func TestRepoSelectorLiteModel_View_ShowsScrollHintWhenPathTruncated(t *testing.
 	if !strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected lite view to show scroll hint when truncated, got: %q", view)
 	}
+<<<<<<< HEAD
 
 	m.windowWidth = 240
 	view = m.View()
 	if strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected lite view to hide scroll hint when path fits, got: %q", view)
 	}
+=======
+>>>>>>> origin/main
 }
 
 func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
@@ -429,10 +432,27 @@ func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
 	if !strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected full view to show scroll hint when truncated, got: %q", view)
 	}
+<<<<<<< HEAD
 
 	m.windowWidth = 240
 	view = m.View()
 	if strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected full view to hide scroll hint when path fits, got: %q", view)
+=======
+}
+
+func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testing.T) {
+	repos := []git.Repository{
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.windowWidth = 80
+	m.windowHeight = 26 // small terminal — exercises the at-least-one-row floor
+
+	view := m.View()
+	if !strings.Contains(view, "alpha") && !strings.Contains(view, "beta") {
+		t.Fatalf("expected at least one repo row to render at small height, got: %q", view)
+>>>>>>> origin/main
 	}
 }

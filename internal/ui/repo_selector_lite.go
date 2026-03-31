@@ -285,6 +285,7 @@ func (m RepoSelectorLiteModel) View() string {
 		scrollHint := ""
 		if m.cursor == i && (hasLeft || hasRight) {
 			scrollHint = "  " + liteScrollHintStyle.Render("<< SCROLL PATH >>")
+<<<<<<< HEAD
 			adjWidth := pWidth - lipgloss.Width(scrollHint)
 			if adjWidth < 8 {
 				adjWidth = 8
@@ -297,6 +298,8 @@ func (m RepoSelectorLiteModel) View() string {
 			if hasRight {
 				rightInd = "›"
 			}
+=======
+>>>>>>> origin/main
 		}
 
 		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s%s",

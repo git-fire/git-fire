@@ -524,12 +524,49 @@ func clampSelectorCursor(cursor, n int) int {
 // window height. The repo list is the flex element: it absorbs all spare vertical
 // space but is always at least 1 line tall.
 //
-// Fixed vertical overhead inside the box:
-//   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//   + help marginTop (1) + help body (8) + box border+padding top+bottom (4)
-//   = 25
+// Overhead is measured dynamically so it stays accurate when the scan-status
+// panel is present (streaming mode adds ~4–5 extra lines) and when help text
+// wraps in narrow terminals.
 func (m RepoSelectorModel) repoListVisibleCount() int {
-	const overhead = 25
+	cw := m.contentWidth()
+	fireW := min(cw, 70)
+	innerW := m.windowWidth - 6
+	if innerW < 0 {
+		innerW = 0
+	}
+
+	// Build the non-list sections exactly as View() does.
+	var buf strings.Builder
+	buf.WriteString(m.fireBg.Render())
+	buf.WriteString("\n")
+	buf.WriteString(RenderFireWave(fireW, m.frameIndex))
+	buf.WriteString("\n\n")
+	buf.WriteString(lipgloss.NewStyle().Bold(true).
+		Foreground(lipgloss.Color("#ff4500")).
+		Background(lipgloss.Color("#1a1a1a")).
+		Padding(0, 2).
+		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
+	buf.WriteString("\n\n")
+	configHint := ""
+	if m.cfg != nil {
+		configHint = "  c  Settings  |  "
+	}
+	buf.WriteString(helpStyle.Render(
+		"\n" +
+			"Controls:\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
+			"Icons:\n" +
+			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
+			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
+	))
+	if m.scanChan != nil || m.scanDisabled {
+		buf.WriteString("\n")
+		buf.WriteString(m.renderScanStatus())
+	}
+
+	overhead := lipgloss.Height(boxStyle.Width(innerW).Render(buf.String()))
 	n := m.windowHeight - overhead
 	if n < 1 {
 		n = 1
@@ -538,11 +575,11 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 }
 
 // ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
-// Slightly less overhead (no help icons section):
+// Overhead:
 //   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//   + help (3) + box border+padding (4) = 19
+//   + help marginTop (1) + help body (3) + box border+padding (4) = 20
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
-	const overhead = 19
+	const overhead = 20
 	n := m.windowHeight - overhead
 	if n < 1 {
 		n = 1
@@ -700,7 +737,18 @@ func (m RepoSelectorModel) View() string {
 	if hasBelow {
 		indicators++
 	}
-	end := scrollOffset + visible - indicators
+	itemVisible := visible - indicators
+	if itemVisible < 1 {
+		// Not enough room for both items and indicators — suppress indicators
+		// so we never render more lines than the visible budget.
+		hasAbove = false
+		hasBelow = false
+		itemVisible = visible
+		if itemVisible < 1 {
+			itemVisible = 1
+		}
+	}
+	end := scrollOffset + itemVisible
 	if end > len(m.repos) {
 		end = len(m.repos)
 	}
@@ -761,6 +809,7 @@ func (m RepoSelectorModel) View() string {
 		scrollHint := ""
 		if m.cursor == i && (hasLeft || hasRight) {
 			scrollHint = "  " + scrollHintStyle.Render("<< SCROLL PATH >>")
+<<<<<<< HEAD
 			adjWidth := pWidth - lipgloss.Width(scrollHint)
 			if adjWidth < 8 {
 				adjWidth = 8
@@ -773,6 +822,8 @@ func (m RepoSelectorModel) View() string {
 			if hasRight {
 				rightInd = "›"
 			}
+=======
+>>>>>>> origin/main
 		}
 
 		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s%s",
@@ -904,7 +955,16 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			maxPathCols = 0
 		}
 
-		end := scrollOffset + visible - indicators
+		itemVisible := visible - indicators
+		if itemVisible < 1 {
+			hasAbove = false
+			hasBelow = false
+			itemVisible = visible
+			if itemVisible < 1 {
+				itemVisible = 1
+			}
+		}
+		end := scrollOffset + itemVisible
 		if end > len(m.ignoredEntries) {
 			end = len(m.ignoredEntries)
 		}
