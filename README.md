@@ -66,6 +66,12 @@ git-fire --dry-run --path ~/projects
 git-fire
 ```
 
+### TUI screenshot
+
+Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
+
+![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot.png)
+
 ## Core Commands
 
 ```bash
