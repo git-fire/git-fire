@@ -25,6 +25,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Global.ScanWorkers != 8 {
 		t.Errorf("Expected scan_workers to be 8, got %d", cfg.Global.ScanWorkers)
 	}
+	if cfg.UI.ColorProfile != UIColorProfileClassic {
+		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
+	}
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {
@@ -147,6 +150,19 @@ func TestValidate(t *testing.T) {
 				Global: GlobalConfig{
 					DefaultMode:      "push-all",
 					ConflictStrategy: "invalid-strategy",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid ui color profile",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: "not-a-profile",
 				},
 			},
 			wantErr: true,
@@ -343,6 +359,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.DisableScan = true
 	original.Global.AutoCommitDirty = false
 	original.Global.ConflictStrategy = "abort"
+	original.UI.ColorProfile = UIColorProfileSynthwave
 
 	loaded := saveConfigAndReload(t, &original)
 
@@ -357,6 +374,9 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.Global.ConflictStrategy != "abort" {
 		t.Errorf("ConflictStrategy: want abort, got %s", loaded.Global.ConflictStrategy)
+	}
+	if loaded.UI.ColorProfile != UIColorProfileSynthwave {
+		t.Errorf("UIColorProfile: want %s, got %s", UIColorProfileSynthwave, loaded.UI.ColorProfile)
 	}
 }
 

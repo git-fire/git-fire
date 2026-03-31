@@ -29,9 +29,9 @@ func Load() (*Config, error) {
 	v.SetConfigType("toml")
 
 	// Add config paths
-	v.AddConfigPath(".")                           // Current directory (./git-fire.toml)
-	v.AddConfigPath("$HOME/.config/git-fire")      // User config
-	v.AddConfigPath("/etc/git-fire")               // System config
+	v.AddConfigPath(".")                      // Current directory (./git-fire.toml)
+	v.AddConfigPath("$HOME/.config/git-fire") // User config
+	v.AddConfigPath("/etc/git-fire")          // System config
 
 	// Environment variables
 	v.SetEnvPrefix("GIT_FIRE")
@@ -106,6 +106,7 @@ func setDefaults(v *viper.Viper) {
 
 	// UI defaults
 	v.SetDefault("ui.show_fire_animation", defaults.UI.ShowFireAnimation)
+	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
 }
 
 // Validate checks if the configuration is valid
@@ -140,6 +141,15 @@ func (c *Config) Validate() error {
 		if !validPlatforms[c.Backup.Platform] {
 			return fmt.Errorf("invalid platform: %s (must be github, gitlab, or gitea)", c.Backup.Platform)
 		}
+	}
+
+	// Validate UI color profile
+	validProfiles := map[string]bool{}
+	for _, name := range UIColorProfiles() {
+		validProfiles[name] = true
+	}
+	if !validProfiles[c.UI.ColorProfile] {
+		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
 	}
 
 	return nil

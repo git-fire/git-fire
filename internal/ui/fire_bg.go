@@ -8,18 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Fire gradient colors (OrangeRed to DarkOrange to Yellow)
-var fireColors = []lipgloss.Color{
-	lipgloss.Color("#ff0000"), // Red
-	lipgloss.Color("#ff4500"), // OrangeRed
-	lipgloss.Color("#ff6600"), // Orange
-	lipgloss.Color("#ff8c00"), // DarkOrange
-	lipgloss.Color("#ffa500"), // Orange
-	lipgloss.Color("#ffb700"), // Amber
-	lipgloss.Color("#ffd700"), // Gold
-	lipgloss.Color("#ffff00"), // Yellow
-}
-
 // FireParticle represents a single fire particle
 type FireParticle struct {
 	X        int
@@ -112,9 +100,13 @@ func (fb *FireBackground) Update() {
 
 		// Change color as it rises (red -> orange -> yellow)
 		progress := float64(p.Age) / float64(p.MaxAge)
-		p.ColorIdx = int(progress * float64(len(fireColors)-1))
-		if p.ColorIdx >= len(fireColors) {
-			p.ColorIdx = len(fireColors) - 1
+		paletteLen := len(activeFireColors)
+		if paletteLen == 0 {
+			paletteLen = 1
+		}
+		p.ColorIdx = int(progress * float64(paletteLen-1))
+		if p.ColorIdx >= paletteLen {
+			p.ColorIdx = paletteLen - 1
 		}
 	}
 
@@ -154,7 +146,14 @@ func (fb *FireBackground) Render() string {
 	for _, p := range fb.Particles {
 		if p.Y >= 0 && p.Y < fb.Height && p.X >= 0 && p.X < fb.Width {
 			// Style the character with fire color
-			color := fireColors[p.ColorIdx]
+			color := lipgloss.Color("#FF6600")
+			if len(activeFireColors) > 0 {
+				safeIdx := p.ColorIdx % len(activeFireColors)
+				if safeIdx < 0 {
+					safeIdx += len(activeFireColors)
+				}
+				color = activeFireColors[safeIdx]
+			}
 			style := lipgloss.NewStyle().Foreground(color)
 			grid[p.Y][p.X] = style.Render(p.Char)
 		}
@@ -201,12 +200,16 @@ func RenderFireWave(width int, frame int) string {
 		}
 
 		// Color based on position (gradient)
-		colorIdx := int(float64(x) / float64(width) * float64(len(fireColors)-1))
-		if colorIdx >= len(fireColors) {
-			colorIdx = len(fireColors) - 1
+		if len(activeFireColors) == 0 {
+			result.WriteString(char)
+			continue
+		}
+		colorIdx := int(float64(x) / float64(width) * float64(len(activeFireColors)-1))
+		if colorIdx >= len(activeFireColors) {
+			colorIdx = len(activeFireColors) - 1
 		}
 
-		style := lipgloss.NewStyle().Foreground(fireColors[colorIdx])
+		style := lipgloss.NewStyle().Foreground(activeFireColors[colorIdx])
 		result.WriteString(style.Render(char))
 	}
 

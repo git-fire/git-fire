@@ -97,6 +97,30 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 See [docs/agentic-flows.md](docs/agentic-flows.md).
 
+### TUI color profiles
+
+You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
+
+| Profile | Style |
+|---------|-------|
+| `classic` | Original orange/yellow fire |
+| `synthwave` | 80s neon purple/pink/cyan |
+| `forest` | Green ember palette |
+| `arctic` | Cool cyan/ice palette |
+
+| Method | How |
+|--------|-----|
+| In-TUI settings | Press **`c`** → **Color profile** → `space` / `←` / `→` |
+| Config file | Set `color_profile` under `[ui]` |
+
+```toml
+[ui]
+show_fire_animation = true
+color_profile = "synthwave"
+```
+
+Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
+
 ### Extensibility with plugins
 
 Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
