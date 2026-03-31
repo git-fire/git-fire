@@ -46,12 +46,15 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emer
 
 ### Install
 
+> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.  
+> Keep the commands below as the planned install paths for beta rollout.
+
 | Method | Command | Platform |
 |---|---|---|
-| Homebrew | `brew tap TBRX103/tap && brew install git-fire` | macOS / Linux |
-| Scoop | `scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket && scoop install git-fire` | Windows |
+| Homebrew (coming soon) | `brew tap git-fire/homebrew-tap && brew install git-fire` | macOS / Linux |
+| Scoop (coming soon) | `scoop bucket add git-fire https://github.com/git-fire/scoop-bucket && scoop install git-fire` | Windows |
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
-| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
+| Binary (coming soon) | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
 
 ### First run
 
