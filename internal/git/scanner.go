@@ -205,22 +205,10 @@ func analyzeRepository(repoPath string) (Repository, error) {
 		repo.Remotes = remotes
 	}
 
-	// Extract branches
-	branches, err := getBranches(repoPath)
-	if err == nil {
-		repo.Branches = branches
-	}
-
 	// Check if dirty
 	dirty, err := isDirty(repoPath)
 	if err == nil {
 		repo.IsDirty = dirty
-	}
-
-	// Get last modified time
-	lastModified, err := getLastCommitTime(repoPath)
-	if err == nil {
-		repo.LastModified = lastModified
 	}
 
 	return repo, nil

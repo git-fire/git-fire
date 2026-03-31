@@ -23,6 +23,9 @@ type GlobalConfig struct {
 	// Auto-commit uncommitted changes before pushing
 	AutoCommitDirty bool `mapstructure:"auto_commit_dirty" toml:"auto_commit_dirty"`
 
+	// Block auto-commit/push when suspicious secrets are detected.
+	BlockOnSecrets bool `mapstructure:"block_on_secrets" toml:"block_on_secrets"`
+
 	// Scan configuration
 	ScanPath    string        `mapstructure:"scan_path"    toml:"scan_path"`
 	ScanExclude []string      `mapstructure:"scan_exclude" toml:"scan_exclude"`

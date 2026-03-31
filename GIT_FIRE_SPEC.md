@@ -1,6 +1,7 @@
 # Git Fire - Emergency Git Repository Backup CLI
 
-This document is the canonical behavior/reference spec.
+This document is a legacy design reference and contains roadmap/proposed behavior.
+For alpha release truth, treat `README.md` and current code as canonical.
 
 Related docs:
 - onboarding and command quickstart: [README.md](README.md)
@@ -13,7 +14,7 @@ Related docs:
 
 **Purpose:** A panic-mode backup tool that discovers all git repositories on your system and safely pushes them to remote locations with intelligent conflict handling.
 
-**Language:** Go 1.21+
+**Language:** Go 1.24.2
 **Invocation:** `git-fire` binary (enables `git fire` syntax when in PATH)
 
 ### Core Dependencies

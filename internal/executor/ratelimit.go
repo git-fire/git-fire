@@ -10,6 +10,7 @@ import (
 // This prevents overwhelming a single git host (e.g., GitHub) with too many concurrent pushes
 type HostLimiter struct {
 	limits   map[string]chan struct{} // host -> semaphore channel
+	global   chan struct{}
 	delays   map[string]time.Duration // host -> delay between operations
 	lastPush map[string]time.Time     // host -> timestamp of last push
 	mu       sync.Mutex
@@ -50,8 +51,13 @@ func DefaultRateLimitConfig() RateLimitConfig {
 
 // NewHostLimiter creates a new host-based rate limiter
 func NewHostLimiter(config RateLimitConfig) *HostLimiter {
+	globalLimit := config.GlobalLimit
+	if globalLimit <= 0 {
+		globalLimit = 1
+	}
 	return &HostLimiter{
 		limits:   make(map[string]chan struct{}),
+		global:   make(chan struct{}, globalLimit),
 		delays:   make(map[string]time.Duration),
 		lastPush: make(map[string]time.Time),
 		config:   config,
@@ -90,6 +96,8 @@ func (h *HostLimiter) Acquire(remoteURL string) {
 
 	h.mu.Unlock()
 
+	// Acquire global semaphore first.
+	h.global <- struct{}{}
 	// Acquire semaphore (blocks if at limit)
 	sem <- struct{}{}
 }
@@ -111,6 +119,7 @@ func (h *HostLimiter) Release(remoteURL string) {
 	if sem, exists := h.limits[host]; exists {
 		<-sem
 	}
+	<-h.global
 }
 
 // getSemaphoreForHost gets or creates a semaphore channel for a host
