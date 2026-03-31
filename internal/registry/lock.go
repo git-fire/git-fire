@@ -10,8 +10,11 @@ import (
 	"time"
 )
 
-// pkgMu serialises all registry operations within a single process — both
-// file I/O (Load/Save) and in-memory mutations (Upsert, SetStatus, etc.).
+// pkgMu serialises package-managed registry operations within a single process:
+// file I/O (Load/Save) and mutations via package functions (Upsert, SetStatus,
+// Remove, UpdateByPath). It does NOT protect against races when callers retain
+// references obtained from FindByPath or access r.Repos directly — callers must
+// not mutate escaped pointers without their own synchronisation.
 // The cross-process case is handled by the lock file written in acquireLock.
 var pkgMu sync.RWMutex
 
