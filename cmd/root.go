@@ -17,16 +17,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/TBRX103/git-fire/internal/auth"
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/executor"
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/registry"
-	"github.com/TBRX103/git-fire/internal/safety"
-	"github.com/TBRX103/git-fire/internal/ui"
+	"github.com/git-fire/git-fire/internal/auth"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/executor"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-fire/internal/ui"
 )
 
-// Version is set at build time via -ldflags "-X github.com/TBRX103/git-fire/cmd.Version=vX.Y.Z"
+// Version is set at build time via -ldflags "-X github.com/git-fire/git-fire/cmd.Version=vX.Y.Z"
 var Version = "dev"
 
 var (

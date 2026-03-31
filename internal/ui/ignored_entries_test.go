@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 func TestIgnoredRegistryEntries_SortedAndFiltered(t *testing.T) {

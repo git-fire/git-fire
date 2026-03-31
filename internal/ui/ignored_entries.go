@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 // IgnoredRegistryEntries returns registry entries with status ignored, sorted by path.

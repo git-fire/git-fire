@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/testutil"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/testutil"
 )
 
 func TestScanRepositories_FindsSingleRepo(t *testing.T) {
