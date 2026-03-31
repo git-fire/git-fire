@@ -150,6 +150,9 @@ type RepoSelectorModel struct {
 	scanCurrentPath     string // latest folder the scanner is visiting
 	scanNewCount        int    // repos discovered during this TUI session
 
+	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
+	showFire bool
+
 	// Config menu state
 	cfg           *config.Config
 	cfgPath       string
@@ -184,6 +187,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		reg:             reg,
 		regPath:         regPath,
 		pathScrollDir:   1,
+		showFire:        true,
 	}
 }
 
@@ -206,6 +210,11 @@ func NewRepoSelectorModelStream(
 
 	fireBg := NewFireBackground(70, 5)
 
+	showFire := true
+	if cfg != nil {
+		showFire = cfg.UI.ShowFireAnimation
+	}
+
 	return RepoSelectorModel{
 		repos:        nil,
 		cursor:       0,
@@ -224,6 +233,7 @@ func NewRepoSelectorModelStream(
 		scanDisabledRunOnly:  scanDisabledRunOnly,
 		cfg:                  cfg,
 		cfgPath:              cfgPath,
+		showFire:             showFire,
 	}
 }
 
@@ -463,6 +473,15 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected[i] = false
 				m.repos[i].Selected = false
 			}
+
+		case "f":
+			if m.view == repoViewMain {
+				m.showFire = !m.showFire
+				if m.cfg != nil {
+					m.cfg.UI.ShowFireAnimation = m.showFire
+					m = m.saveConfig()
+				}
+			}
 		}
 	}
 
@@ -474,6 +493,16 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// fireHeightThreshold is the minimum terminal height required to show the fire
+// animation. Below this the animation is suppressed regardless of showFire so
+// the list and controls remain usable.
+const fireHeightThreshold = 20
+
+// fireVisible reports whether the fire animation section should be rendered.
+func (m RepoSelectorModel) fireVisible() bool {
+	return m.showFire && m.windowHeight > fireHeightThreshold
 }
 
 // withResetPathScroll returns m with path-scroll state zeroed.
@@ -537,10 +566,12 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 
 	// Build the non-list sections exactly as View() does.
 	var buf strings.Builder
-	buf.WriteString(m.fireBg.Render())
-	buf.WriteString("\n")
-	buf.WriteString(RenderFireWave(fireW, m.frameIndex))
-	buf.WriteString("\n\n")
+	if m.fireVisible() {
+		buf.WriteString(m.fireBg.Render())
+		buf.WriteString("\n")
+		buf.WriteString(RenderFireWave(fireW, m.frameIndex))
+		buf.WriteString("\n\n")
+	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(lipgloss.Color("#ff4500")).
 		Background(lipgloss.Color("#1a1a1a")).
@@ -555,7 +586,7 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
@@ -698,13 +729,13 @@ func (m RepoSelectorModel) View() string {
 
 	var s strings.Builder
 
-	// Animated fire background at top
-	s.WriteString(m.fireBg.Render())
-	s.WriteString("\n")
-
-	// Animated fire wave separator
-	s.WriteString(RenderFireWave(fireW, m.frameIndex))
-	s.WriteString("\n\n")
+	// Animated fire background and wave (suppressed when hidden or terminal too short)
+	if m.fireVisible() {
+		s.WriteString(m.fireBg.Render())
+		s.WriteString("\n")
+		s.WriteString(RenderFireWave(fireW, m.frameIndex))
+		s.WriteString("\n\n")
+	}
 
 	// Title with gradient
 	titleText := "🔥 GIT FIRE - SELECT REPOSITORIES 🔥"
@@ -840,7 +871,7 @@ func (m RepoSelectorModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
@@ -905,10 +936,12 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 	fireW := min(cw, 70)
 
 	var s strings.Builder
-	s.WriteString(m.fireBg.Render())
-	s.WriteString("\n")
-	s.WriteString(RenderFireWave(fireW, m.frameIndex))
-	s.WriteString("\n\n")
+	if m.fireVisible() {
+		s.WriteString(m.fireBg.Render())
+		s.WriteString("\n")
+		s.WriteString(RenderFireWave(fireW, m.frameIndex))
+		s.WriteString("\n\n")
+	}
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).

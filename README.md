@@ -242,7 +242,30 @@ Git-fire works with zero configuration, but you can customize it:
 git-fire --init
 ```
 
+Config lives at `~/.config/git-fire/config.toml` (or `./git-fire.toml` in the current directory).
+
 See [example config](https://github.com/TBRX103/git-fire/blob/main/internal/config/defaults.go) for all options.
+
+### TUI fire animation
+
+The animated fire banner shown in the repo selector (`git-fire --fire`) can be controlled:
+
+| Method | How |
+|--------|-----|
+| Keyboard | Press **`f`** in the selector to toggle on/off instantly |
+| Config file | Set `show_fire_animation = false` under `[ui]` |
+| In-TUI settings | Press **`c`** → navigate to **Show fire animation** → `space` to toggle |
+
+The animation is always suppressed automatically when the terminal is too short (height ≤ 20 lines) to keep the repo list usable, regardless of your preference setting.
+
+```toml
+[ui]
+# Show the fire animation in the TUI repo selector.
+# Toggle live with 'f'. Auto-suppressed on short terminals.
+show_fire_animation = true
+```
+
+Toggling with `f` persists to your config file immediately (same as the in-TUI settings menu).
 
 ## 🔌 Extensibility
 

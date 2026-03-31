@@ -103,6 +103,9 @@ func setDefaults(v *viper.Viper) {
 
 	// Auth defaults
 	v.SetDefault("auth.use_ssh_agent", defaults.Auth.UseSSHAgent)
+
+	// UI defaults
+	v.SetDefault("ui.show_fire_animation", defaults.UI.ShowFireAnimation)
 }
 
 // Validate checks if the configuration is valid
