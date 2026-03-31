@@ -7,6 +7,7 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 ## Start Here
 
 - Project entrypoint: [../README.md](../README.md)
+- Project snapshot and architecture reference: [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
 - Behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
 - Contributor workflow: [../CONTRIBUTING.md](../CONTRIBUTING.md)
 
