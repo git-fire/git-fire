@@ -3,7 +3,9 @@ package executor
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,25 +45,44 @@ func (r *Runner) Execute(plan *PushPlan) (*ExecutionResult, error) {
 		RepoResults: make([]RepoResult, 0, len(plan.Repos)),
 	}
 
-	for i, repoPlan := range plan.Repos {
-		repoResult := r.executeRepo(repoPlan, i+1, len(plan.Repos))
-		result.RepoResults = append(result.RepoResults, repoResult)
-
-		if repoResult.Success {
-			result.Success++
-		} else if repoResult.Error != nil {
-			result.Failed++
-		} else {
-			result.Skipped++
-		}
-
-		result.TotalActions += len(repoResult.Actions)
-		for _, action := range repoResult.Actions {
-			if action.Error != nil {
-				result.FailedActions++
-			}
-		}
+	type executeJob struct {
+		index int
+		plan  RepoPlan
 	}
+	type executeOutput struct {
+		index  int
+		result RepoResult
+	}
+
+	jobs := make(chan executeJob, len(plan.Repos))
+	outputs := make(chan executeOutput, len(plan.Repos))
+
+	workers := r.pushWorkerCount(len(plan.Repos))
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				repoResult := r.executeRepo(job.plan, job.index+1, len(plan.Repos))
+				outputs <- executeOutput{index: job.index, result: repoResult}
+			}
+		}()
+	}
+
+	for i, repoPlan := range plan.Repos {
+		jobs <- executeJob{index: i, plan: repoPlan}
+	}
+	close(jobs)
+	wg.Wait()
+	close(outputs)
+
+	ordered := make([]RepoResult, len(plan.Repos))
+	for output := range outputs {
+		ordered[output.index] = output.result
+	}
+	result.RepoResults = ordered
+	r.aggregateResultCounts(result)
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
@@ -333,12 +354,82 @@ func (r *Runner) ExecuteStream(
 		RepoResults: make([]RepoResult, 0),
 	}
 
-	current := 0
-	var planErrors []error
+	type streamJob struct {
+		sequence int
+		repoPlan RepoPlan
+	}
+	type streamOutput struct {
+		sequence int
+		result   RepoResult
+	}
+
+	jobs := make(chan streamJob, 32)
+	outputs := make(chan streamOutput, 32)
+
+	workers := r.pushWorkerCount(0)
+	var workersWG sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		workersWG.Add(1)
+		go func() {
+			defer workersWG.Done()
+			for job := range jobs {
+				tot := int(atomic.LoadInt64(total))
+				if tot <= 0 {
+					tot = job.sequence
+				}
+
+				var repoResult RepoResult
+				if dryRun {
+					repoResult = RepoResult{
+						Path:    job.repoPlan.Repo.Path,
+						Success: true,
+						Actions: job.repoPlan.Actions,
+					}
+					for _, action := range job.repoPlan.Actions {
+						if action.Type == ActionAutoCommit {
+							warnAboutSecrets(job.repoPlan.Repo.Path)
+							break
+						}
+					}
+					r.sendProgress(Progress{
+						CurrentRepo: job.sequence,
+						TotalRepos:  tot,
+						RepoName:    job.repoPlan.Repo.Name,
+						Action:      "[DRY RUN] Would execute actions",
+						Status:      StatusSuccess,
+					})
+				} else {
+					repoResult = r.executeRepo(job.repoPlan, job.sequence, tot)
+				}
+
+				outputs <- streamOutput{sequence: job.sequence, result: repoResult}
+			}
+		}()
+	}
+
+	sequence := 0
+	planErrors := 0
+	// Keep final results in discovery order while worker completion is concurrent.
+	indexedResults := make(map[int]RepoResult)
+	var resultsMu sync.Mutex
+
+	var collectorWG sync.WaitGroup
+	collectorWG.Add(1)
+	go func() {
+		defer collectorWG.Done()
+		for output := range outputs {
+			// Single map used by planning-error path and worker-output path.
+			resultsMu.Lock()
+			indexedResults[output.sequence] = output.result
+			resultsMu.Unlock()
+		}
+	}()
+
 	for repo := range repos {
 		if !repo.Selected {
 			continue
 		}
+		sequence++
 
 		repoPlan, err := planner.BuildRepoPlan(repo)
 		if err != nil {
@@ -347,23 +438,24 @@ func (r *Runner) ExecuteStream(
 			fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", repo.Path, err)
 
 			// Create a failed RepoResult for this repo
-			current++
+			planErrors++
 			failedResult := RepoResult{
 				Path:    repo.Path,
 				Success: false,
 				Error:   err,
 				Actions: make([]Action, 0),
 			}
-			result.RepoResults = append(result.RepoResults, failedResult)
-			result.Failed++
-
-			// Collect the error to propagate to caller
-			planErrors = append(planErrors, fmt.Errorf("failed to plan %s: %w", repo.Path, err))
+			resultsMu.Lock()
+			indexedResults[sequence] = failedResult
+			resultsMu.Unlock()
 
 			// Send progress update
 			tot := int(atomic.LoadInt64(total))
+			if tot <= 0 {
+				tot = sequence
+			}
 			r.sendProgress(Progress{
-				CurrentRepo: current,
+				CurrentRepo: sequence,
 				TotalRepos:  tot,
 				RepoName:    repo.Name,
 				Action:      "Failed to build plan",
@@ -374,62 +466,31 @@ func (r *Runner) ExecuteStream(
 			continue
 		}
 		repoPlan.Repo.Selected = true
-
-		current++
-
-		var repoResult RepoResult
-		if dryRun {
-			repoResult = RepoResult{
-				Path:    repoPlan.Repo.Path,
-				Success: true,
-				Actions: repoPlan.Actions,
-			}
-			if repoPlan.Skip {
-				result.Skipped++
-			} else {
-				result.Success++
-			}
-			for _, action := range repoPlan.Actions {
-				if action.Type == ActionAutoCommit {
-					warnAboutSecrets(repoPlan.Repo.Path)
-					break
-				}
-			}
-			tot := int(atomic.LoadInt64(total))
-			r.sendProgress(Progress{
-				CurrentRepo: current,
-				TotalRepos:  tot,
-				RepoName:    repo.Name,
-				Action:      "[DRY RUN] Would execute actions",
-				Status:      StatusSuccess,
-			})
-		} else {
-			repoResult = r.executeRepo(repoPlan, current, int(atomic.LoadInt64(total)))
-			if repoResult.Success {
-				result.Success++
-			} else if repoResult.Error != nil {
-				result.Failed++
-			} else {
-				result.Skipped++
-			}
-		}
-
-		result.RepoResults = append(result.RepoResults, repoResult)
-		result.TotalActions += len(repoResult.Actions)
-		for _, action := range repoResult.Actions {
-			if action.Error != nil {
-				result.FailedActions++
-			}
-		}
+		jobs <- streamJob{sequence: sequence, repoPlan: repoPlan}
 	}
+	close(jobs)
+	workersWG.Wait()
+	close(outputs)
+	collectorWG.Wait()
+
+	keys := make([]int, 0, len(indexedResults))
+	for k := range indexedResults {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	result.RepoResults = make([]RepoResult, 0, len(keys))
+	for _, k := range keys {
+		result.RepoResults = append(result.RepoResults, indexedResults[k])
+	}
+	r.aggregateResultCounts(result)
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 
 	// Return aggregated plan errors if any occurred
 	var returnErr error
-	if len(planErrors) > 0 {
-		returnErr = fmt.Errorf("%d repo(s) failed during plan building", len(planErrors))
+	if planErrors > 0 {
+		returnErr = fmt.Errorf("%d repo(s) failed during plan building", planErrors)
 	}
 
 	return result, returnErr
@@ -497,11 +558,49 @@ func (r *Runner) ProgressChan() <-chan Progress {
 	return r.progress
 }
 
+func (r *Runner) pushWorkerCount(totalRepos int) int {
+	workers := config.DefaultPushWorkers
+	if r.config != nil && r.config.Global.PushWorkers > 0 {
+		workers = r.config.Global.PushWorkers
+	}
+	if workers <= 0 {
+		workers = config.DefaultPushWorkers
+	}
+	if totalRepos > 0 && workers > totalRepos {
+		return totalRepos
+	}
+	return workers
+}
+
+func (r *Runner) aggregateResultCounts(result *ExecutionResult) {
+	result.Success = 0
+	result.Failed = 0
+	result.Skipped = 0
+	result.TotalActions = 0
+	result.FailedActions = 0
+
+	for _, repoResult := range result.RepoResults {
+		if repoResult.Success {
+			result.Success++
+		} else if repoResult.Error != nil {
+			result.Failed++
+		} else {
+			result.Skipped++
+		}
+
+		result.TotalActions += len(repoResult.Actions)
+		for _, action := range repoResult.Actions {
+			if action.Error != nil {
+				result.FailedActions++
+			}
+		}
+	}
+}
+
 // Close closes the progress channel
 func (r *Runner) Close() {
 	close(r.progress)
 }
-
 
 // getRemoteURL gets the URL for a remote name from the repository
 func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {

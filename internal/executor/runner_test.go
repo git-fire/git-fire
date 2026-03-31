@@ -1,11 +1,13 @@
 package executor
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -772,11 +774,11 @@ func TestDryRun_SecretWarning(t *testing.T) {
 
 	repos := []git.Repository{
 		{
-			Path:    repo.Path(),
-			Name:    "dirty-repo",
+			Path:     repo.Path(),
+			Name:     "dirty-repo",
 			Selected: true,
-			Mode:    git.ModePushKnownBranches,
-			IsDirty: true,
+			Mode:     git.ModePushKnownBranches,
+			IsDirty:  true,
 			Remotes: []git.Remote{
 				{Name: "origin", URL: remote.Path()},
 			},
@@ -860,5 +862,248 @@ func TestRunner_ExecuteStream(t *testing.T) {
 	if processed != len(repos) {
 		t.Errorf("want %d repos processed, got %d (success=%d failed=%d skipped=%d)",
 			len(repos), processed, result.Success, result.Failed, result.Skipped)
+	}
+}
+
+func TestRunner_Execute_ParallelPushWorkers(t *testing.T) {
+	serialDuration := runSlowTwoRepoPush(t, 1)
+	parallelDuration := runSlowTwoRepoPush(t, 2)
+
+	if parallelDuration >= serialDuration {
+		t.Fatalf("expected parallel execution to be faster: serial=%v parallel=%v", serialDuration, parallelDuration)
+	}
+}
+
+func TestRunner_Execute_ConcurrentResultAggregation(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.PushWorkers = 3
+	runner := NewRunner(&cfg)
+
+	scenario, goodRepo := testutil.CreateCleanRepoScenario(t)
+	other := testutil.NewScenario(t)
+	badRepo := other.CreateRepo("bad")
+
+	repos := []git.Repository{
+		{
+			Path:     goodRepo.Path(),
+			Name:     "good-repo",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: scenario.GetRepo("remote").Path()},
+			},
+		},
+		{
+			Path:     badRepo.Path(),
+			Name:     "bad-repo",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "/nonexistent/path/repo.git"},
+			},
+		},
+		{
+			Path:     "/tmp/skip-repo",
+			Name:     "skip-repo",
+			Selected: true,
+			Mode:     git.ModeLeaveUntouched,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: "git@github.com:user/repo.git"},
+			},
+		},
+	}
+
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if len(result.RepoResults) != 3 {
+		t.Fatalf("Expected 3 repo results, got %d", len(result.RepoResults))
+	}
+	if result.Success+result.Failed+result.Skipped != 3 {
+		t.Fatalf("unexpected result accounting: success=%d failed=%d skipped=%d", result.Success, result.Failed, result.Skipped)
+	}
+	if result.FailedActions < 1 {
+		t.Fatalf("expected at least one failed action from bad remote, got %d", result.FailedActions)
+	}
+}
+
+func TestRunner_Execute_PreservesPerRepoActionOrderWithConcurrency(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.PushWorkers = 2
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	branch := repo.GetDefaultBranch()
+	repo.Push("origin", branch)
+	repo.AddFile("work.txt", "dirty\n")
+
+	otherScenario, otherRepo := testutil.CreateCleanRepoScenario(t)
+	repos := []git.Repository{
+		{
+			Path:     repo.Path(),
+			Name:     "dirty-repo",
+			Selected: true,
+			Mode:     git.ModePushCurrentBranch,
+			IsDirty:  true,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: remote.Path()},
+			},
+		},
+		{
+			Path:     otherRepo.Path(),
+			Name:     "clean-repo",
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: otherScenario.GetRepo("remote").Path()},
+			},
+		},
+	}
+
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	var dirtyResult *RepoResult
+	for i := range result.RepoResults {
+		if result.RepoResults[i].Path == repo.Path() {
+			dirtyResult = &result.RepoResults[i]
+			break
+		}
+	}
+	if dirtyResult == nil {
+		t.Fatal("missing dirty repo result")
+	}
+	if len(dirtyResult.Actions) < 2 {
+		t.Fatalf("expected multiple actions for dirty repo, got %d", len(dirtyResult.Actions))
+	}
+	if dirtyResult.Actions[0].Type != ActionAutoCommit {
+		t.Fatalf("expected first action to be auto-commit, got %s", dirtyResult.Actions[0].Type)
+	}
+}
+
+func TestRunner_ExecuteStream_ConcurrentWorkersCloseAndDrain(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.PushWorkers = 2
+	runner := NewRunner(&cfg)
+	defer runner.Close()
+
+	repos := buildSlowPushRepos(t)
+	repoChan := make(chan git.Repository)
+	var total int64
+
+	planner := NewPlanner(&cfg)
+	go func() {
+		for _, repo := range repos {
+			atomic.AddInt64(&total, 1)
+			repoChan <- repo
+		}
+		close(repoChan)
+	}()
+
+	start := time.Now()
+	result, err := runner.ExecuteStream(repoChan, planner, false, &total)
+	if err != nil {
+		t.Fatalf("ExecuteStream() error = %v", err)
+	}
+	duration := time.Since(start)
+
+	if len(result.RepoResults) != len(repos) {
+		t.Fatalf("expected %d repo results, got %d", len(repos), len(result.RepoResults))
+	}
+	if result.Success != len(repos) {
+		t.Fatalf("expected all stream repos to succeed, got success=%d", result.Success)
+	}
+	if duration > 700*time.Millisecond {
+		t.Fatalf("expected concurrent stream execution to finish quickly, duration=%v", duration)
+	}
+}
+
+func runSlowTwoRepoPush(t *testing.T, workers int) time.Duration {
+	t.Helper()
+
+	cfg := config.DefaultConfig()
+	cfg.Global.PushWorkers = workers
+	runner := NewRunner(&cfg)
+
+	repos := buildSlowPushRepos(t)
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+
+	start := time.Now()
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Success != len(repos) {
+		t.Fatalf("expected all repos to succeed, success=%d total=%d", result.Success, len(repos))
+	}
+	return time.Since(start)
+}
+
+func buildSlowPushRepos(t *testing.T) []git.Repository {
+	t.Helper()
+
+	scenario := testutil.NewScenario(t)
+	repos := make([]git.Repository, 0, 2)
+	for i := 0; i < 2; i++ {
+		remote := scenario.CreateBareRepo(fmt.Sprintf("remote-%d", i))
+		installSlowPushHook(t, remote.Path(), 350*time.Millisecond)
+
+		repo := scenario.CreateRepo(fmt.Sprintf("repo-%d", i)).
+			WithRemote("origin", remote).
+			AddFile("base.txt", "base\n").
+			Commit("base commit")
+
+		current := repo.GetDefaultBranch()
+		repo.Push("origin", current)
+		repo.AddFile("next.txt", "next\n")
+		repo.Commit("next commit")
+
+		repos = append(repos, git.Repository{
+			Path:     repo.Path(),
+			Name:     fmt.Sprintf("repo-%d", i),
+			Selected: true,
+			Mode:     git.ModePushAll,
+			Remotes: []git.Remote{
+				{Name: "origin", URL: remote.Path()},
+			},
+			Branches: []string{current},
+		})
+	}
+
+	return repos
+}
+
+func installSlowPushHook(t *testing.T, bareRepoPath string, delay time.Duration) {
+	t.Helper()
+
+	hookPath := filepath.Join(bareRepoPath, "hooks", "pre-receive")
+	script := fmt.Sprintf("#!/bin/sh\nsleep %.3f\n", delay.Seconds())
+	if err := os.WriteFile(hookPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write pre-receive hook: %v", err)
 	}
 }
