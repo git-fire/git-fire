@@ -1,6 +1,9 @@
 package safety
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSanitizeText(t *testing.T) {
 	tests := []struct {
@@ -27,6 +30,27 @@ func TestSanitizeText(t *testing.T) {
 			notWant:  "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
 			wantPart: "[REDACTED]",
 		},
+		{
+			name:     "url without credentials",
+			in:       "https://github.com/org/repo.git",
+			wantPart: "https://github.com/org/repo.git",
+		},
+		{
+			name:     "gitlab pat",
+			in:       "glpat-abcdefghijklmnopqrstuvwxyz",
+			notWant:  "glpat-abcdefghijklmnopqrstuvwxyz",
+			wantPart: "[REDACTED]",
+		},
+		{
+			name:     "near-miss AKIA 15 chars",
+			in:       "AKIA1234567890123",
+			wantPart: "AKIA1234567890123",
+		},
+		{
+			name:     "no secrets passthrough",
+			in:       "hello world",
+			wantPart: "hello world",
+		},
 	}
 
 	for _, tt := range tests {
@@ -35,25 +59,12 @@ func TestSanitizeText(t *testing.T) {
 			if tt.notWant != "" && got == tt.in {
 				t.Fatalf("expected sanitization to modify input")
 			}
-			if tt.notWant != "" && contains(got, tt.notWant) {
+			if tt.notWant != "" && strings.Contains(got, tt.notWant) {
 				t.Fatalf("sanitized output still contains secret %q", tt.notWant)
 			}
-			if tt.wantPart != "" && !contains(got, tt.wantPart) {
+			if tt.wantPart != "" && !strings.Contains(got, tt.wantPart) {
 				t.Fatalf("sanitized output missing expected marker %q: %s", tt.wantPart, got)
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(substr) == 0 || (len(s) >= len(substr) && containsAt(s, substr))
-}
-
-func containsAt(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

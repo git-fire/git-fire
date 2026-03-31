@@ -23,8 +23,11 @@ type Runner struct {
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config) *Runner {
-	// Create rate limiter with default config
+	// Seed from defaults, then apply user-configured global worker limit.
 	rateLimitConfig := DefaultRateLimitConfig()
+	if cfg != nil && cfg.Global.PushWorkers > 0 {
+		rateLimitConfig.GlobalLimit = cfg.Global.PushWorkers
+	}
 
 	return &Runner{
 		config:      cfg,
@@ -487,6 +490,7 @@ func (r *Runner) ExecuteStream(
 	collectorWG.Wait()
 
 	result.RepoResults = make([]RepoResult, 0, len(orderedResults))
+	// Empty-path entries are placeholders from out-of-order worker completion.
 	for _, rr := range orderedResults {
 		if rr.Path == "" {
 			continue
@@ -628,13 +632,31 @@ func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
 
 // checkSecrets scans uncommitted files for secrets and optionally blocks execution.
 func checkSecrets(repoPath string, block bool) error {
-	if uncommitted, scanErr := git.GetUncommittedFiles(repoPath); scanErr == nil && len(uncommitted) > 0 {
-		scanner := safety.NewSecretScanner()
-		if suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted); scanErr == nil && len(suspicious) > 0 {
-			fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
-			if block {
-				return fmt.Errorf("potential secrets detected in uncommitted files")
-			}
+	uncommitted, scanErr := git.GetUncommittedFiles(repoPath)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("failed to list uncommitted files for secret scan: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan skipped: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(uncommitted) == 0 {
+		return nil
+	}
+
+	scanner := safety.NewSecretScanner()
+	suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("secret scan failed: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan failed: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(suspicious) > 0 {
+		fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+		if block {
+			return fmt.Errorf("potential secrets detected in uncommitted files")
 		}
 	}
 	return nil

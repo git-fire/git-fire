@@ -55,7 +55,10 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 			// Config file found but has errors
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		// Config file not found - use defaults (this is OK)
+		// Config file not found - use defaults only when not explicitly requested.
+		if opts.ConfigFile != "" {
+			return nil, fmt.Errorf("config file not found: %s", opts.ConfigFile)
+		}
 	}
 
 	// Unmarshal into struct

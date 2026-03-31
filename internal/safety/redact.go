@@ -10,6 +10,7 @@ var redactPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),
 	regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b`),
 	regexp.MustCompile(`(?i)\b(glpat-[A-Za-z0-9\-_]{20,})\b`),
+	regexp.MustCompile(`(?i)(aws_secret_access_key|aws_secret|secret_key|secret)\s*[:=]\s*[A-Za-z0-9/+=]{40}\b`),
 	regexp.MustCompile(`(?i)(token|key|password|secret|passwd|api_key|apikey)\s*[:=]\s*\S+`),
 }
 

@@ -386,6 +386,9 @@ func TestScanRepositories_DoesNotRequireBranchEnumeration(t *testing.T) {
 	if repo.Name == "" || repo.Path == "" {
 		t.Fatal("expected repo identity metadata to be populated")
 	}
+	if len(repo.Branches) != 0 {
+		t.Errorf("expected Branches to be empty (deferred enumeration), got %v", repo.Branches)
+	}
 }
 
 // TestScanRepositories_IncludesOutOfTreeKnownPaths verifies the registry

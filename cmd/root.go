@@ -568,7 +568,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 				progress.CurrentRepo, totalStr,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
