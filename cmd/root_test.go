@@ -11,7 +11,7 @@ import (
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 func TestRootCommand_Flags(t *testing.T) {

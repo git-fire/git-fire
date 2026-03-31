@@ -11,7 +11,7 @@ import (
 	"time"
 	"github.com/git-fire/git-fire/internal/executor"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 // ---- buildKnownPaths ----
