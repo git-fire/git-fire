@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-MVP-green" alt="Status: MVP">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: alpha">
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
@@ -20,13 +20,19 @@
 
 Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
 
+## Alpha Status
+
+`git-fire` is currently in alpha, and we are actively looking for testers and feedback.
+
 ## Quick Start
 
 ### One-line emergency mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
+curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emergency.sh | bash
 ```
+
+Coming soon: this URL/script path is not live yet. Keep this command handy for the upcoming emergency bootstrap release.
 
 ### Install
 
@@ -97,6 +103,12 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 See [docs/agentic-flows.md](docs/agentic-flows.md).
 
+## Release Roadmap
+
+- **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
+- **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
+- **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
+
 ### TUI color profiles
 
 You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
@@ -154,6 +166,12 @@ Before running broad backups:
 - run `git-fire --dry-run` regularly to inspect what would be committed
 
 `git-fire` includes secret detection warnings, but commit responsibility remains with the user.
+
+## Alpha Risk and Warranty
+
+The product is stable in many common workflows, but it is still alpha and should not be fully trusted yet. Use at your own risk.
+
+No warranty is provided (express or implied), including merchantability or fitness for a particular purpose. Maintain your own backup strategy, verify backup results, and keep updating as fixes are released.
 
 ## Contributing
 

@@ -33,9 +33,15 @@ All tests must pass before submitting a PR.
 ## Submitting a PR
 
 - Keep PRs focused — one fix or feature per PR.
-- New behaviour must include tests. Bug fixes should include a regression test.
+- State what change you are making and why it is needed.
+- If the PR resolves a bug, include reproducibility steps when feasible (especially for complex issues).
+- All code changes must include tests. Bug fixes should include regression coverage.
 - Run `go vet ./...` locally before pushing; CI will enforce this too.
 - Write a clear PR description explaining *why*, not just *what*.
+
+## Maintainer
+
+The main project maintainer is `TBRX103`.
 
 ## Package Overview
 
