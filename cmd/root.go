@@ -73,7 +73,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip filesystem scan; back up only known (registry) repos this run")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
-	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL")
+	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
 
@@ -86,6 +86,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	// Handle --status flag
 	if showStatus {
 		return handleStatus()
+	}
+	if backupTo != "" {
+		// TODO(v0.2): implement backup-to remote URL
+		return fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)")
 	}
 
 	// Verify git is available before doing anything else
