@@ -37,6 +37,10 @@ var (
 			Foreground(lipgloss.Color("#666666")).
 			MarginTop(1)
 
+	scrollHintStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFD166")).
+			Bold(true)
+
 	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#FF6600")).
@@ -754,7 +758,12 @@ func (m RepoSelectorModel) View() string {
 			rightInd = "›"
 		}
 
-		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s",
+		scrollHint := ""
+		if m.cursor == i && (hasLeft || hasRight) {
+			scrollHint = "  " + scrollHintStyle.Render("<< SCROLL PATH >>")
+		}
+
+		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s%s",
 			cur,
 			checked,
 			style.Render(repo.Name),
@@ -762,6 +771,7 @@ func (m RepoSelectorModel) View() string {
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
+			scrollHint,
 		)
 		s.WriteString(line)
 		s.WriteString("\n")
@@ -781,7 +791,7 @@ func (m RepoSelectorModel) View() string {
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +

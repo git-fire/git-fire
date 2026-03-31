@@ -33,6 +33,10 @@ var (
 	liteHelpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666")).
 			MarginTop(1)
+
+	liteScrollHintStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFD166")).
+				Bold(true)
 )
 
 // RepoSelectorLiteModel is the simple, non-animated version
@@ -278,7 +282,12 @@ func (m RepoSelectorLiteModel) View() string {
 			rightInd = "›"
 		}
 
-		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s",
+		scrollHint := ""
+		if m.cursor == i && (hasLeft || hasRight) {
+			scrollHint = "  " + liteScrollHintStyle.Render("<< SCROLL PATH >>")
+		}
+
+		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s%s",
 			cursor,
 			checked,
 			style.Render(repo.Name),
@@ -286,6 +295,7 @@ func (m RepoSelectorLiteModel) View() string {
 			repo.Mode.String(),
 			remotesInfo,
 			dirtyIndicator,
+			scrollHint,
 		)
 
 		s.WriteString(line)
@@ -296,7 +306,7 @@ func (m RepoSelectorLiteModel) View() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
 			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
