@@ -60,8 +60,9 @@ See [REGISTRY.md](REGISTRY.md).
 
 ### 5) Push Execution Model
 
-- Sequential pushing reduces SSH contention.
-- Host-level limiter caps concurrent pushes to the same host at 2.
+- Repository execution is parallelized with configurable worker concurrency (`global.push_workers`, default `4`).
+- Per-host rate limiting is applied during push actions to avoid overloading a single remote host.
+- Default host limits are conservative for common providers (for example `github.com` is capped lower than generic hosts).
 
 ### 6) Safety Model
 
