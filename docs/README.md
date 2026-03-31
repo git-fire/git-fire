@@ -30,4 +30,5 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
   - [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
   - [UAT_BUGS.md](UAT_BUGS.md)
   - [validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md](validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md)
+- Artifact retention policy: [validation-artifacts/README.md](validation-artifacts/README.md)
 
