@@ -7,7 +7,7 @@ USER_BIN := $(abspath $(HOME)/.local/bin)
 INSTALL_BIN := $(USER_BIN)/$(BINARY)
 # Version: use git tag if available, otherwise "dev"
 VERSION ?= $(shell git -C "$(ROOT)" describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS := -X github.com/TBRX103/git-fire/cmd.Version=$(VERSION)
+LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
 .PHONY: all build run test test-race lint clean install help

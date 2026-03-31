@@ -77,7 +77,7 @@ Write plugins in Go that integrate deeply:
 package main
 
 import (
-    "github.com/TBRX103/git-fire/internal/plugins"
+    "github.com/git-fire/git-fire/internal/plugins"
 )
 
 type S3BackupPlugin struct {

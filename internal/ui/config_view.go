@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

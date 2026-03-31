@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/ui"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/ui"
 )
 
 func main() {

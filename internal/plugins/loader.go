@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/config"
 )
 
 // LoadFromConfig loads and registers plugins from configuration

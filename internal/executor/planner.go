@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
 )
 
 const fireBranchPlaceholder = "__git_fire_created_branch__"

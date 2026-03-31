@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/config"
 )
 
 // ---- NewFireBackground ----

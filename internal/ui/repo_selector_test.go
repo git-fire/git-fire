@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
