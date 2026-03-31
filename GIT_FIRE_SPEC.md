@@ -1,5 +1,14 @@
 # Git Fire - Emergency Git Repository Backup CLI
 
+This document is the canonical behavior/reference spec.
+
+Related docs:
+- onboarding and command quickstart: [README.md](README.md)
+- contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- plugin architecture: [PLUGINS.md](PLUGINS.md)
+- agent workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
+- documentation index: [docs/README.md](docs/README.md)
+
 ## Project Overview
 
 **Purpose:** A panic-mode backup tool that discovers all git repositories on your system and safely pushes them to remote locations with intelligent conflict handling.

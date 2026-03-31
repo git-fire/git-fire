@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing!
 
+For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Behavioral expectations and edge-case semantics live in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
+
 ## Prerequisites
 
 - Go 1.24.2 or later

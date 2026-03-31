@@ -34,11 +34,12 @@ AWS_PROFILE = "default"
 ## Usage
 
 ```bash
-# Dry run to see what would be uploaded
-git-fire --dry-run --plugin s3-upload
+# Dry run to preview git-fire actions (plugins are not executed)
+git-fire --dry-run
 
-# Actually execute
-git-fire --plugin s3-upload
+# Actually execute core backup flow
+# NOTE: Plugin loading is currently under implementation in the main CLI path.
+git-fire
 ```
 
 ## What It Does
@@ -108,5 +109,5 @@ aws configure
 
 ## See Also
 
-- [Slack notification plugin](./slack-notify.md)
-- [Local backup plugin](./local-backup.md)
+- [Plugin architecture](../../PLUGINS.md)
+- [Documentation index](../../docs/README.md)
