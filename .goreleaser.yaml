@@ -16,7 +16,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/TBRX103/git-fire/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/git-fire/git-fire/cmd.Version={{ .Tag }}
     goos:
       - linux
       - darwin
@@ -81,7 +81,7 @@ changelog:
 # brews:
 #   - name: git-fire
 #     repository:
-#       owner: TBRX103
+#       owner: git-fire
 #       name: homebrew-tap
 #       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 #       pull_request:
@@ -100,7 +100,7 @@ changelog:
 # scoops:
 #   - name: git-fire
 #     repository:
-#       owner: TBRX103
+#       owner: git-fire
 #       name: scoop-bucket
 #       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
 #       directory: bucket
