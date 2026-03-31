@@ -1,6 +1,7 @@
 package git_test
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -551,5 +552,112 @@ func TestDefaultScanOptions(t *testing.T) {
 	// Should have common exclude patterns
 	if len(opts.Exclude) == 0 {
 		t.Error("Expected default exclude patterns")
+	}
+}
+
+// ---- New tests for context cancellation, DisableScan, and FolderProgress ----
+
+// makeRepoAt creates a minimal git repo at path (with one commit) for testing.
+func makeRepoAt(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "t@e.com"},
+		{"config", "user.name", "T"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = path
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(path, "f"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "init"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = path
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+	}
+}
+
+func TestScanRepositoriesStream_ContextCancellation(t *testing.T) {
+	tempRoot := t.TempDir()
+	repoDir := filepath.Join(tempRoot, "repo")
+	makeRepoAt(t, repoDir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately so the walk exits as fast as possible
+
+	out := make(chan git.Repository, 16)
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.Ctx = ctx
+
+	err := git.ScanRepositoriesStream(opts, out)
+	if err != nil {
+		t.Fatalf("unexpected error from cancelled scan: %v", err)
+	}
+	// Channel must be closed after cancellation.
+	for range out {
+	}
+}
+
+func TestScanRepositoriesStream_DisableScan_SkipsWalk(t *testing.T) {
+	tempRoot := t.TempDir()
+
+	// Repo that IS in KnownPaths — should appear.
+	knownDir := filepath.Join(tempRoot, "known")
+	makeRepoAt(t, knownDir)
+
+	// Repo that is NOT in KnownPaths — should NOT appear when DisableScan=true.
+	unknownDir := filepath.Join(tempRoot, "unknown")
+	makeRepoAt(t, unknownDir)
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.KnownPaths = map[string]bool{knownDir: false}
+	opts.DisableScan = true
+
+	repos, err := git.ScanRepositories(opts)
+	if err != nil {
+		t.Fatalf("ScanRepositories: %v", err)
+	}
+
+	if len(repos) != 1 {
+		t.Fatalf("expected 1 repo (known only), got %d", len(repos))
+	}
+	if repos[0].Path != knownDir {
+		t.Errorf("expected known repo %s, got %s", knownDir, repos[0].Path)
+	}
+}
+
+func TestScanRepositoriesStream_FolderProgress(t *testing.T) {
+	tempRoot := t.TempDir()
+	repoDir := filepath.Join(tempRoot, "repo")
+	makeRepoAt(t, repoDir)
+
+	progress := make(chan string, 64)
+	opts := git.DefaultScanOptions()
+	opts.RootPath = tempRoot
+	opts.FolderProgress = progress
+
+	if _, err := git.ScanRepositories(opts); err != nil {
+		t.Fatalf("ScanRepositories: %v", err)
+	}
+
+	// FolderProgress must have been closed by the scanner.
+	var paths []string
+	for p := range progress {
+		paths = append(paths, p)
+	}
+
+	if len(paths) == 0 {
+		t.Error("expected at least one folder-progress message, got none")
 	}
 }

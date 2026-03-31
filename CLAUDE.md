@@ -57,8 +57,10 @@ main.go
 **Registry invariant (opt-out model):**
 Every repo git-fire discovers is immediately upserted into the persistent registry (`~/.config/git-fire/repos.toml`, beside `config.toml`) and the registry is saved before the run ends. Backup is opt-out — all `active` repos are backed up by default; users explicitly set a repo to `ignored` to exclude it. Registry entries persist their absolute paths, so repos found from one working directory are included in future runs from any directory. New entries inherit `global.default_mode` from config when the registry has no mode override for that path.
 
-**Scan→backup pipeline (non-`--fire` live runs):**
-`cmd/root.go` uses `git.ScanRepositoriesStream` to pipeline scanning and backup: as soon as a repo is discovered it is upserted into the registry and queued for backup via `executor.Runner.ExecuteStream`. Backup workers block when the queue is temporarily empty rather than waiting for the full scan to complete. `--fire` (TUI) and `--dry-run` modes still collect the full repo list first, since the TUI and plan summary both need it.
+**Scan→backup pipeline:**
+- **Default live run** (no `--fire`, no `--dry-run`): `cmd/root.go` uses `git.ScanRepositoriesStream` to pipeline scanning and backup: as soon as a repo is discovered it is upserted into the registry and queued for backup via `executor.Runner.ExecuteStream`. Backup workers block when the queue is temporarily empty rather than waiting for the full scan to complete.
+- **`--fire` (TUI):** `runFireStream` runs `git.ScanRepositoriesStream` in the background and streams repos into the TUI via `RunRepoSelectorStream` as they are discovered (progressive list, not a blocking full collect first).
+- **`--dry-run`:** `runBatch` calls `git.ScanRepositories` and waits for the full repo list before building the plan summary.
 
 ---
 

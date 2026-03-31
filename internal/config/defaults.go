@@ -24,6 +24,7 @@ func DefaultConfig() Config {
 			ScanWorkers:      8,
 			CacheTTL:         24 * time.Hour,
 			RescanSubmodules: false,
+			DisableScan:      false,
 		},
 		Backup: BackupConfig{
 			Platform:         "github",
@@ -80,6 +81,10 @@ cache_ttl = "24h"
 
 # Re-scan known repos for new submodules (global default; overridable per-repo in registry)
 rescan_submodules = false
+
+# Skip filesystem walk; only back up repos already in the registry.
+# Use --no-scan flag to override for a single run without changing this file.
+disable_scan = false
 
 [backup]
 # Backup mode: Push to a different remote (creates repos automatically)
