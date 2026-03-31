@@ -41,6 +41,10 @@ var (
 			Foreground(lipgloss.Color("#FFD166")).
 			Bold(true)
 
+	viewportWarningStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFAA00")).
+				Bold(true)
+
 	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#FF6600")).
@@ -769,11 +773,15 @@ func (m RepoSelectorModel) View() string {
 		indicators++
 	}
 	itemVisible := visible - indicators
+	hadHiddenRows := hasAbove || hasBelow
+	indicatorsSuppressed := false
 	if itemVisible < 1 {
-		// Not enough room for both items and indicators — suppress indicators
-		// so we never render more lines than the visible budget.
+		// Not enough room for both items and indicators. Suppress indicators so
+		// we never render more lines than the visible budget, and show a warning
+		// so it is obvious there are hidden rows.
 		hasAbove = false
 		hasBelow = false
+		indicatorsSuppressed = hadHiddenRows
 		itemVisible = visible
 		if itemVisible < 1 {
 			itemVisible = 1
@@ -859,6 +867,10 @@ func (m RepoSelectorModel) View() string {
 	if hasBelow {
 		below := len(m.repos) - end
 		s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↓ %d more", below)))
+		s.WriteString("\n")
+	}
+	if indicatorsSuppressed {
+		s.WriteString(viewportWarningStyle.Render("  ⚠ More repos exist, but ↑/↓ indicators are hidden in this terminal size (enlarge window or press f)."))
 		s.WriteString("\n")
 	}
 
@@ -974,9 +986,12 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		}
 
 		itemVisible := visible - indicators
+		hadHiddenRows := hasAbove || hasBelow
+		indicatorsSuppressed := false
 		if itemVisible < 1 {
 			hasAbove = false
 			hasBelow = false
+			indicatorsSuppressed = hadHiddenRows
 			itemVisible = visible
 			if itemVisible < 1 {
 				itemVisible = 1
@@ -1010,6 +1025,10 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		if hasBelow {
 			below := len(m.ignoredEntries) - end
 			s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↓ %d more", below)))
+			s.WriteString("\n")
+		}
+		if indicatorsSuppressed {
+			s.WriteString(viewportWarningStyle.Render("  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."))
 			s.WriteString("\n")
 		}
 	}

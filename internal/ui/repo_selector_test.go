@@ -441,6 +441,22 @@ func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testin
 	}
 }
 
+func TestRepoSelectorModel_View_ShowsViewportWarningWhenIndicatorsSuppressed(t *testing.T) {
+	repos := []git.Repository{
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.showFire = false
+	m.windowWidth = 80
+	m.windowHeight = 12 // intentionally tiny to force 1 list row and suppress ↑/↓ lines
+
+	view := m.View()
+	if !strings.Contains(view, "More repos exist, but ↑/↓ indicators are hidden") {
+		t.Fatalf("expected compact-height warning when indicators are suppressed, got: %q", view)
+	}
+}
+
 // --- Fire animation toggle tests ---
 
 // updateMain sends a key to the model and returns the updated RepoSelectorModel.
