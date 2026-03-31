@@ -66,14 +66,14 @@ Every repo git-fire discovers is immediately upserted into the persistent regist
 
 ## Testing
 
-**Target: 80% coverage or better on all non-UI packages.**
+**Coverage posture: risk-based, not one global percentage gate.**
 
-- Write tests for every new function in `internal/` packages (except `internal/ui`).
+- Prioritize tests for safety-critical and execution-critical paths first (`internal/git`, `internal/executor`, `internal/safety`, `internal/config`).
 - Use `internal/testutil` helpers — `fixtures.go` for temp repos, `scenarios.go` for complex multi-repo setups.
 - Always run `make test-race` before considering a change done; the CI pipeline uses `-race`.
 - Prefer table-driven tests (`t.Run` subtests) for functions with multiple input/output cases.
 - Integration-style tests that shell out to `git` are fine and preferred for `internal/git` — do not mock the git binary.
-- Coverage gaps in `internal/ui` are acceptable and expected.
+- Coverage gaps in `internal/ui` and interactive stream/TUI paths are acceptable when behavior is difficult to unit test; document known gaps and add focused tests where practical.
 
 ---
 

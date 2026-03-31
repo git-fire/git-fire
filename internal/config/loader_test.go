@@ -364,6 +364,17 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigPath(t *testing.T) {
+	path := DefaultConfigPath()
+	if filepath.Base(path) != "config.toml" {
+		t.Fatalf("expected filename config.toml, got %q", filepath.Base(path))
+	}
+	parent := filepath.Base(filepath.Dir(path))
+	if parent != "git-fire" {
+		t.Fatalf("expected parent directory git-fire, got %q", parent)
+	}
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
