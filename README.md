@@ -16,9 +16,8 @@
 > 1. `git-fire`
 > 2. Leave building
 
-`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It is useful in emergencies and in normal daily workflows for anyone who uses Git.
+`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It is useful in emergencies and in normal daily developer and agent workflows.
 
-<<<<<<< HEAD
 Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
 
 ## Quick Start
@@ -26,25 +25,12 @@ Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-
 ### One-line emergency mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
+# replace v0.1.0-alpha with the release tag you want to run
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scripts/emergency.sh | bash
 ```
 
 ### Install
 
-=======
-Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
-
-## Alpha Status
-
-`git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.
-
-## Quick Start
-
-### Install
-
-> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.
-
->>>>>>> origin/main
 | Method | Command | Platform |
 |---|---|---|
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
@@ -102,11 +88,11 @@ git-fire
 
 ## Who Is This For
 
-- **Anyone with multiple Git repos:** you want one reliable checkpoint command before context switches, travel, maintenance, or riskier changes.
-- **Developers and platform/infra engineers:** you maintain many code/IaC/config repos and want consistent, auditable bulk checkpoints.
+- **Polyrepo developers:** you touch 5-20+ repos and want one end-of-day or pre-travel checkpoint command.
+- **Platform/infra engineers:** you maintain many IaC/config/tooling repos and need consistent, auditable bulk checkpoints.
 - **Agent workflow users:** you run Claude/Cursor-style coding sessions and want a stop-hook safety net.
-- **Security/ops practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
-- **Data/research/documentation teams using Git:** you track analysis, notebooks, or docs in many repos and need repeatable backup behavior.
+- **Security/red team practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
+- **Not the target:** single-repo users and monorepo teams that already have one-repo checkpoint discipline.
 
 ## Use Cases
 
@@ -116,12 +102,6 @@ git-fire
 - Before context switch
 - Before travel
 - Before large refactor
-
-### Non-developer multi-repo checkpoint
-
-- Before publishing docs/content from multiple repositories
-- Before data-analysis environment changes
-- Before operational change windows where Git state should be preserved
 
 ### Agent session safety net
 
@@ -149,18 +129,6 @@ See [docs/security-ops.md](docs/security-ops.md).
 
 If your build is literally on fire, run `git-fire`.
 
-## Integrations and Toolchains
-
-`git-fire` can be integrated into your existing toolchains, IDE workflows, and automation hooks (for example session-stop hooks, task runners, CI helpers, or wrapper scripts).
-
-If you want first-class support for a specific workflow or application, please open a feature request or submit a PR. We would love to support your use case.
-
-## Roadmap Direction: Integrations + Redundancy Layers
-
-Roadmap focus is practical integrations and emergency redundancy layers, especially for cases like SSH auth/key failures during high-pressure moments.
-
-The goal is "paranoid and lazy" at the same time: set up layers once, then run one command when it counts.
-
 ## Feature to Use-Case Map
 
 | Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
@@ -182,15 +150,6 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - Secret detection warns before push.
 - Structured logs create a machine-readable audit trail.
 - 250+ tests cover core non-UI packages.
-
-## How Git-Fire Works (and Why It Is Worth Trusting)
-
-`git-fire` is intentionally simple in how it works, while aiming to become powerful in what it can do for emergency data safety over time.
-
-- Built in Go for a fast, typed, testable codebase with predictable cross-platform behavior.
-- Scans repository roots you explicitly provide (for example via `--path`) plus configured/default scan roots; it does not blindly crawl your entire system unless you point it there.
-- Uses concurrent scanning and worker-based execution.
-- Uses the native `git` binary and gives control points (`--dry-run`, `--skip-auto-commit`, `--status`) before making changes.
 
 ## Core Commands
 
@@ -228,7 +187,6 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
 
-<<<<<<< HEAD
 See [docs/agentic-flows.md](docs/agentic-flows.md).
 
 ### TUI color profiles
@@ -258,9 +216,6 @@ Custom hex palettes are planned but not enabled yet. A future release will allow
 ### Extensibility with plugins
 
 Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
-=======
-Practical workaround today: `git-fire && your-script`
->>>>>>> origin/main
 
 See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
@@ -274,7 +229,6 @@ Start with [docs/README.md](docs/README.md).
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Validation status: [docs/REQUIREMENTS_VALIDATION.md](docs/REQUIREMENTS_VALIDATION.md)
 
-<<<<<<< HEAD
 ## Security Notes
 
 Before running broad backups:
@@ -283,13 +237,6 @@ Before running broad backups:
 - run `git-fire --dry-run` regularly to inspect what would be committed
 
 `git-fire` includes secret detection warnings, but commit responsibility remains with the user.
-=======
-## Alpha Risk and Warranty
-
-`git-fire` is alpha software. Keep independent backups, verify results, and treat this as a fast checkpointing layer, not your only data safety mechanism.
-
-No warranty is provided (express or implied), including merchantability or fitness for a particular purpose.
->>>>>>> origin/main
 
 ## Contributing
 

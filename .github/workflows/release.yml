@@ -36,9 +36,9 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)$'; then
             echo "Invalid tag format: $TAG"
-            echo "Expected: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease"
+            echo "Expected: vMAJOR.MINOR.PATCH-prerelease (prerelease required)"
             exit 1
           fi
 
@@ -65,19 +65,13 @@ jobs:
 
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             TAG_SHA="$(git rev-list -n1 "$TAG")"
-            if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
-              echo "Tag exists locally on a different commit: $TAG ($TAG_SHA != $HEAD_SHA)"
-              exit 1
-            fi
-            echo "Tag already exists locally on HEAD; reusing: $TAG"
+            echo "Tag already exists locally: $TAG ($TAG_SHA)"
+            exit 1
           else
             REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}' | head -n1)"
             if [ -n "$REMOTE_SHA" ]; then
-              if [ "$REMOTE_SHA" != "$HEAD_SHA" ]; then
-                echo "Tag exists on origin on a different commit: $TAG ($REMOTE_SHA != $HEAD_SHA)"
-                exit 1
-              fi
-              echo "Tag already exists on origin on HEAD; reusing: $TAG"
+              echo "Tag already exists on origin: $TAG ($REMOTE_SHA)"
+              exit 1
             else
               git config user.name  "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
