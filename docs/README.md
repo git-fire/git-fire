@@ -25,8 +25,12 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 
 ## Active vs Historical Validation Docs
 
-- Active status anchor: [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
-- Historical reports and plans (use as context, not canonical status):
+- Current behavior/source-of-truth:
+  - [../README.md](../README.md)
+  - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+  - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- Historical validation snapshot and planning context:
+  - [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
   - [VALIDATION_PROGRESS.md](VALIDATION_PROGRESS.md)
   - [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
   - [UAT_BUGS.md](UAT_BUGS.md)
