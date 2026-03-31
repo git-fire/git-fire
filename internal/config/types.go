@@ -28,6 +28,7 @@ type GlobalConfig struct {
 	ScanExclude []string      `mapstructure:"scan_exclude" toml:"scan_exclude"`
 	ScanDepth   int           `mapstructure:"scan_depth"   toml:"scan_depth"`
 	ScanWorkers int           `mapstructure:"scan_workers" toml:"scan_workers"`
+	PushWorkers int           `mapstructure:"push_workers" toml:"push_workers"`
 	CacheTTL    time.Duration `mapstructure:"cache_ttl"    toml:"cache_ttl"`
 
 	// Re-scan known repos for new submodules (global default; overridable per-repo in registry)

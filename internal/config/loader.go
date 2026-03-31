@@ -92,6 +92,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("global.scan_exclude", defaults.Global.ScanExclude)
 	v.SetDefault("global.scan_depth", defaults.Global.ScanDepth)
 	v.SetDefault("global.scan_workers", defaults.Global.ScanWorkers)
+	v.SetDefault("global.push_workers", defaults.Global.PushWorkers)
 	v.SetDefault("global.cache_ttl", defaults.Global.CacheTTL)
 	v.SetDefault("global.rescan_submodules", defaults.Global.RescanSubmodules)
 	v.SetDefault("global.disable_scan", defaults.Global.DisableScan)
@@ -150,6 +151,10 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+
+	if c.Global.PushWorkers <= 0 {
+		c.Global.PushWorkers = DefaultPushWorkers
 	}
 
 	return nil
