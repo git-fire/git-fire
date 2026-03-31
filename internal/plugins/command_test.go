@@ -178,6 +178,13 @@ func TestCommandPlugin_Timeout(t *testing.T) {
 	}
 }
 
+func TestCommandPlugin_Cleanup(t *testing.T) {
+	plugin := NewCommandPlugin("cleanup-test", "echo", []string{"ok"})
+	if err := plugin.Cleanup(); err != nil {
+		t.Fatalf("Cleanup() should return nil, got %v", err)
+	}
+}
+
 // Helper
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && containsHelper(s, substr)
