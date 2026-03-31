@@ -393,8 +393,9 @@ The VALIDATION_PROGRESS.md claims ~78% overall coverage after its session. Curre
 
 | # | Question | Options | Your Call |
 |---|----------|---------|-----------|
-| 1 | `--backup-to` flag | A: Remove flag, B: Implement, C: Error "not implemented" | _pending_ |
-| 2 | Fire confirmation prompt | A: Remove from spec, B: Implement prompt | _pending_ |
-| 3 | Plugin system for beta | A: "Coming Soon" banner, B: Wire into CLI | _pending_ |
-| 4 | Push concurrency | A: Doc fix (sequential), B: Implement parallel | _pending_ |
-| 5 | UI "MVP blocker" screens (prompt, report) | A: Not needed for beta — spec is aspirational, B: Build prompt + report screens before beta | _pending_ |
+| 1 | `--backup-to` flag | A: Remove flag, B: Implement, C: Error "not implemented" | Defer full feature; treat as follow-up and make beta behavior explicit (no silent no-op). |
+| 2 | Fire confirmation prompt | A: Remove from spec, B: Implement prompt | Keep immediate execution for beta; track timer/alarm style flow as follow-up. |
+| 3 | Plugin system for beta | A: "Coming Soon" banner, B: Wire into CLI | Coming Soon for beta; remove runtime-available claims and prioritize by demand. |
+| 4 | Push concurrency | A: Doc fix (sequential), B: Implement parallel | Run in separate experiment branch; abandon if too risky and document as WIP until ready. |
+| 5 | UI "MVP blocker" screens (prompt, report) | A: Not needed for beta — spec is aspirational, B: Build prompt + report screens before beta | Not required for beta; keep tracked as post-beta follow-up. |
+| 6 | `--fire --dry-run` policy | A: Mutually exclusive, B: Honor both | Mutually exclusive for beta (explicit error if both flags are set). |

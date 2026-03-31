@@ -1,3 +1,69 @@
+# git-fire Roadmap (Post-Beta and Deferred Work)
+
+This roadmap is the single source of truth for all future, deferred, and experimental items identified during beta readiness work on `beta-readiness-audit`.
+
+## Scope Buckets
+
+- **Post-Beta (Committed):** Must remain tracked but intentionally out of beta release scope.
+- **Experiments (Time-boxed):** Isolated branches that may be abandoned if risk/complexity is too high.
+- **Deferred Product Decisions (Now Decided):** Decisions made for beta with explicit follow-up work.
+
+## Deferred Product Decisions (Recorded)
+
+- **`--backup-to` full feature:** deferred to follow-up implementation; beta must not silently no-op.
+- **Fire confirmation UX:** beta keeps immediate execution; add timer/alarm-style flow as follow-up UX.
+- **Plugins:** ship as "Coming Soon" for beta; prioritize real integration by user demand.
+- **Push concurrency:** pursue via isolated experiment branch; if risky/ugly, abandon and keep docs explicit.
+- **Extra UI prompt/report screens:** not beta blockers; keep as post-beta enhancement.
+- **`--fire --dry-run`:** mutually exclusive policy for beta; revisit only with clear use case.
+
+## Experiments
+
+- **Parallel push experiment**
+  - **Branch:** `feat/parallel-push-experiment` (or equivalent isolated branch)
+  - **Goal:** determine if parallel push can be delivered safely without SSH contention regressions.
+  - **Exit criteria:** clean correctness behavior, predictable errors, no safety regressions.
+  - **Fallback:** abandon branch and keep sequential push docs until stable design exists.
+
+## Post-Beta Backlog (From Findings)
+
+## P2/P3 Code Risks
+
+- **F-12 (P2):** Repos failing `analyzeRepository` are silently dropped from backup.
+- **F-13 (P2):** `reset --soft` destroys staged/unstaged distinction.
+- **F-14 (P2):** Progress channel can silently drop events.
+- **F-15 (P2):** Missing tests for auto-commit partial failure cleanup.
+- **F-16 (P2):** Missing tests for `conflict_strategy = "abort"`.
+- **F-17 (P2):** Missing test for `--fire --dry-run` interaction.
+- **F-18 (P2):** Plugin `expandVars` substitutes untrusted repo names into shell args.
+- **F-19 (P3):** `SaveConfig` writes noisy defaults (config bloat).
+- **F-20 (P3):** Rate limiter bypass for unknown remote names.
+
+## Deferred UX / Feature Work
+
+- **WK-2 (Option B):** decouple backup completion from scan completion for true non-blocking stream behavior.
+- **Short-terminal layout hardening:** deferred from prior PR review.
+- **Prompt/report dedicated screens:** keep in backlog pending user testing signal.
+
+## Documentation Reality Alignment (Deferred/Follow-up)
+
+- Complete all high/medium/low mismatches after beta blockers land (`D-05` through `D-35` in blockers doc).
+- Keep plugin docs explicit: available architecture, not active runtime feature.
+- Keep push model wording accurate until any parallel implementation is proven.
+
+## Validation and Release Hardening
+
+- Add at least one end-to-end smoke test for full scan->plan->commit->push flow.
+- Add/expand CLI (`cmd/`) tests where coverage is currently weak.
+- Run real-world repo trials before wider beta promotion.
+- Run GoReleaser dry-run against test tag before official beta release.
+- Plan Windows-path/quoting validation for release binaries.
+
+## Tracking Rules
+
+- Every deferred item must have one of: issue, branch, or explicit "post-beta" tag in planning docs.
+- If an experiment branch is abandoned, record decision + rationale in `BETA_BLOCKERS_PROGRESS.md`.
+- Keep this file updated whenever a deferred item is completed, descoped, or replaced.
 # 🗺️ Git-Fire Implementation Roadmap
 
 **Current Phase:** Phase 2 - Refinement & First Plugins
