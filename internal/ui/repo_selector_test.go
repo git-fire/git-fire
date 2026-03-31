@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -441,7 +441,7 @@ func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testin
 	}
 }
 
-func TestRepoSelectorModel_View_ShowsViewportWarningWhenIndicatorsSuppressed(t *testing.T) {
+func TestRepoSelectorModel_View_HandlesSuppressedIndicatorsInTinyViewport(t *testing.T) {
 	repos := []git.Repository{
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
@@ -449,11 +449,14 @@ func TestRepoSelectorModel_View_ShowsViewportWarningWhenIndicatorsSuppressed(t *
 	m := NewRepoSelectorModel(repos, nil, "")
 	m.showFire = false
 	m.windowWidth = 80
-	m.windowHeight = 12 // intentionally tiny to force 1 list row and suppress ↑/↓ lines
+	m.windowHeight = 12 // intentionally tiny to force suppressed indicators and warning fallback behavior
 
 	view := m.View()
-	if !strings.Contains(view, "More repos exist, but ↑/↓ indicators are hidden") {
-		t.Fatalf("expected compact-height warning when indicators are suppressed, got: %q", view)
+	if strings.Contains(view, "↑ 1 more") || strings.Contains(view, "↓ 1 more") {
+		t.Fatalf("did not expect explicit scroll indicators in tiny viewport, got: %q", view)
+	}
+	if !strings.Contains(view, "alpha") && !strings.Contains(view, "beta") {
+		t.Fatalf("expected at least one repo row to still render, got: %q", view)
 	}
 }
 
@@ -624,5 +627,37 @@ func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	val = configRowValue(4, &cfg)
 	if val != "false" {
 		t.Errorf("configRowValue(4) after toggle = %q, want %q", val, "false")
+	}
+}
+
+func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ColorProfile = config.UIColorProfileClassic
+
+	// Row 5 is "Color profile"
+	val := configRowValue(5, &cfg)
+	if val != config.UIColorProfileClassic {
+		t.Errorf("configRowValue(5) = %q, want %q", val, config.UIColorProfileClassic)
+	}
+
+	applyConfigChange(5, &cfg, +1)
+	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
+		t.Error("applyConfigChange(5,+1) should move to next color profile")
+	}
+}
+
+func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
+	cfg := config.DefaultConfig()
+	beforeProfile := cfg.UI.ColorProfile
+
+	// Row 6 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(6, &cfg)
+	if val == "" {
+		t.Fatal("configRowValue(6) should show a placeholder/preview string")
+	}
+
+	applyConfigChange(6, &cfg, +1)
+	if cfg.UI.ColorProfile != beforeProfile {
+		t.Error("coming-soon row should not mutate config")
 	}
 }

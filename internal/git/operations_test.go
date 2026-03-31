@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TBRX103/git-fire/internal/testutil"
+	"github.com/git-fire/git-fire/internal/testutil"
 )
 
 func TestAutoCommitDirty(t *testing.T) {

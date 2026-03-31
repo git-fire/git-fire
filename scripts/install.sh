@@ -2,10 +2,10 @@
 # Git-Fire Installer
 #
 # Install git-fire:
-#   curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
 #
 # OR:
-#   wget -qO- https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+#   wget -qO- https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
 
 set -e
 
@@ -15,7 +15,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-GITHUB_REPO="TBRX103/git-fire"
+GITHUB_REPO="git-fire/git-fire"
 
 echo -e "${GREEN}🔥 Installing Git-Fire...${NC}\n"
 

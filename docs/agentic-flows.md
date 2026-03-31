@@ -421,7 +421,7 @@ echo '{"path":"/home/user/projects/api"}' | git-fire --repos-from-stdin
 **Proposed work:** Export a stable public API from a `gitfire` package:
 
 ```go
-import "github.com/TBRX103/git-fire/pkg/gitfire"
+import "github.com/git-fire/git-fire/pkg/gitfire"
 
 result, err := gitfire.Backup(gitfire.Options{
     Path:           "~/projects",

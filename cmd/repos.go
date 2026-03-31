@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 var reposCmd = &cobra.Command{

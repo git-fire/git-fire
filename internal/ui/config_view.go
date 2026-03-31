@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TBRX103/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -21,6 +21,7 @@ type configRowKind int
 const (
 	configRowBool configRowKind = iota
 	configRowEnum
+	configRowComingSoon
 )
 
 var configRows = []configRow{
@@ -37,6 +38,8 @@ var configRows = []configRow{
 	}},
 	{label: "Disable scan", kind: configRowBool},
 	{label: "Show fire animation", kind: configRowBool},
+	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
+	{label: "Custom hex palette", kind: configRowComingSoon},
 }
 
 // configRowValue returns the current string representation of row i for cfg.
@@ -64,6 +67,10 @@ func configRowValue(i int, cfg *config.Config) string {
 			return "true"
 		}
 		return "false"
+	case 5:
+		return cfg.UI.ColorProfile
+	case 6:
+		return palettePreviewString(activeFireColors)
 	}
 	return ""
 }
@@ -101,8 +108,23 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.DefaultMode = opts[idx]
 		case 2:
 			cfg.Global.ConflictStrategy = opts[idx]
+		case 5:
+			cfg.UI.ColorProfile = opts[idx]
 		}
+	case configRowComingSoon:
+		// Reserved for future custom hex palette editing.
 	}
+}
+
+func palettePreviewString(palette []lipgloss.Color) string {
+	if len(palette) == 0 {
+		return "coming soon"
+	}
+	preview := make([]string, 0, min(4, len(palette)))
+	for i := 0; i < len(palette) && i < 4; i++ {
+		preview = append(preview, string(palette[i]))
+	}
+	return strings.Join(preview, " ")
 }
 
 // updateConfigView handles key input while the config view is active.
@@ -128,6 +150,9 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
+		if m.cfg != nil {
+			applyColorProfile(m.cfg.UI.ColorProfile)
+		}
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
@@ -135,6 +160,9 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
+		if m.cfg != nil {
+			applyColorProfile(m.cfg.UI.ColorProfile)
+		}
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
@@ -170,16 +198,16 @@ func (m RepoSelectorModel) viewConfig() string {
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render("🔥 GIT FIRE — SETTINGS"))
 	s.WriteString("\n\n")
 
-	cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600")).Bold(true)
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC"))
-	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF99")).Bold(true)
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	cursorStyle := lipgloss.NewStyle().Foreground(activeProfile().configCursor).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(activeProfile().configLabel)
+	valueStyle := lipgloss.NewStyle().Foreground(activeProfile().configValue).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(activeProfile().configDim)
 
 	for i, row := range configRows {
 		cur := " "
@@ -193,6 +221,8 @@ func (m RepoSelectorModel) viewConfig() string {
 		if m.configCursor == i {
 			if row.kind == configRowBool {
 				hintStr = dimStyle.Render("  space to toggle")
+			} else if row.kind == configRowComingSoon {
+				hintStr = dimStyle.Render("  coming soon")
 			} else {
 				hintStr = dimStyle.Render("  ←/→ to change")
 			}
@@ -215,6 +245,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString("\n")
 		s.WriteString(helpStyle.Render(
 			"In-memory settings updated; fix the error above to persist to disk.\n" +
+				"Custom hex palette editing is coming soon.\n" +
 				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	} else {
@@ -226,6 +257,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		}
 		s.WriteString(helpStyle.Render(
 			"Changes saved immediately to " + cfgPathStr + "\n" +
+				"Custom hex palette editing is coming soon.\n" +
 				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	}

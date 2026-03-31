@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TBRX103/git-fire/internal/config"
-	"github.com/TBRX103/git-fire/internal/git"
-	"github.com/TBRX103/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -50,6 +50,10 @@ var (
 			BorderForeground(lipgloss.Color("#FF6600")).
 			Padding(1, 2)
 )
+
+func init() {
+	applyColorProfile(config.UIColorProfileClassic)
+}
 
 // ASCII fire frames for animation
 var fireFrames = []string{
@@ -166,6 +170,7 @@ type RepoSelectorModel struct {
 
 // NewRepoSelectorModel creates a new repo selector
 func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath string) RepoSelectorModel {
+	applyColorProfile(config.UIColorProfileClassic)
 	// Initialize all repos as selected by default
 	selected := make(map[int]bool)
 	for i := range repos {
@@ -175,23 +180,23 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	// Create spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
 	// Initialize fire background
 	fireBg := NewFireBackground(70, 5)
 
 	return RepoSelectorModel{
-		repos:           repos,
-		cursor:          0,
-		selected:        selected,
-		fireBg:          fireBg,
-		spinner:         s,
-		windowWidth:     80,
-		windowHeight:    40,
-		reg:             reg,
-		regPath:         regPath,
-		pathScrollDir:   1,
-		showFire:        true,
+		repos:         repos,
+		cursor:        0,
+		selected:      selected,
+		fireBg:        fireBg,
+		spinner:       s,
+		windowWidth:   80,
+		windowHeight:  40,
+		reg:           reg,
+		regPath:       regPath,
+		pathScrollDir: 1,
+		showFire:      true,
 	}
 }
 
@@ -208,9 +213,15 @@ func NewRepoSelectorModelStream(
 	reg *registry.Registry,
 	regPath string,
 ) RepoSelectorModel {
+	profileName := config.UIColorProfileClassic
+	if cfg != nil && cfg.UI.ColorProfile != "" {
+		profileName = cfg.UI.ColorProfile
+	}
+	applyColorProfile(profileName)
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
 	fireBg := NewFireBackground(70, 5)
 
@@ -220,24 +231,24 @@ func NewRepoSelectorModelStream(
 	}
 
 	return RepoSelectorModel{
-		repos:        nil,
-		cursor:       0,
-		selected:     make(map[int]bool),
-		fireBg:       fireBg,
-		spinner:      s,
-		windowWidth:  80,
-		windowHeight: 40,
-		reg:          reg,
-		regPath:      regPath,
-		scanChan:     scanChan,
-		progressChan: progressChan,
-		scanDone:             scanDisabled, // if scan is disabled there's nothing to wait for
-		progDone:             scanDisabled,
-		scanDisabled:         scanDisabled,
-		scanDisabledRunOnly:  scanDisabledRunOnly,
-		cfg:                  cfg,
-		cfgPath:              cfgPath,
-		showFire:             showFire,
+		repos:               nil,
+		cursor:              0,
+		selected:            make(map[int]bool),
+		fireBg:              fireBg,
+		spinner:             s,
+		windowWidth:         80,
+		windowHeight:        40,
+		reg:                 reg,
+		regPath:             regPath,
+		scanChan:            scanChan,
+		progressChan:        progressChan,
+		scanDone:            scanDisabled, // if scan is disabled there's nothing to wait for
+		progDone:            scanDisabled,
+		scanDisabled:        scanDisabled,
+		scanDisabledRunOnly: scanDisabledRunOnly,
+		cfg:                 cfg,
+		cfgPath:             cfgPath,
+		showFire:            showFire,
 	}
 }
 
@@ -577,8 +588,8 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		buf.WriteString("\n\n")
 	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2).
 		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
 	buf.WriteString("\n\n")
@@ -611,8 +622,9 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 
 // ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
 // Overhead:
-//   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//   + help marginTop (1) + help body (3) + box border+padding (4) = 20
+//
+//	fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
+//	+ help marginTop (1) + help body (3) + box border+padding (4) = 20
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
 	const overhead = 20
 	n := m.windowHeight - overhead
@@ -662,6 +674,20 @@ func (m RepoSelectorModel) contentWidth() int {
 		w = 0
 	}
 	return w
+}
+
+func viewportWarningRows(contentWidth int, warning string) int {
+	if warning == "" {
+		return 1
+	}
+	if contentWidth < 1 {
+		return 1
+	}
+	h := lipgloss.Height(lipgloss.NewStyle().MaxWidth(contentWidth).Render(warning))
+	if h < 1 {
+		return 1
+	}
+	return h
 }
 
 func (m RepoSelectorModel) restoreIgnoredAtCursor() RepoSelectorModel {
@@ -745,8 +771,8 @@ func (m RepoSelectorModel) View() string {
 	titleText := "🔥 GIT FIRE - SELECT REPOSITORIES 🔥"
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
@@ -775,14 +801,19 @@ func (m RepoSelectorModel) View() string {
 	itemVisible := visible - indicators
 	hadHiddenRows := hasAbove || hasBelow
 	indicatorsSuppressed := false
+	viewportWarning := "  ⚠ More repos exist, but ↑/↓ indicators are hidden in this terminal size (enlarge window or press f)."
+	warningRows := viewportWarningRows(cw, viewportWarning)
 	if itemVisible < 1 {
 		// Not enough room for both items and indicators. Suppress indicators so
-		// we never render more lines than the visible budget, and show a warning
-		// so it is obvious there are hidden rows.
+		// we never render more lines than the visible budget.
 		hasAbove = false
 		hasBelow = false
-		indicatorsSuppressed = hadHiddenRows
 		itemVisible = visible
+		// Only show the warning when we can reserve enough viewport rows for it.
+		if hadHiddenRows && visible-warningRows >= 1 {
+			indicatorsSuppressed = true
+			itemVisible = visible - warningRows
+		}
 		if itemVisible < 1 {
 			itemVisible = 1
 		}
@@ -870,7 +901,7 @@ func (m RepoSelectorModel) View() string {
 		s.WriteString("\n")
 	}
 	if indicatorsSuppressed {
-		s.WriteString(viewportWarningStyle.Render("  ⚠ More repos exist, but ↑/↓ indicators are hidden in this terminal size (enlarge window or press f)."))
+		s.WriteString(viewportWarningStyle.Render(viewportWarning))
 		s.WriteString("\n")
 	}
 
@@ -910,7 +941,7 @@ func (m RepoSelectorModel) View() string {
 func (m RepoSelectorModel) renderScanStatus() string {
 	scanStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#555555")).
+		BorderForeground(activeProfile().scanBorder).
 		Padding(0, 1)
 
 	switch {
@@ -921,11 +952,11 @@ func (m RepoSelectorModel) renderScanStatus() string {
 		} else {
 			label = "⚠️  Scanning Disabled"
 		}
-		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00")).Render(label))
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanWarn).Render(label))
 
 	case m.scanDone:
 		msg := fmt.Sprintf("✅ Scan Complete  (%d new repos found)", m.scanNewCount)
-		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#00CC66")).Render(msg))
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanDone).Render(msg))
 
 	default:
 		folder := m.scanCurrentPath
@@ -957,8 +988,8 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥"))
 	s.WriteString("\n\n")
@@ -988,11 +1019,16 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		itemVisible := visible - indicators
 		hadHiddenRows := hasAbove || hasBelow
 		indicatorsSuppressed := false
+		viewportWarning := "  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."
+		warningRows := viewportWarningRows(cw, viewportWarning)
 		if itemVisible < 1 {
 			hasAbove = false
 			hasBelow = false
-			indicatorsSuppressed = hadHiddenRows
 			itemVisible = visible
+			if hadHiddenRows && visible-warningRows >= 1 {
+				indicatorsSuppressed = true
+				itemVisible = visible - warningRows
+			}
 			if itemVisible < 1 {
 				itemVisible = 1
 			}
@@ -1028,7 +1064,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			s.WriteString("\n")
 		}
 		if indicatorsSuppressed {
-			s.WriteString(viewportWarningStyle.Render("  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."))
+			s.WriteString(viewportWarningStyle.Render(viewportWarning))
 			s.WriteString("\n")
 		}
 	}

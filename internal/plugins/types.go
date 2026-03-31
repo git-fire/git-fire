@@ -3,7 +3,7 @@ package plugins
 import (
 	"time"
 
-	"github.com/TBRX103/git-fire/internal/executor"
+	"github.com/git-fire/git-fire/internal/executor"
 )
 
 // Plugin is the core interface all plugins must implement

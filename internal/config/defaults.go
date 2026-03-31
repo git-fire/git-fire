@@ -7,6 +7,7 @@ func DefaultConfig() Config {
 	return Config{
 		UI: UIConfig{
 			ShowFireAnimation: true,
+			ColorProfile:      UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
 			DefaultMode:      "push-known-branches",
@@ -94,6 +95,10 @@ disable_scan = false
 # Toggle live during a session with the 'f' key.
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
+
+# Built-in color profile for fire + borders/accents in the TUI.
+# Options: "classic", "synthwave", "forest", "arctic"
+color_profile = "classic"
 
 [backup]
 # Backup mode: Push to a different remote (creates repos automatically)
