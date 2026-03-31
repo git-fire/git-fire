@@ -129,10 +129,16 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
 		m = m.saveConfig()
+		if m.cfg != nil {
+			m.showFire = m.cfg.UI.ShowFireAnimation
+		}
 
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
 		m = m.saveConfig()
+		if m.cfg != nil {
+			m.showFire = m.cfg.UI.ShowFireAnimation
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -155,10 +161,12 @@ func (m RepoSelectorModel) saveConfig() RepoSelectorModel {
 func (m RepoSelectorModel) viewConfig() string {
 	var s strings.Builder
 
-	s.WriteString(m.fireBg.Render())
-	s.WriteString("\n")
-	s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
-	s.WriteString("\n\n")
+	if m.fireVisible() {
+		s.WriteString(m.fireBg.Render())
+		s.WriteString("\n")
+		s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
+		s.WriteString("\n\n")
+	}
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).

@@ -936,10 +936,12 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 	fireW := min(cw, 70)
 
 	var s strings.Builder
-	s.WriteString(m.fireBg.Render())
-	s.WriteString("\n")
-	s.WriteString(RenderFireWave(fireW, m.frameIndex))
-	s.WriteString("\n\n")
+	if m.fireVisible() {
+		s.WriteString(m.fireBg.Render())
+		s.WriteString("\n")
+		s.WriteString(RenderFireWave(fireW, m.frameIndex))
+		s.WriteString("\n\n")
+	}
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
