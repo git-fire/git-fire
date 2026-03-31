@@ -25,6 +25,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Global.ScanWorkers != 8 {
 		t.Errorf("Expected scan_workers to be 8, got %d", cfg.Global.ScanWorkers)
 	}
+	if cfg.Global.PushWorkers != DefaultPushWorkers {
+		t.Errorf("Expected push_workers to be %d, got %d", DefaultPushWorkers, cfg.Global.PushWorkers)
+	}
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
 	}
@@ -62,6 +65,7 @@ func TestLoadConfig_WithFile(t *testing.T) {
 default_mode = "push-all"
 auto_commit_dirty = false
 scan_workers = 16
+push_workers = 3
 
 [backup]
 platform = "gitlab"
@@ -87,6 +91,9 @@ platform = "gitlab"
 
 	if cfg.Global.ScanWorkers != 16 {
 		t.Errorf("Expected scan_workers to be 16, got %d", cfg.Global.ScanWorkers)
+	}
+	if cfg.Global.PushWorkers != 3 {
+		t.Errorf("Expected push_workers to be 3, got %d", cfg.Global.PushWorkers)
 	}
 
 	if cfg.Backup.Platform != "gitlab" {
@@ -180,6 +187,20 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid push workers fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+					PushWorkers:      0,
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,6 +208,9 @@ func TestValidate(t *testing.T) {
 			err := tt.cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.name == "invalid push workers fallback to default" && tt.cfg.Global.PushWorkers != DefaultPushWorkers {
+				t.Errorf("PushWorkers fallback = %d, want %d", tt.cfg.Global.PushWorkers, DefaultPushWorkers)
 			}
 		})
 	}
@@ -359,6 +383,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.DisableScan = true
 	original.Global.AutoCommitDirty = false
 	original.Global.ConflictStrategy = "abort"
+	original.Global.PushWorkers = 7
 	original.UI.ColorProfile = UIColorProfileSynthwave
 
 	loaded := saveConfigAndReload(t, &original)
@@ -374,6 +399,9 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.Global.ConflictStrategy != "abort" {
 		t.Errorf("ConflictStrategy: want abort, got %s", loaded.Global.ConflictStrategy)
+	}
+	if loaded.Global.PushWorkers != 7 {
+		t.Errorf("PushWorkers: want 7, got %d", loaded.Global.PushWorkers)
 	}
 	if loaded.UI.ColorProfile != UIColorProfileSynthwave {
 		t.Errorf("UIColorProfile: want %s, got %s", UIColorProfileSynthwave, loaded.UI.ColorProfile)
