@@ -148,7 +148,11 @@ func (fb *FireBackground) Render() string {
 			// Style the character with fire color
 			color := lipgloss.Color("#FF6600")
 			if len(activeFireColors) > 0 {
-				color = activeFireColors[p.ColorIdx]
+				safeIdx := p.ColorIdx % len(activeFireColors)
+				if safeIdx < 0 {
+					safeIdx += len(activeFireColors)
+				}
+				color = activeFireColors[safeIdx]
 			}
 			style := lipgloss.NewStyle().Foreground(color)
 			grid[p.Y][p.X] = style.Render(p.Char)

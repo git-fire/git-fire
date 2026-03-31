@@ -676,6 +676,20 @@ func (m RepoSelectorModel) contentWidth() int {
 	return w
 }
 
+func viewportWarningRows(contentWidth int, warning string) int {
+	if warning == "" {
+		return 1
+	}
+	if contentWidth < 1 {
+		return 1
+	}
+	h := lipgloss.Height(lipgloss.NewStyle().MaxWidth(contentWidth).Render(warning))
+	if h < 1 {
+		return 1
+	}
+	return h
+}
+
 func (m RepoSelectorModel) restoreIgnoredAtCursor() RepoSelectorModel {
 	if m.reg == nil || m.regPath == "" || len(m.ignoredEntries) == 0 {
 		return m
@@ -787,14 +801,19 @@ func (m RepoSelectorModel) View() string {
 	itemVisible := visible - indicators
 	hadHiddenRows := hasAbove || hasBelow
 	indicatorsSuppressed := false
+	viewportWarning := "  ⚠ More repos exist, but ↑/↓ indicators are hidden in this terminal size (enlarge window or press f)."
+	warningRows := viewportWarningRows(cw, viewportWarning)
 	if itemVisible < 1 {
 		// Not enough room for both items and indicators. Suppress indicators so
-		// we never render more lines than the visible budget, and show a warning
-		// so it is obvious there are hidden rows.
+		// we never render more lines than the visible budget.
 		hasAbove = false
 		hasBelow = false
-		indicatorsSuppressed = hadHiddenRows
 		itemVisible = visible
+		// Only show the warning when we can reserve enough viewport rows for it.
+		if hadHiddenRows && visible-warningRows >= 1 {
+			indicatorsSuppressed = true
+			itemVisible = visible - warningRows
+		}
 		if itemVisible < 1 {
 			itemVisible = 1
 		}
@@ -882,7 +901,7 @@ func (m RepoSelectorModel) View() string {
 		s.WriteString("\n")
 	}
 	if indicatorsSuppressed {
-		s.WriteString(viewportWarningStyle.Render("  ⚠ More repos exist, but ↑/↓ indicators are hidden in this terminal size (enlarge window or press f)."))
+		s.WriteString(viewportWarningStyle.Render(viewportWarning))
 		s.WriteString("\n")
 	}
 
@@ -1000,11 +1019,16 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		itemVisible := visible - indicators
 		hadHiddenRows := hasAbove || hasBelow
 		indicatorsSuppressed := false
+		viewportWarning := "  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."
+		warningRows := viewportWarningRows(cw, viewportWarning)
 		if itemVisible < 1 {
 			hasAbove = false
 			hasBelow = false
-			indicatorsSuppressed = hadHiddenRows
 			itemVisible = visible
+			if hadHiddenRows && visible-warningRows >= 1 {
+				indicatorsSuppressed = true
+				itemVisible = visible - warningRows
+			}
 			if itemVisible < 1 {
 				itemVisible = 1
 			}
@@ -1040,7 +1064,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			s.WriteString("\n")
 		}
 		if indicatorsSuppressed {
-			s.WriteString(viewportWarningStyle.Render("  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."))
+			s.WriteString(viewportWarningStyle.Render(viewportWarning))
 			s.WriteString("\n")
 		}
 	}

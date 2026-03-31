@@ -441,7 +441,7 @@ func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testin
 	}
 }
 
-func TestRepoSelectorModel_View_ShowsViewportWarningWhenIndicatorsSuppressed(t *testing.T) {
+func TestRepoSelectorModel_View_HandlesSuppressedIndicatorsInTinyViewport(t *testing.T) {
 	repos := []git.Repository{
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
@@ -449,11 +449,14 @@ func TestRepoSelectorModel_View_ShowsViewportWarningWhenIndicatorsSuppressed(t *
 	m := NewRepoSelectorModel(repos, nil, "")
 	m.showFire = false
 	m.windowWidth = 80
-	m.windowHeight = 12 // intentionally tiny to force 1 list row and suppress ↑/↓ lines
+	m.windowHeight = 12 // intentionally tiny to force suppressed indicators and warning fallback behavior
 
 	view := m.View()
-	if !strings.Contains(view, "More repos exist, but ↑/↓ indicators are hidden") {
-		t.Fatalf("expected compact-height warning when indicators are suppressed, got: %q", view)
+	if strings.Contains(view, "↑ 1 more") || strings.Contains(view, "↓ 1 more") {
+		t.Fatalf("did not expect explicit scroll indicators in tiny viewport, got: %q", view)
+	}
+	if !strings.Contains(view, "alpha") && !strings.Contains(view, "beta") {
+		t.Fatalf("expected at least one repo row to still render, got: %q", view)
 	}
 }
 

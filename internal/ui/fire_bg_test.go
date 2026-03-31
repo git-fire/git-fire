@@ -239,6 +239,9 @@ func TestRenderFireWave_DifferentFrames(t *testing.T) {
 }
 
 func TestRenderFireWave_UsesActiveColorProfile(t *testing.T) {
+	prevProfile := activeProfileName
+	defer applyColorProfile(prevProfile)
+
 	applyColorProfile(config.UIColorProfileClassic)
 	classicFirst := activeFireColors[0]
 
