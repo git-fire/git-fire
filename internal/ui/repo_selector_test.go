@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TBRX103/git-fire/internal/config"
 	"github.com/TBRX103/git-fire/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -437,5 +438,175 @@ func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testin
 	view := m.View()
 	if !strings.Contains(view, "alpha") && !strings.Contains(view, "beta") {
 		t.Fatalf("expected at least one repo row to render at small height, got: %q", view)
+	}
+}
+
+// --- Fire animation toggle tests ---
+
+// updateMain sends a key to the model and returns the updated RepoSelectorModel.
+func updateMain(t *testing.T, m RepoSelectorModel, msg tea.Msg) RepoSelectorModel {
+	t.Helper()
+	updated, _ := m.Update(msg)
+	typed, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	return typed
+}
+
+func TestRepoSelectorModel_DefaultShowFire(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	if !m.showFire {
+		t.Error("showFire should be true by default")
+	}
+}
+
+func TestRepoSelectorModel_ShowFireFromConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowFireAnimation = false
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	if m.showFire {
+		t.Error("showFire should be false when cfg.UI.ShowFireAnimation = false")
+	}
+}
+
+func TestRepoSelectorModel_FKeyTogglesShowFire(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.windowHeight = 40 // large enough that auto-suppress doesn't interfere
+
+	if !m.showFire {
+		t.Fatal("precondition: showFire should start true")
+	}
+
+	m = updateMain(t, m, press('f'))
+	if m.showFire {
+		t.Error("after first 'f', showFire should be false")
+	}
+
+	m = updateMain(t, m, press('f'))
+	if !m.showFire {
+		t.Error("after second 'f', showFire should be true again")
+	}
+}
+
+func TestRepoSelectorModel_FKeyNoOpInIgnoredView(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.showFire = true
+
+	m = updateMain(t, m, press('f'))
+	if !m.showFire {
+		t.Error("'f' in ignored view should not toggle showFire")
+	}
+}
+
+func TestRepoSelectorModel_FKeyPersistsToConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowFireAnimation = true
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m.windowHeight = 40
+
+	m = updateMain(t, m, press('f'))
+
+	if m.cfg.UI.ShowFireAnimation {
+		t.Error("cfg.UI.ShowFireAnimation should be false after toggling off")
+	}
+	if m.showFire {
+		t.Error("showFire should be false after toggling off")
+	}
+}
+
+func TestRepoSelectorModel_ViewShowsFireWhenEnabled(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showFire = true
+	m.windowWidth = 80
+	m.windowHeight = 40 // above threshold
+
+	if !m.fireVisible() {
+		t.Fatal("precondition: fireVisible() must be true for this test")
+	}
+
+	// With fire enabled the rendered output is taller; measure both and confirm
+	// fire-on renders more lines than fire-off.
+	viewFireOn := m.View()
+
+	m.showFire = false
+	viewFireOff := m.View()
+
+	heightOn := strings.Count(viewFireOn, "\n")
+	heightOff := strings.Count(viewFireOff, "\n")
+	if heightOn <= heightOff {
+		t.Errorf("fire-on view (%d lines) should be taller than fire-off view (%d lines)", heightOn, heightOff)
+	}
+}
+
+func TestRepoSelectorModel_ViewHidesFireWhenDisabled(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showFire = false
+	m.windowWidth = 80
+	m.windowHeight = 40
+
+	view := m.View()
+	// List and controls must still be present
+	if !strings.Contains(view, "GIT FIRE") {
+		t.Error("title must still appear when fire is hidden")
+	}
+	if !strings.Contains(view, "Toggle fire") {
+		t.Error("help text must still show 'Toggle fire' hint")
+	}
+}
+
+func TestRepoSelectorModel_ViewSuppressesFireOnSmallTerminal(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showFire = true // user preference is on, but terminal is too short
+	m.windowWidth = 80
+	m.windowHeight = fireHeightThreshold - 1 // below threshold
+
+	if m.fireVisible() {
+		t.Error("fireVisible() should return false when windowHeight <= fireHeightThreshold")
+	}
+
+	view := m.View()
+	// List must still be present
+	if !strings.Contains(view, "GIT FIRE") {
+		t.Error("title must appear even when fire is suppressed due to small terminal")
+	}
+}
+
+func TestRepoSelectorModel_FireVisibleThreshold(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showFire = true
+
+	m.windowHeight = fireHeightThreshold
+	if m.fireVisible() {
+		t.Errorf("fireVisible() should be false at exactly windowHeight=%d (threshold)", fireHeightThreshold)
+	}
+
+	m.windowHeight = fireHeightThreshold + 1
+	if !m.fireVisible() {
+		t.Errorf("fireVisible() should be true at windowHeight=%d (threshold+1)", fireHeightThreshold+1)
+	}
+}
+
+func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowFireAnimation = true
+
+	// Row 4 is "Show fire animation"
+	val := configRowValue(4, &cfg)
+	if val != "true" {
+		t.Errorf("configRowValue(4) = %q, want %q", val, "true")
+	}
+
+	applyConfigChange(4, &cfg, 0) // direction ignored for bools
+	if cfg.UI.ShowFireAnimation {
+		t.Error("applyConfigChange(4) should have toggled ShowFireAnimation to false")
+	}
+
+	val = configRowValue(4, &cfg)
+	if val != "false" {
+		t.Errorf("configRowValue(4) after toggle = %q, want %q", val, "false")
 	}
 }

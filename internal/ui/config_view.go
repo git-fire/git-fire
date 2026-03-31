@@ -36,6 +36,7 @@ var configRows = []configRow{
 		"abort",
 	}},
 	{label: "Disable scan", kind: configRowBool},
+	{label: "Show fire animation", kind: configRowBool},
 }
 
 // configRowValue returns the current string representation of row i for cfg.
@@ -58,6 +59,11 @@ func configRowValue(i int, cfg *config.Config) string {
 			return "true"
 		}
 		return "false"
+	case 4:
+		if cfg.UI.ShowFireAnimation {
+			return "true"
+		}
+		return "false"
 	}
 	return ""
 }
@@ -76,6 +82,8 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.AutoCommitDirty = !cfg.Global.AutoCommitDirty
 		case 3:
 			cfg.Global.DisableScan = !cfg.Global.DisableScan
+		case 4:
+			cfg.UI.ShowFireAnimation = !cfg.UI.ShowFireAnimation
 		}
 	case configRowEnum:
 		opts := row.options

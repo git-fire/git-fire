@@ -5,6 +5,9 @@ import "time"
 // DefaultConfig returns safe default configuration
 func DefaultConfig() Config {
 	return Config{
+		UI: UIConfig{
+			ShowFireAnimation: true,
+		},
 		Global: GlobalConfig{
 			DefaultMode:      "push-known-branches",
 			ConflictStrategy: "new-branch",
@@ -85,6 +88,12 @@ rescan_submodules = false
 # Skip filesystem walk; only back up repos already in the registry.
 # Use --no-scan flag to override for a single run without changing this file.
 disable_scan = false
+
+[ui]
+# Show the fire animation in the TUI repo selector.
+# Toggle live during a session with the 'f' key.
+# The animation is always suppressed when the terminal is too short regardless of this setting.
+show_fire_animation = true
 
 [backup]
 # Backup mode: Push to a different remote (creates repos automatically)

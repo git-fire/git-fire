@@ -5,6 +5,7 @@ import "time"
 // Config represents the complete git-fire configuration
 type Config struct {
 	Global  GlobalConfig   `mapstructure:"global"   toml:"global"`
+	UI      UIConfig       `mapstructure:"ui"       toml:"ui"`
 	Backup  BackupConfig   `mapstructure:"backup"   toml:"backup"`
 	Auth    AuthConfig     `mapstructure:"auth"     toml:"auth"`
 	Plugins PluginsConfig  `mapstructure:"plugins"  toml:"plugins"`
@@ -84,6 +85,13 @@ type RepoOverride struct {
 
 	// Re-scan this repo for submodules. nil/unset = use global default.
 	RescanSubmodules *bool `mapstructure:"rescan_submodules" toml:"rescan_submodules"`
+}
+
+// UIConfig contains TUI/display settings
+type UIConfig struct {
+	// Show the fire animation in the repo selector. Toggle live with 'f'.
+	// Automatically suppressed when the terminal is too short.
+	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
 }
 
 // PluginsConfig contains plugin configuration
