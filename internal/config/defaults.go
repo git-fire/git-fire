@@ -2,6 +2,8 @@ package config
 
 import "time"
 
+const DefaultPushWorkers = 4
+
 // DefaultConfig returns safe default configuration
 func DefaultConfig() Config {
 	return Config{
@@ -26,6 +28,7 @@ func DefaultConfig() Config {
 			},
 			ScanDepth:        10,
 			ScanWorkers:      8,
+			PushWorkers:      DefaultPushWorkers,
 			CacheTTL:         24 * time.Hour,
 			RescanSubmodules: false,
 			DisableScan:      false,
@@ -79,6 +82,9 @@ scan_depth = 10
 
 # Number of parallel workers for scanning
 scan_workers = 8
+
+# Number of parallel workers for pushing repositories
+push_workers = 4
 
 # Cache TTL (e.g., "24h", "1h30m")
 cache_ttl = "24h"
