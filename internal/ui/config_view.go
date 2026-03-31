@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/git-fire/git-fire/internal/config"
@@ -37,6 +38,13 @@ var configRows = []configRow{
 		"abort",
 	}},
 	{label: "Disable scan", kind: configRowBool},
+	{label: "Push workers", kind: configRowEnum, options: []string{
+		"1",
+		"2",
+		"4",
+		"8",
+		"16",
+	}},
 	{label: "Show fire animation", kind: configRowBool},
 	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
 	{label: "Custom hex palette", kind: configRowComingSoon},
@@ -63,13 +71,15 @@ func configRowValue(i int, cfg *config.Config) string {
 		}
 		return "false"
 	case 4:
+		return strconv.Itoa(cfg.Global.PushWorkers)
+	case 5:
 		if cfg.UI.ShowFireAnimation {
 			return "true"
 		}
 		return "false"
-	case 5:
-		return cfg.UI.ColorProfile
 	case 6:
+		return cfg.UI.ColorProfile
+	case 7:
 		return palettePreviewString(activeFireColors)
 	}
 	return ""
@@ -89,7 +99,7 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.AutoCommitDirty = !cfg.Global.AutoCommitDirty
 		case 3:
 			cfg.Global.DisableScan = !cfg.Global.DisableScan
-		case 4:
+		case 5:
 			cfg.UI.ShowFireAnimation = !cfg.UI.ShowFireAnimation
 		}
 	case configRowEnum:
@@ -108,7 +118,12 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.DefaultMode = opts[idx]
 		case 2:
 			cfg.Global.ConflictStrategy = opts[idx]
-		case 5:
+		case 4:
+			workers, err := strconv.Atoi(opts[idx])
+			if err == nil && workers > 0 {
+				cfg.Global.PushWorkers = workers
+			}
+		case 6:
 			cfg.UI.ColorProfile = opts[idx]
 		}
 	case configRowComingSoon:

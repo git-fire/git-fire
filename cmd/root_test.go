@@ -430,6 +430,19 @@ func TestRootCommand_InvalidFlag(t *testing.T) {
 	}
 }
 
+func TestBackupToExecuteError(t *testing.T) {
+	resetFlags()
+	backupTo = "git@github.com:user/backup"
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected --backup-to execute path to return an error")
+	}
+	if !strings.Contains(err.Error(), "--backup-to is not yet implemented") {
+		t.Fatalf("unexpected error for --backup-to: %v", err)
+	}
+}
+
 func TestRootCommand_CombinedFlags(t *testing.T) {
 	// Reset flags
 	resetFlags()

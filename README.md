@@ -1,4 +1,4 @@
-# Git Fire - Emergency Git Backup Tool
+# Git Fire - Multi-Repo Checkpoint CLI
 
 <p align="center">
   <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
@@ -16,44 +16,19 @@
 > 1. `git-fire`
 > 2. Leave building
 
-`git-fire` discovers repositories, auto-commits dirty work (unless you disable it), and pushes in parallel so work is not stranded locally. It is built for emergency backup and also works for routine multi-repo sync.
+`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It is useful in emergencies and in normal daily developer and agent workflows.
 
-Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
-
-### TUI screenshot
-
-Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
-
-![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
+Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
 
 ## Alpha Status
 
-`git-fire` is currently in alpha, and we are actively looking for testers and feedback.
-
-## Project Snapshot
-
-- **Project:** `git-fire` (`github.com/git-fire/git-fire`)
-- **Language:** Go 1.24.2
-- **License:** MIT
-- **Status:** Alpha
-- **Core promise:** one command to discover repos, auto-commit dirty work (unless disabled), and push backups so local-only work is not lost
-
-Detailed product, architecture, safety, testing, and roadmap notes are in [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md).
+`git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.
 
 ## Quick Start
 
-### One-line emergency mode
-
-> **Coming soon:** This emergency bootstrap URL is not live yet. Keep this command ready for the upcoming release.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
-```
-
 ### Install
 
-> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.  
-> Keep the commands below as the planned install paths for beta rollout.
+> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.
 
 | Method | Command | Platform |
 |---|---|---|
@@ -68,133 +43,134 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emer
 # preview first (safe)
 git-fire --dry-run --path ~/projects
 
-# run interactive backup
+# run interactive checkpoint
 git-fire
 ```
+
+## Who Is This For
+
+- **Polyrepo developers:** you touch 5-20+ repos and want one end-of-day or pre-travel checkpoint command.
+- **Platform/infra engineers:** you maintain many IaC/config/tooling repos and need consistent, auditable bulk checkpoints.
+- **Agent workflow users:** you run Claude/Cursor-style coding sessions and want a stop-hook safety net.
+- **Security/red team practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
+- **Not the target:** single-repo users and monorepo teams that already have one-repo checkpoint discipline.
+
+## Use Cases
+
+### Daily developer checkpoint
+
+- End of day
+- Before context switch
+- Before travel
+- Before large refactor
+
+### Agent session safety net
+
+- Run at session stop to avoid losing uncommitted agent output
+- Keep logs for post-session review
+- Use dry-run in guarded environments
+
+See [docs/agentic-flows.md](docs/agentic-flows.md).
+
+### IT/infra maintenance windows
+
+- Bulk checkpoint tooling and config repos before maintenance
+- Consistent push behavior across many repos
+- Registry-backed repeatability across runs
+
+### Security and operations workflows
+
+- Red team session teardown
+- Purple team exercise sync before debrief
+- Incident response state preservation
+
+See [docs/security-ops.md](docs/security-ops.md).
+
+### Emergency hail mary
+
+If your build is literally on fire, run `git-fire`.
+
+## Feature to Use-Case Map
+
+| Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
+|---|---|---|---|---|---|
+| Parallel multi-repo execution | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Persistent repo registry | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Dry-run planning | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Secret detection warnings | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Structured JSON logs (`~/.cache/git-fire/logs/`) | ⚪ Optional | ✅ | ✅ | ✅ | ⚪ Optional |
+| `--status` SSH/repo snapshot | ✅ | ✅ | ✅ | ✅ | ⚪ Optional |
+| Conflict-safe backup branches (no force push in normal flow) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Plugin internals (`v0.2` CLI auto-loading target) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
+
+## Why It Is Trustworthy in Alpha
+
+- No force push in normal flows.
+- Conflict strategy creates backup branches (`git-fire-backup-*`) when needed.
+- Dry-run gives a no-side-effect plan preview.
+- Secret detection warns before push.
+- Structured logs create a machine-readable audit trail.
+- 250+ tests cover core non-UI packages.
 
 ## Core Commands
 
 ```bash
-# interactive emergency backup
+# interactive checkpoint flow
 git-fire
-# same command via git subcommand aliasing
 git fire
 
-# non-destructive fire drill
+# non-destructive preview
 git-fire --dry-run
 
-# "fire mode" selector UI
+# TUI selector mode
 git-fire --fire
 
-# scan a specific root
+# scan specific root
 git-fire --path ~/projects
 
 # push existing commits only (no auto-commit)
 git-fire --skip-auto-commit
 
-# inspect auth/repo status
+# inspect auth + repo status
 git-fire --status
 
 # generate config template
 git-fire --init
 ```
 
-## Concepts at a Glance
+## Set-and-Forget Repeatability
 
-### Safety model
-
-`git-fire` is designed to avoid destructive behavior:
-- never force-pushes in normal flows
-- uses conflict backup branches (`git-fire-backup-*`) when needed
-- supports dry-run planning before execution
-
-See canonical behavior details in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
-
-### Persistent repo registry
-
-The repo registry (`~/.config/git-fire/repos.toml`) tracks known repos so repeat runs are fast and manageable.
+`git-fire` persists discovered repositories in `~/.config/git-fire/repos.toml`. Once discovered, those repos stay in scope for future runs unless you explicitly ignore them.
 
 See [docs/REGISTRY.md](docs/REGISTRY.md).
 
-### Agentic workflows
+## Extensible via Plugins (`v0.2`)
 
-`git-fire` works well as an end-of-session safety net for AI coding agents and can be wired into hooks.
+Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
 
-See [docs/agentic-flows.md](docs/agentic-flows.md).
-
-## Release Roadmap
-
-- **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
-- **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
-- **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
-
-### TUI color profiles
-
-You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
-
-| Profile | Style |
-|---------|-------|
-| `classic` | Original orange/yellow fire |
-| `synthwave` | 80s neon purple/pink/cyan |
-| `forest` | Green ember palette |
-| `arctic` | Cool cyan/ice palette |
-
-| Method | How |
-|--------|-----|
-| In-TUI settings | Press **`c`** → **Color profile** → `space` / `←` / `→` |
-| Config file | Set `color_profile` under `[ui]` |
-
-```toml
-[ui]
-show_fire_animation = true
-color_profile = "synthwave"
-```
-
-Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
-
-### Extensibility with plugins
-
-Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
+Practical workaround today: `git-fire && your-script`
 
 See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
-## Use Cases
-
-- Emergency/disaster backup when immediate off-machine sync is needed
-- End-of-day multi-repo commit and push
-- Agent session checkpointing
-- Scheduled automation with external orchestrators
-- Layered backup strategy with plugins
-
 ## Documentation
 
-Start with the docs hub: [docs/README.md](docs/README.md)
+Start with [docs/README.md](docs/README.md).
 
-- Spec and behavior: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
+- Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
+- Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
+- Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Plugins: [PLUGINS.md](PLUGINS.md)
-- Registry internals: [docs/REGISTRY.md](docs/REGISTRY.md)
-- Agentic usage: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Validation status: [docs/REQUIREMENTS_VALIDATION.md](docs/REQUIREMENTS_VALIDATION.md)
-
-## Security Notes
-
-Before running broad backups:
-- keep secrets out of tracked files
-- rely on `.gitignore` and `.git/info/exclude` for local secret files
-- run `git-fire --dry-run` regularly to inspect what would be committed
-
-`git-fire` includes secret detection warnings, but commit responsibility remains with the user.
 
 ## Alpha Risk and Warranty
 
-The product is stable in many common workflows, but it is still alpha and should not be fully trusted yet. Use at your own risk.
+`git-fire` is alpha software. Keep independent backups, verify results, and treat this as a fast checkpointing layer, not your only data safety mechanism.
 
-No warranty is provided (express or implied), including merchantability or fitness for a particular purpose. Maintain your own backup strategy, verify backup results, and keep updating as fixes are released.
+No warranty is provided (express or implied), including merchantability or fitness for a particular purpose.
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for build/test expectations and PR guidelines.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

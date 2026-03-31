@@ -613,20 +613,41 @@ func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowFireAnimation = true
 
-	// Row 4 is "Show fire animation"
-	val := configRowValue(4, &cfg)
+	// Row 5 is "Show fire animation"
+	val := configRowValue(5, &cfg)
 	if val != "true" {
-		t.Errorf("configRowValue(4) = %q, want %q", val, "true")
+		t.Errorf("configRowValue(5) = %q, want %q", val, "true")
 	}
 
-	applyConfigChange(4, &cfg, 0) // direction ignored for bools
+	applyConfigChange(5, &cfg, 0) // direction ignored for bools
 	if cfg.UI.ShowFireAnimation {
-		t.Error("applyConfigChange(4) should have toggled ShowFireAnimation to false")
+		t.Error("applyConfigChange(5) should have toggled ShowFireAnimation to false")
 	}
 
-	val = configRowValue(4, &cfg)
+	val = configRowValue(5, &cfg)
 	if val != "false" {
-		t.Errorf("configRowValue(4) after toggle = %q, want %q", val, "false")
+		t.Errorf("configRowValue(5) after toggle = %q, want %q", val, "false")
+	}
+}
+
+func TestRepoSelectorModel_PushWorkersConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.PushWorkers = 4
+
+	// Row 4 is "Push workers".
+	val := configRowValue(4, &cfg)
+	if val != "4" {
+		t.Errorf("configRowValue(4) = %q, want %q", val, "4")
+	}
+
+	applyConfigChange(4, &cfg, +1)
+	if cfg.Global.PushWorkers != 8 {
+		t.Errorf("applyConfigChange(4,+1) = %d, want %d", cfg.Global.PushWorkers, 8)
+	}
+
+	applyConfigChange(4, &cfg, -1)
+	if cfg.Global.PushWorkers != 4 {
+		t.Errorf("applyConfigChange(4,-1) = %d, want %d", cfg.Global.PushWorkers, 4)
 	}
 }
 
@@ -634,15 +655,15 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ColorProfile = config.UIColorProfileClassic
 
-	// Row 5 is "Color profile"
-	val := configRowValue(5, &cfg)
+	// Row 6 is "Color profile"
+	val := configRowValue(6, &cfg)
 	if val != config.UIColorProfileClassic {
-		t.Errorf("configRowValue(5) = %q, want %q", val, config.UIColorProfileClassic)
+		t.Errorf("configRowValue(6) = %q, want %q", val, config.UIColorProfileClassic)
 	}
 
-	applyConfigChange(5, &cfg, +1)
+	applyConfigChange(6, &cfg, +1)
 	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
-		t.Error("applyConfigChange(5,+1) should move to next color profile")
+		t.Error("applyConfigChange(6,+1) should move to next color profile")
 	}
 }
 
@@ -650,13 +671,13 @@ func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
 	cfg := config.DefaultConfig()
 	beforeProfile := cfg.UI.ColorProfile
 
-	// Row 6 is "Custom hex palette" and should be non-editable for now.
-	val := configRowValue(6, &cfg)
+	// Row 7 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(7, &cfg)
 	if val == "" {
-		t.Fatal("configRowValue(6) should show a placeholder/preview string")
+		t.Fatal("configRowValue(7) should show a placeholder/preview string")
 	}
 
-	applyConfigChange(6, &cfg, +1)
+	applyConfigChange(7, &cfg, +1)
 	if cfg.UI.ColorProfile != beforeProfile {
 		t.Error("coming-soon row should not mutate config")
 	}
