@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // press builds a key message for a printable character (e.g. 'j', 'q', ' ').
@@ -490,6 +490,16 @@ func TestRepoSelectorModel_ShowFireFromConfig(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_FireTickFromConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireTickMS = 150
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	if got, want := m.fireTick.Milliseconds(), int64(150); got != want {
+		t.Errorf("fireTick = %dms, want %dms", got, want)
+	}
+}
+
 func TestRepoSelectorModel_FKeyTogglesShowFire(t *testing.T) {
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.windowHeight = 40 // large enough that auto-suppress doesn't interfere
@@ -630,6 +640,43 @@ func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_FireSpeedConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireTickMS = 180
+
+	// Row 6 is "Fire speed (ms)"
+	val := configRowValue(6, &cfg)
+	if val != "180" {
+		t.Errorf("configRowValue(6) = %q, want %q", val, "180")
+	}
+
+	applyConfigChange(6, &cfg, +1)
+	if cfg.UI.FireTickMS != 220 {
+		t.Errorf("applyConfigChange(6,+1) = %d, want %d", cfg.UI.FireTickMS, 220)
+	}
+
+	applyConfigChange(6, &cfg, -1)
+	if cfg.UI.FireTickMS != 180 {
+		t.Errorf("applyConfigChange(6,-1) = %d, want %d", cfg.UI.FireTickMS, 180)
+	}
+}
+
+func TestRepoSelectorModel_FireSpeedConfigRow_FromCustomOverride(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireTickMS = 175 // manual override not present in presets
+
+	applyConfigChange(6, &cfg, +1)
+	if cfg.UI.FireTickMS != 180 {
+		t.Errorf("applyConfigChange custom +1 = %d, want %d", cfg.UI.FireTickMS, 180)
+	}
+
+	cfg.UI.FireTickMS = 175
+	applyConfigChange(6, &cfg, -1)
+	if cfg.UI.FireTickMS != 150 {
+		t.Errorf("applyConfigChange custom -1 = %d, want %d", cfg.UI.FireTickMS, 150)
+	}
+}
+
 func TestRepoSelectorModel_PushWorkersConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Global.PushWorkers = 4
@@ -655,15 +702,15 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ColorProfile = config.UIColorProfileClassic
 
-	// Row 6 is "Color profile"
-	val := configRowValue(6, &cfg)
+	// Row 7 is "Color profile"
+	val := configRowValue(7, &cfg)
 	if val != config.UIColorProfileClassic {
-		t.Errorf("configRowValue(6) = %q, want %q", val, config.UIColorProfileClassic)
+		t.Errorf("configRowValue(7) = %q, want %q", val, config.UIColorProfileClassic)
 	}
 
-	applyConfigChange(6, &cfg, +1)
+	applyConfigChange(7, &cfg, +1)
 	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
-		t.Error("applyConfigChange(6,+1) should move to next color profile")
+		t.Error("applyConfigChange(7,+1) should move to next color profile")
 	}
 }
 
@@ -671,13 +718,13 @@ func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
 	cfg := config.DefaultConfig()
 	beforeProfile := cfg.UI.ColorProfile
 
-	// Row 7 is "Custom hex palette" and should be non-editable for now.
-	val := configRowValue(7, &cfg)
+	// Row 8 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(8, &cfg)
 	if val == "" {
-		t.Fatal("configRowValue(7) should show a placeholder/preview string")
+		t.Fatal("configRowValue(8) should show a placeholder/preview string")
 	}
 
-	applyConfigChange(7, &cfg, +1)
+	applyConfigChange(8, &cfg, +1)
 	if cfg.UI.ColorProfile != beforeProfile {
 		t.Error("coming-soon row should not mutate config")
 	}

@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var fireParticleChars = [...]string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "░", "▒", "▓"}
+
 // FireParticle represents a single fire particle
 type FireParticle struct {
 	X        int
@@ -57,12 +59,11 @@ func (fb *FireBackground) spawnParticle() {
 	if fb.Width <= 0 || fb.Height <= 0 {
 		return
 	}
-	chars := []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "░", "▒", "▓"}
 
 	particle := FireParticle{
 		X:        rand.Intn(fb.Width),
 		Y:        fb.Height - 1,
-		Char:     chars[rand.Intn(len(chars))],
+		Char:     fireParticleChars[rand.Intn(len(fireParticleChars))],
 		ColorIdx: 0, // Start at bottom (red)
 		Age:      0,
 		MaxAge:   fb.Height + rand.Intn(5),
@@ -85,8 +86,9 @@ func (fb *FireBackground) Update() {
 			p.Y--
 		}
 
-		// Drift left/right randomly
-		if rand.Float32() < 0.3 {
+		// Drift left/right with gentle variation to reduce visual jitter.
+		driftChance := 0.22 + 0.04*math.Sin(float64(fb.Frame)*0.08)
+		if rand.Float64() < driftChance {
 			p.X += rand.Intn(3) - 1 // -1, 0, or 1
 		}
 
@@ -110,14 +112,14 @@ func (fb *FireBackground) Update() {
 		}
 	}
 
-	// Remove dead particles (off screen or too old)
-	newParticles := make([]FireParticle, 0, len(fb.Particles))
+	// Remove dead particles in-place (off screen or too old).
+	alive := fb.Particles[:0]
 	for _, p := range fb.Particles {
 		if p.Y >= 0 && p.Age < p.MaxAge {
-			newParticles = append(newParticles, p)
+			alive = append(alive, p)
 		}
 	}
-	fb.Particles = newParticles
+	fb.Particles = alive
 
 	// Spawn new particles to maintain count
 	if fb.Width > 0 && fb.Height > 0 {
@@ -133,37 +135,32 @@ func (fb *FireBackground) Render() string {
 	if fb.Width <= 0 || fb.Height <= 0 {
 		return ""
 	}
-	// Create 2D grid
-	grid := make([][]string, fb.Height)
-	for i := range grid {
-		grid[i] = make([]string, fb.Width)
-		for j := range grid[i] {
-			grid[i][j] = " "
-		}
+	// Flat grid avoids per-row allocations in the hot path.
+	cellCount := fb.Width * fb.Height
+	cells := make([]string, cellCount)
+	for i := range cells {
+		cells[i] = " "
 	}
+	styles := fireColorStyles()
 
 	// Place particles on grid
 	for _, p := range fb.Particles {
 		if p.Y >= 0 && p.Y < fb.Height && p.X >= 0 && p.X < fb.Width {
-			// Style the character with fire color
-			color := lipgloss.Color("#FF6600")
-			if len(activeFireColors) > 0 {
-				safeIdx := p.ColorIdx % len(activeFireColors)
-				if safeIdx < 0 {
-					safeIdx += len(activeFireColors)
-				}
-				color = activeFireColors[safeIdx]
+			safeIdx := p.ColorIdx % len(styles)
+			if safeIdx < 0 {
+				safeIdx += len(styles)
 			}
-			style := lipgloss.NewStyle().Foreground(color)
-			grid[p.Y][p.X] = style.Render(p.Char)
+			cellIdx := p.Y*fb.Width + p.X
+			cells[cellIdx] = styles[safeIdx].Render(p.Char)
 		}
 	}
 
 	// Convert grid to string
 	var result strings.Builder
+	result.Grow(cellCount*2 + fb.Height)
 	for y := 0; y < fb.Height; y++ {
 		for x := 0; x < fb.Width; x++ {
-			result.WriteString(grid[y][x])
+			result.WriteString(cells[y*fb.Width+x])
 		}
 		if y < fb.Height-1 {
 			result.WriteString("\n")
@@ -176,42 +173,54 @@ func (fb *FireBackground) Render() string {
 // RenderWave creates a sine wave fire effect at the top
 func RenderFireWave(width int, frame int) string {
 	var result strings.Builder
+	styles := fireColorStyles()
 
 	// Create a wave pattern
 	for x := 0; x < width; x++ {
-		// Sine wave calculation
-		offset := float64(frame) * 0.1
-		y := math.Sin(float64(x)*0.3 + offset)
+		// Blend two sines for gentler, less jittery motion.
+		phase := float64(frame) * 0.075
+		y := 0.75*math.Sin(float64(x)*0.24+phase) + 0.25*math.Sin(float64(x)*0.11+phase*0.6)
 
 		// Map to fire characters
 		var char string
-		if y > 0.7 {
+		if y > 0.65 {
 			char = "▁"
-		} else if y > 0.3 {
+		} else if y > 0.25 {
 			char = "▂"
 		} else if y > 0 {
 			char = "▃"
-		} else if y > -0.3 {
+		} else if y > -0.25 {
 			char = "▄"
-		} else if y > -0.7 {
+		} else if y > -0.65 {
 			char = "▅"
 		} else {
 			char = "▆"
 		}
 
 		// Color based on position (gradient)
-		if len(activeFireColors) == 0 {
+		if len(styles) == 0 {
 			result.WriteString(char)
 			continue
 		}
-		colorIdx := int(float64(x) / float64(width) * float64(len(activeFireColors)-1))
-		if colorIdx >= len(activeFireColors) {
-			colorIdx = len(activeFireColors) - 1
+		colorIdx := int(float64(x) / float64(width) * float64(len(styles)-1))
+		if colorIdx >= len(styles) {
+			colorIdx = len(styles) - 1
 		}
-
-		style := lipgloss.NewStyle().Foreground(activeFireColors[colorIdx])
-		result.WriteString(style.Render(char))
+		result.WriteString(styles[colorIdx].Render(char))
 	}
 
 	return result.String()
+}
+
+func fireColorStyles() []lipgloss.Style {
+	if len(activeFireColors) == 0 {
+		return []lipgloss.Style{
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600")),
+		}
+	}
+	styles := make([]lipgloss.Style, len(activeFireColors))
+	for i, color := range activeFireColors {
+		styles[i] = lipgloss.NewStyle().Foreground(color)
+	}
+	return styles
 }

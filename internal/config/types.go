@@ -94,6 +94,10 @@ type UIConfig struct {
 	// Automatically suppressed when the terminal is too short.
 	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
 
+	// Fire animation tick interval in milliseconds.
+	// Lower values animate faster but can increase terminal CPU usage.
+	FireTickMS int `mapstructure:"fire_tick_ms" toml:"fire_tick_ms"`
+
 	// Color profile for fire and TUI accents.
 	// Options: "classic", "synthwave", "forest", "arctic".
 	ColorProfile string `mapstructure:"color_profile" toml:"color_profile"`

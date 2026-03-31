@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 // ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
@@ -92,8 +92,8 @@ const (
 	repoViewConfig
 )
 
-func tickCmd() tea.Cmd {
-	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
+func tickCmd(interval time.Duration) tea.Cmd {
+	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -160,6 +160,7 @@ type RepoSelectorModel struct {
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
 	showFire bool
+	fireTick time.Duration
 
 	// Config menu state
 	cfg           *config.Config
@@ -197,6 +198,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		regPath:       regPath,
 		pathScrollDir: 1,
 		showFire:      true,
+		fireTick:      time.Duration(config.DefaultUIFireTickMS) * time.Millisecond,
 	}
 }
 
@@ -226,8 +228,12 @@ func NewRepoSelectorModelStream(
 	fireBg := NewFireBackground(70, 5)
 
 	showFire := true
+	fireTickMS := config.DefaultUIFireTickMS
 	if cfg != nil {
 		showFire = cfg.UI.ShowFireAnimation
+		if cfg.UI.FireTickMS > 0 {
+			fireTickMS = cfg.UI.FireTickMS
+		}
 	}
 
 	return RepoSelectorModel{
@@ -249,11 +255,12 @@ func NewRepoSelectorModelStream(
 		cfg:                 cfg,
 		cfgPath:             cfgPath,
 		showFire:            showFire,
+		fireTick:            time.Duration(fireTickMS) * time.Millisecond,
 	}
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
-	cmds := []tea.Cmd{tickCmd(), m.spinner.Tick}
+	cmds := []tea.Cmd{tickCmd(m.fireTick), m.spinner.Tick}
 	if m.scanChan != nil && !m.scanDone {
 		cmds = append(cmds, waitForRepo(m.scanChan))
 	}
@@ -304,10 +311,12 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
-		m.fireBg.Update()
+		if m.fireVisible() {
+			m.fireBg.Update()
+		}
 		// Auto-scroll the path of the focused repo (every 2 ticks ≈ 600 ms)
 		m.pathScrollTick++
-		if m.pathScrollTick >= 2 && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+		if m.pathScrollTick >= m.pathScrollEveryTicks() && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
 			m.pathScrollTick = 0
 			repo := m.repos[m.cursor]
 			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
@@ -333,7 +342,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pathScrollOffset = 0
 			}
 		}
-		return m, tickCmd()
+		return m, tickCmd(m.fireTick)
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -520,6 +529,20 @@ func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
 }
 
+// pathScrollEveryTicks keeps path auto-scroll cadence roughly constant (~600ms)
+// even when users change fire tick speed.
+func (m RepoSelectorModel) pathScrollEveryTicks() int {
+	if m.fireTick <= 0 {
+		return 1
+	}
+	const target = 600 * time.Millisecond
+	ticks := int((target + m.fireTick - 1) / m.fireTick) // ceil(target / tick)
+	if ticks < 1 {
+		return 1
+	}
+	return ticks
+}
+
 // withResetPathScroll returns m with path-scroll state zeroed.
 // Call whenever the focused repo changes (up/down/x/…).
 func (m RepoSelectorModel) withResetPathScroll() RepoSelectorModel {
@@ -572,20 +595,19 @@ func clampSelectorCursor(cursor, n int) int {
 // panel is present (streaming mode adds ~4–5 extra lines) and when help text
 // wraps in narrow terminals.
 func (m RepoSelectorModel) repoListVisibleCount() int {
-	cw := m.contentWidth()
-	fireW := min(cw, 70)
 	innerW := m.windowWidth - 6
 	if innerW < 0 {
 		innerW = 0
 	}
 
-	// Build the non-list sections exactly as View() does.
+	// Build non-list sections without rendering fire internals.
+	// Fire overhead is static by line count when visible:
+	// fire bg (Height) + newline (1) + wave (1) + blank lines (2)
 	var buf strings.Builder
 	if m.fireVisible() {
-		buf.WriteString(m.fireBg.Render())
-		buf.WriteString("\n")
-		buf.WriteString(RenderFireWave(fireW, m.frameIndex))
-		buf.WriteString("\n\n")
+		for i := 0; i < m.fireBg.Height+4; i++ {
+			buf.WriteString("\n")
+		}
 	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(activeProfile().titleFg).

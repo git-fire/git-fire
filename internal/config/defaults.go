@@ -3,12 +3,14 @@ package config
 import "time"
 
 const DefaultPushWorkers = 4
+const DefaultUIFireTickMS = 180
 
 // DefaultConfig returns safe default configuration
 func DefaultConfig() Config {
 	return Config{
 		UI: UIConfig{
 			ShowFireAnimation: true,
+			FireTickMS:        DefaultUIFireTickMS,
 			ColorProfile:      UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
@@ -101,6 +103,11 @@ disable_scan = false
 # Toggle live during a session with the 'f' key.
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
+
+# Fire animation speed in milliseconds per frame.
+# Lower = faster/smoother but higher CPU usage.
+# Recommended range for most terminals: 120-300.
+fire_tick_ms = 180
 
 # Built-in color profile for fire + borders/accents in the TUI.
 # Options: "classic", "synthwave", "forest", "arctic"
