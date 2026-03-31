@@ -432,11 +432,9 @@ func TestRootCommand_InvalidFlag(t *testing.T) {
 
 func TestBackupToExecuteError(t *testing.T) {
 	resetFlags()
+	backupTo = "git@github.com:user/backup"
 
-	cmd := rootCmd
-	cmd.SetArgs([]string{"--backup-to", "git@github.com:user/backup"})
-
-	err := cmd.Execute()
+	err := runGitFire(rootCmd, []string{})
 	if err == nil {
 		t.Fatal("expected --backup-to execute path to return an error")
 	}
