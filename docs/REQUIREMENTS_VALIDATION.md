@@ -4,6 +4,15 @@
 **Validation Scope:** MVP Feature Completeness vs. GIT_FIRE_SPEC.md
 **Purpose:** Identify gaps between specification and implementation before 1.0 release
 
+Status guidance:
+- This file is the active validation status anchor for OSS readers.
+- Historical run logs and planning artifacts are preserved for context, but are not canonical status:
+  - `docs/VALIDATION_PROGRESS.md`
+  - `docs/FINAL_VALIDATION_PLAN.md`
+  - `docs/UAT_BUGS.md`
+  - `docs/validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md`
+- For navigation, see [docs/README.md](README.md).
+
 **UAT alignment (2026-03-29):** Items tracked in `docs/UAT_BUGS.md` (dual-branch on live path, conflict `new-branch` in planner/runner, push-known warnings, `default_mode` via registry upsert, `SilenceUsage`) were verified in code and tests. This matrix’s evidence rows below were refreshed where they had drifted; summary counts were not re-tallied.
 
 ---

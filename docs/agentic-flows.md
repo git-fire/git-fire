@@ -4,6 +4,12 @@ AI coding agents edit code at high speed across multiple repositories. A session
 
 Git-fire solves this for human emergencies. It solves the same problem for agentic ones.
 
+Related docs:
+- project quickstart: [../README.md](../README.md)
+- behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- plugin architecture: [../PLUGINS.md](../PLUGINS.md)
+- docs index: [README.md](README.md)
+
 ---
 
 ## Why Agents Need Git-Fire

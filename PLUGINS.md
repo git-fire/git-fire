@@ -2,15 +2,19 @@
 
 Git-fire is designed to be extensible beyond just git operations. This document describes how to add external tools, remote services, and custom backup strategies.
 
+For quick project onboarding, see [README.md](README.md). For docs navigation, see [docs/README.md](docs/README.md). For a working example, see [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
+
 ## Implementation Status
 
 | Plugin Type | Status | Notes |
 |------------|--------|-------|
-| Command plugins | ✅ **Implemented** | Execute external commands/scripts |
+| Command plugins | 🟡 **Core implementation present; CLI wiring pending** | Types/executors exist in `internal/plugins`, but normal CLI runs do not auto-load from config yet |
 | Go plugins (.so) | 🗓 Planned (Phase 2) | Dynamic `.so` loading via Go plugin package |
 | Webhook/HTTP plugins | 🗓 Planned (Phase 2) | REST API callbacks |
 
-Only **command plugins** are available today. All other types are documented here as the intended design for when they are built.
+Only **command plugin internals** are implemented today. End-to-end plugin loading/execution in the default CLI path is still being wired. Other plugin types are documented here as intended design.
+
+Runtime status note: planned sections in this document are design reference, and default CLI command dispatch does not yet auto-load plugin config for normal `git-fire` runs. Treat examples as implementation guidance until full runtime wiring lands.
 
 ---
 
@@ -399,7 +403,7 @@ on_failure = "ignore"  # Don't fail if USB not mounted
 
 ## CLI Integration
 
-Plugins run automatically during backup when configured in `~/.config/git-fire/config.toml`. Use `--dry-run` to preview without executing:
+Planned runtime behavior is automatic plugin execution during backup when configured in `~/.config/git-fire/config.toml`. That flow is not yet wired in the default CLI path; use this section as target behavior/reference:
 
 ```bash
 # Preview backup plan including plugin actions
