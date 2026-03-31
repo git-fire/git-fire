@@ -1,6 +1,6 @@
 # git-fire Roadmap (Post-Beta and Deferred Work)
 
-This roadmap is the single source of truth for all future, deferred, and experimental items identified during beta readiness work on `beta-readiness-audit`.
+This roadmap section (above the archived legacy block) is the single source of truth for all future, deferred, and experimental items identified during beta readiness work on `beta-readiness-audit`.
 
 ## Scope Buckets
 
@@ -64,6 +64,11 @@ This roadmap is the single source of truth for all future, deferred, and experim
 - Every deferred item must have one of: issue, branch, or explicit "post-beta" tag in planning docs.
 - If an experiment branch is abandoned, record decision + rationale in `BETA_BLOCKERS_PROGRESS.md`.
 - Keep this file updated whenever a deferred item is completed, descoped, or replaced.
+
+## Archived Legacy Roadmap (Non-Authoritative)
+
+The content below is preserved for historical context only and is not the source of truth for current beta/post-beta planning.
+
 # 🗺️ Git-Fire Implementation Roadmap
 
 **Current Phase:** Phase 2 - Refinement & First Plugins

@@ -12,7 +12,7 @@
 Each section below captures raw findings from a specific audit workstream. The [BETA_READINESS_REPORT.md](BETA_READINESS_REPORT.md) is the executive summary with prioritized backlog. This document is the full evidence trail.
 
 The execution workflow:
-1. You make decisions on the 4 product questions (in the report)
+1. You make decisions on the product questions tracked in the Decision Register
 2. We break work into sub-tasks grouped by phase
 3. Each phase gets a feature branch off this audit branch
 4. Feature branches merge back to this branch, then to `main` when ready
@@ -303,7 +303,7 @@ These docs were created during earlier validation passes. Several claims are now
 | "Per-repo overrides ✅ Complete" (Section 4) | F-09: `FindRepoOverride` is defined but never called | **NOT WORKING** — overrides silently ignored |
 | "Configurable conflict strategy ✅ Complete" (Section 3) | F-02: `"abort"` falls through to regular push | **PARTIALLY BROKEN** — `"new-branch"` works, `"abort"` doesn't |
 | "Environment variable overrides ✅ Complete" (Section 5) | D-12: Only 2 env vars exist, not the 5+ documented | **OVERSTATED** — works for existing vars only |
-| "Plugin system functional" (Acceptance Criteria) | D-15/F-09: Plugin code is dead — never called from CLI | **NOT FUNCTIONAL** at runtime |
+| "Plugin system functional" (Acceptance Criteria) | D-15: Plugin code is dead — never called from CLI | **NOT FUNCTIONAL** at runtime |
 
 ### Uncompleted Validation Tasks (from VALIDATION_PROGRESS.md)
 

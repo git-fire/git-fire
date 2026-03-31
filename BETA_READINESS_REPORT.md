@@ -12,7 +12,7 @@
 
 The codebase is structurally sound: all tests pass with `-race`, `go vet` is clean, and the core scan-commit-push pipeline works. However, this audit uncovered **3 must-fix code bugs** (data safety / silent no-ops), **4 critical documentation mismatches** that will mislead users on first contact, and **8 should-fix code issues** including a security concern (secrets leaking to disk) and a concurrency race.
 
-Merged PR feedback is in good shape: across 6 high-risk PRs with CodeRabbit reviews, **53 of 57 threads were proven addressed**, 4 were intentionally deferred with reviewer agreement, and 1 partial fix remains (low risk). Two early PRs (#1, #2) had unreviewed bot feedback that warrants a quick follow-up.
+Merged PR feedback is in good shape: across 6 high-risk PRs with CodeRabbit reviews, **43 of 51 threads were proven addressed**, 4 were intentionally deferred with reviewer agreement, 3 were false positives/duplicates, and 1 partial fix remains (low risk). Two early PRs (#1, #2) had unreviewed bot feedback that warrants a quick follow-up.
 
 ---
 
