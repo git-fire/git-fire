@@ -6,16 +6,15 @@ Related docs:
 - project quickstart: [../README.md](../README.md)
 - behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
 - security and operations guide: [security-ops.md](security-ops.md)
+- plugin reference: [../PLUGINS.md](../PLUGINS.md)
 
 ---
 
-## Fastest Practical Setup: Stop Hook
+## Recommended Patterns
 
-The strongest concrete use case today is running `git-fire` when an agent session ends.
+### 1) Session stop hook (safe mode)
 
-### Claude Code stop hook
-
-Add this to `~/.claude/settings.json`:
+Back up already-created commits without auto-committing unfinished edits.
 
 ```json
 {
@@ -26,7 +25,7 @@ Add this to `~/.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p ~/.cache/git-fire && git-fire --path ~/projects >> ~/.cache/git-fire/claude-stop.log 2>&1 || true"
+            "command": "mkdir -p ~/.cache/git-fire && git-fire --path . --skip-auto-commit >> ~/.cache/git-fire/agent-stop.log 2>&1 || true"
           }
         ]
       }
@@ -35,87 +34,30 @@ Add this to `~/.claude/settings.json`:
 }
 ```
 
-Safer preview-first variant:
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "mkdir -p ~/.cache/git-fire && git-fire --dry-run --path ~/projects > ~/.cache/git-fire/claude-stop-preview.txt 2>&1 || true"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Cursor end-session task
-
-Use a task to standardize the same checkpoint step in Cursor-managed workflows.
-
-Add to `.vscode/tasks.json`:
-
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "git-fire: checkpoint workspace",
-      "type": "shell",
-      "command": "mkdir -p ~/.cache/git-fire && git-fire --path ~/projects >> ~/.cache/git-fire/cursor-stop.log 2>&1",
-      "problemMatcher": []
-    },
-    {
-      "label": "git-fire: dry-run checkpoint",
-      "type": "shell",
-      "command": "mkdir -p ~/.cache/git-fire && git-fire --dry-run --path ~/projects > ~/.cache/git-fire/cursor-stop-preview.txt 2>&1",
-      "problemMatcher": []
-    }
-  ]
-}
-```
-
-Run the dry-run task first, then run the real checkpoint task at the end of each agent-heavy session.
-
----
-
-## Why Git-Fire Instead of a Shell Script
-
-A shell loop can push multiple repos. It usually misses the hard parts.
-
-- **Repo discovery + persistence:** `git-fire` keeps a registry at `~/.config/git-fire/repos.toml`.
-- **Safety defaults:** no force-push in normal flows; conflict backup branches are created when needed.
-- **Dry-run planning:** preview the run before changing anything.
-- **Secret warnings:** highlights likely secret patterns before push.
-- **Structured logs:** JSON lines under `~/.cache/git-fire/logs/` for audit and automation.
-- **One tool behavior:** same command for humans, hooks, and CI-style wrappers.
-
----
-
-## Recommended Agent Workflow
-
-1. Run `git-fire --dry-run --path ~/projects`.
-2. Review what will be committed and pushed.
-3. Run `git-fire --path ~/projects` at session end.
-4. Parse the newest log file in `~/.cache/git-fire/logs/` if you need machine-readable post-run status.
-
-Example log parsing:
+### 2) Pre-task checkpoint
 
 ```bash
-LATEST=$(ls -t ~/.cache/git-fire/logs/git-fire-*.log | head -1)
-cat "$LATEST" | jq 'select(.level == "error")'
+git-fire --dry-run --path ~/projects
+git-fire --path ~/projects
 ```
 
----
+Use this before risky refactors to create a recovery point.
 
-## Current Limits (Alpha)
+### 3) Plugin notifications
 
-- Plugin internals exist, but plugin auto-loading in the default CLI path is not wired yet (`v0.2` target).
-- `--backup-to` is exposed but not implemented yet (`v0.2` target).
-- Keep an independent backup strategy; this tool is a checkpoint layer, not your only recovery mechanism.
+Use command plugins to notify orchestration systems after backup completes.
+See `PLUGINS.md` for plugin types and payload guidance.
+
+## Operational guardrails
+
+- Prefer `--dry-run` before enabling automatic execution.
+- Keep `--skip-auto-commit` on stop hooks unless fully intentional.
+- Ensure secret scanning and `.gitignore` are set correctly in target repos.
+- Treat branch-push failures as non-ignorable and inspect logs promptly.
+
+## Where to go next
+
+- Quickstart and CLI usage: `README.md`
+- Behavior reference: `GIT_FIRE_SPEC.md`
+- Plugin details: `PLUGINS.md`
+- Validation status: `docs/REQUIREMENTS_VALIDATION.md`

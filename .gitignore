@@ -42,3 +42,11 @@ VISION.md
 DOMAINS.md
 STRATEGY.md
 .local-business-doc-backups/
+
+# Validation artifacts (keep human-readable reports, ignore raw run output)
+docs/validation-artifacts/**/phase*/
+docs/validation-artifacts/**/*.log
+docs/validation-artifacts/**/*.json
+docs/validation-artifacts/**/*.txt
+!docs/validation-artifacts/**/VALIDATION_REPORT.md
+!docs/validation-artifacts/**/README.md
