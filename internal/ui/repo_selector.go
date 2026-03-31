@@ -262,8 +262,8 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight = msg.Height
 		m.fireBg = NewFireBackground(min(msg.Width-4, 70), 5)
 		// Re-clamp scroll offsets for new height
-		m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
-		m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
+		m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+		m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
 
 	case tickMsg:
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
@@ -321,22 +321,22 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == repoViewIgnored {
 				if m.ignoredCursor > 0 {
 					m.ignoredCursor--
-					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
 				}
 			} else if m.cursor > 0 {
 				m.cursor--
-				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
 			}
 
 		case "down", "j":
 			if m.view == repoViewIgnored {
 				if m.ignoredCursor < len(m.ignoredEntries)-1 {
 					m.ignoredCursor++
-					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount())
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
-				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
 			}
 
 		case " ":
@@ -380,7 +380,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.repos) && m.cursor > 0 {
 				m.cursor--
 			}
-			m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount())
+			m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
 
 		case "a":
 			if m.view == repoViewIgnored {
@@ -455,13 +455,35 @@ func (m RepoSelectorModel) ignoredListVisibleCount() int {
 	return n
 }
 
-// clampScroll returns a scroll offset that keeps cursor within the visible window.
-func (m RepoSelectorModel) clampScroll(offset, cursor, visible int) int {
-	if cursor < offset {
-		return cursor
-	}
-	if cursor >= offset+visible {
-		return cursor - visible + 1
+// clampScroll returns a scroll offset that keeps cursor within the rendered item
+// rows, accounting for the ↑/↓ indicator lines that consume viewport rows.
+// It iterates to convergence (≤3 passes) because changing the offset can
+// toggle which indicators appear, which in turn changes the item row count.
+func (m RepoSelectorModel) clampScroll(offset, cursor, visible, total int) int {
+	for range 3 {
+		indicators := 0
+		if offset > 0 {
+			indicators++
+		}
+		if total > offset+visible {
+			indicators++
+		}
+		itemVisible := visible - indicators
+		if itemVisible < 1 {
+			itemVisible = 1
+		}
+		var next int
+		if cursor < offset {
+			next = cursor
+		} else if cursor >= offset+itemVisible {
+			next = cursor - itemVisible + 1
+		} else {
+			next = offset
+		}
+		if next == offset {
+			break
+		}
+		offset = next
 	}
 	return offset
 }
@@ -469,8 +491,8 @@ func (m RepoSelectorModel) clampScroll(offset, cursor, visible int) int {
 // contentWidth returns the usable inner width for rendered content (box border+padding = 6 cols).
 func (m RepoSelectorModel) contentWidth() int {
 	w := m.windowWidth - 6
-	if w < 10 {
-		w = 10
+	if w < 0 {
+		w = 0
 	}
 	return w
 }
@@ -570,7 +592,7 @@ func (m RepoSelectorModel) View() string {
 
 	visible := m.repoListVisibleCount()
 	// Re-clamp in case View is called before a scroll-adjusting Update
-	scrollOffset := m.clampScroll(m.scrollOffset, m.cursor, visible)
+	scrollOffset := m.clampScroll(m.scrollOffset, m.cursor, visible, len(m.repos))
 
 	// Scroll indicators each consume 1 line; subtract them from the viewport
 	// so the box never overflows.
@@ -593,8 +615,8 @@ func (m RepoSelectorModel) View() string {
 	// Reserve ~35 cols for the non-path parts; remainder goes to the path.
 	const nonPathCols = 35
 	maxPathCols := cw - nonPathCols
-	if maxPathCols < 10 {
-		maxPathCols = 10
+	if maxPathCols < 0 {
+		maxPathCols = 0
 	}
 
 	if hasAbove {
@@ -627,7 +649,9 @@ func (m RepoSelectorModel) View() string {
 		}
 
 		displayPath := AbbreviateUserHome(repo.Path)
-		if len([]rune(displayPath)) > maxPathCols {
+		if maxPathCols == 0 {
+			displayPath = ""
+		} else if len([]rune(displayPath)) > maxPathCols {
 			displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
 		}
 
@@ -673,8 +697,8 @@ func (m RepoSelectorModel) View() string {
 
 	// Wrap in a box sized to the terminal width
 	innerW := m.windowWidth - 6 // border(2) + padding(4)
-	if innerW < 10 {
-		innerW = 10
+	if innerW < 0 {
+		innerW = 0
 	}
 	return boxStyle.Width(innerW).Render(s.String())
 }
@@ -740,7 +764,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		s.WriteString("\n")
 	} else {
 		visible := m.ignoredListVisibleCount()
-		scrollOffset := m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, visible)
+		scrollOffset := m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, visible, len(m.ignoredEntries))
 
 		hasAbove := scrollOffset > 0
 		hasBelow := len(m.ignoredEntries) > scrollOffset+visible
@@ -753,8 +777,8 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		}
 
 		maxPathCols := cw - 4
-		if maxPathCols < 10 {
-			maxPathCols = 10
+		if maxPathCols < 0 {
+			maxPathCols = 0
 		}
 
 		end := scrollOffset + visible - indicators
@@ -774,7 +798,9 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 				cur = ">"
 			}
 			displayPath := AbbreviateUserHome(e.Path)
-			if len([]rune(displayPath)) > maxPathCols {
+			if maxPathCols == 0 {
+				displayPath = ""
+			} else if len([]rune(displayPath)) > maxPathCols {
 				displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
 			}
 			s.WriteString(fmt.Sprintf("%s %s\n", cur, displayPath))
@@ -795,8 +821,8 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 	s.WriteString(help)
 
 	innerW := m.windowWidth - 6
-	if innerW < 10 {
-		innerW = 10
+	if innerW < 0 {
+		innerW = 0
 	}
 	return boxStyle.Width(innerW).Render(s.String())
 }
