@@ -1,12 +1,14 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/viper"
 )
 
@@ -91,6 +93,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("global.scan_depth", defaults.Global.ScanDepth)
 	v.SetDefault("global.scan_workers", defaults.Global.ScanWorkers)
 	v.SetDefault("global.cache_ttl", defaults.Global.CacheTTL)
+	v.SetDefault("global.rescan_submodules", defaults.Global.RescanSubmodules)
+	v.SetDefault("global.disable_scan", defaults.Global.DisableScan)
 
 	// Backup defaults
 	v.SetDefault("backup.platform", defaults.Backup.Platform)
@@ -186,4 +190,34 @@ func DefaultConfigPath() string {
 // ParseDuration parses duration strings (supports Viper's format)
 func ParseDuration(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
+}
+
+// tomlUnmarshal decodes TOML bytes into v using the same library as SaveConfig.
+// Used by tests to verify round-trip correctness without going through viper.
+func tomlUnmarshal(data []byte, v interface{}) error {
+	return toml.Unmarshal(data, v)
+}
+
+// SaveConfig marshals cfg to TOML and atomically writes it to path.
+// It creates the parent directory if necessary.
+func SaveConfig(cfg *Config, path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o600); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+	return nil
 }
