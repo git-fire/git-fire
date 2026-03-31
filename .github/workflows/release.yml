@@ -25,11 +25,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Require main branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Release workflow must be run from main; got ${GITHUB_REF}."
+            exit 1
+          fi
+
       - name: Validate version format
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
             echo "Invalid tag format: $TAG"
             echo "Expected: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease"
             exit 1
