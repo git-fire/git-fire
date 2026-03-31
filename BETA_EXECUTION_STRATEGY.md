@@ -14,6 +14,7 @@ This document defines the practical strategy to complete all beta readiness work
 - Decision log and findings: `BETA_BLOCKERS_PROGRESS.md`
 - Release-readiness summary: `BETA_READINESS_REPORT.md`
 - Deferred/future backlog: `ROADMAP.md`
+- Parallel execution SOP: `KTLO_PARALLEL_EXECUTION_PLAYBOOK.md`
 
 ## Operating Model
 
