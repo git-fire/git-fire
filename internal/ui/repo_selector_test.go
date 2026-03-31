@@ -642,3 +642,19 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 		t.Error("applyConfigChange(5,+1) should move to next color profile")
 	}
 }
+
+func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
+	cfg := config.DefaultConfig()
+	beforeProfile := cfg.UI.ColorProfile
+
+	// Row 6 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(6, &cfg)
+	if val == "" {
+		t.Fatal("configRowValue(6) should show a placeholder/preview string")
+	}
+
+	applyConfigChange(6, &cfg, +1)
+	if cfg.UI.ColorProfile != beforeProfile {
+		t.Error("coming-soon row should not mutate config")
+	}
+}
