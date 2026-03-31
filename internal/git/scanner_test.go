@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 func TestScanRepositories_FindsSingleRepo(t *testing.T) {
