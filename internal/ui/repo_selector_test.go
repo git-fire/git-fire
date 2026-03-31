@@ -376,3 +376,66 @@ func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyUp))
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyDown))
 }
+
+func TestRepoSelectorLiteModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
+	longParent := filepath.Join(
+		os.TempDir(),
+		"gitfire-ui-sample",
+		"very",
+		"long",
+		"parent",
+		"path",
+		"that",
+		"will",
+		"truncate",
+	)
+	repos := []git.Repository{
+		{Path: filepath.Join(longParent, "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorLiteModel(repos, nil, "")
+	m.windowWidth = 45
+
+	view := m.View()
+	if !strings.Contains(view, "SCROLL PATH") {
+		t.Fatalf("expected lite view to show scroll hint when truncated, got: %q", view)
+	}
+}
+
+func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
+	longParent := filepath.Join(
+		os.TempDir(),
+		"gitfire-ui-sample",
+		"very",
+		"long",
+		"parent",
+		"path",
+		"that",
+		"will",
+		"truncate",
+	)
+	repos := []git.Repository{
+		{Path: filepath.Join(longParent, "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.windowWidth = 45
+
+	view := m.View()
+	if !strings.Contains(view, "SCROLL PATH") {
+		t.Fatalf("expected full view to show scroll hint when truncated, got: %q", view)
+	}
+}
+
+func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testing.T) {
+	repos := []git.Repository{
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.windowWidth = 80
+	m.windowHeight = 26 // small terminal — exercises the at-least-one-row floor
+
+	view := m.View()
+	if !strings.Contains(view, "alpha") && !strings.Contains(view, "beta") {
+		t.Fatalf("expected at least one repo row to render at small height, got: %q", view)
+	}
+}
