@@ -119,7 +119,7 @@ See [../PLUGINS.md](../PLUGINS.md).
 
 - 250+ tests (see README badge).
 - CI runs build, vet, and race tests.
-- Target coverage: 80%+ for non-UI `internal/` packages.
+- Coverage is tracked per package with a risk-based focus, not a single global gate.
 - UI testing remains intentionally limited compared to non-UI packages.
 - Integration tests using real `git` are preferred over mocking.
 
