@@ -399,6 +399,12 @@ func TestRepoSelectorLiteModel_View_ShowsScrollHintWhenPathTruncated(t *testing.
 	if !strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected lite view to show scroll hint when truncated, got: %q", view)
 	}
+
+	m.windowWidth = 240
+	view = m.View()
+	if strings.Contains(view, "SCROLL PATH") {
+		t.Fatalf("expected lite view to hide scroll hint when path fits, got: %q", view)
+	}
 }
 
 func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
@@ -422,5 +428,11 @@ func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "SCROLL PATH") {
 		t.Fatalf("expected full view to show scroll hint when truncated, got: %q", view)
+	}
+
+	m.windowWidth = 240
+	view = m.View()
+	if strings.Contains(view, "SCROLL PATH") {
+		t.Fatalf("expected full view to hide scroll hint when path fits, got: %q", view)
 	}
 }
