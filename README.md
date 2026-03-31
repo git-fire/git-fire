@@ -32,10 +32,48 @@ curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emerg
 
 | Method | Command | Platform |
 |---|---|---|
-| Homebrew | `brew tap TBRX103/tap && brew install git-fire` | macOS / Linux |
-| Scoop | `scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket && scoop install git-fire` | Windows |
 | Go | `go install github.com/TBRX103/git-fire@latest` | All (Go 1.24.2+) |
-| Binary | [GitHub Releases](https://github.com/TBRX103/git-fire/releases/latest) | All |
+| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
+
+For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
+Homebrew/Scoop publishing will be enabled in a later stable release.
+
+#### PATH setup (required)
+
+After install, make sure the binary location is on your `PATH`.
+
+**Go install (Linux/macOS):**
+```bash
+export PATH="$HOME/go/bin:$PATH"
+```
+Add that line to `~/.zshrc` or `~/.bashrc` to persist.
+
+**Manual binary install (Linux/macOS):**
+```bash
+# after extracting the release archive:
+chmod +x git-fire
+sudo mv git-fire /usr/local/bin/
+```
+
+**Manual binary install (Windows PowerShell):**
+```powershell
+# after extracting the release archive:
+New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
+Move-Item .\git-fire.exe "$env:USERPROFILE\bin\git-fire.exe" -Force
+```
+Then add `$env:USERPROFILE\bin` to your user `PATH` if not already present.
+
+#### Verify install
+
+```bash
+git-fire --version
+which git-fire
+```
+On Windows PowerShell:
+```powershell
+git-fire.exe --version
+Get-Command git-fire.exe
+```
 
 ### First run
 
