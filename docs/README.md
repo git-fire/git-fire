@@ -2,6 +2,8 @@
 
 This directory is the docs hub for OSS-facing material.
 
+Command forms used throughout docs: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
+
 ## Start Here
 
 - Project entrypoint: [../README.md](../README.md)

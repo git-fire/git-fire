@@ -18,6 +18,8 @@
 
 `git-fire` discovers repositories, auto-commits dirty work (unless you disable it), and pushes in parallel so work is not stranded locally. It is built for emergency backup and also works for routine multi-repo sync.
 
+Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
+
 ## Quick Start
 
 ### One-line emergency mode
@@ -50,6 +52,8 @@ git-fire
 ```bash
 # interactive emergency backup
 git-fire
+# same command via git subcommand aliasing
+git fire
 
 # non-destructive fire drill
 git-fire --dry-run
