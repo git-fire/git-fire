@@ -10,9 +10,13 @@ import (
 	"time"
 )
 
-// pkgMu serialises Load/Save calls within a single process. The cross-process
-// case is handled by the lock file written in acquireLock.
-var pkgMu sync.Mutex
+// pkgMu serialises package-managed registry operations within a single process:
+// file I/O (Load/Save) and mutations via package functions (Upsert, SetStatus,
+// Remove, UpdateByPath). It does NOT protect against races when callers retain
+// references obtained from FindByPath or access r.Repos directly — callers must
+// not mutate escaped pointers without their own synchronisation.
+// The cross-process case is handled by the lock file written in acquireLock.
+var pkgMu sync.RWMutex
 
 // acquireLock creates an exclusive per-file lock using O_CREATE|O_EXCL so that
 // only one git-fire instance modifies the registry at a time. It spins for up

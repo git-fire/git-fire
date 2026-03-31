@@ -1,7 +1,8 @@
 # 🔥 Git Fire - Emergency Git Backup Tool
 
 <p align="center">
-  <img src="assets/git-fire-lockup.svg" alt="git-fire: flame and git node with wordmark" width="280" height="160" />
+  <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
+  <img src="assets/git-fire-lockup-dark.svg#gh-dark-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
 </p>
 
 <p align="center">
@@ -36,22 +37,80 @@ This will:
 
 ### Install Properly
 
+| Method | Command | Platform |
+|--------|---------|----------|
+| Homebrew | `brew tap TBRX103/tap && brew install git-fire` | macOS / Linux |
+| Scoop | `scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket` then `scoop install git-fire` | Windows |
+| Go | `go install github.com/TBRX103/git-fire@latest` | All (Go 1.21+) |
+| curl | See below | macOS / Linux |
+| Binary | [GitHub Releases](https://github.com/TBRX103/git-fire/releases/latest) | All |
+
+#### macOS (Homebrew)
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+brew tap TBRX103/tap
+brew install git-fire
 ```
 
-Or with Go:
+#### Windows (Scoop)
+
+```powershell
+scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket
+scoop install git-fire
+```
+
+#### Go install
 
 ```bash
 go install github.com/TBRX103/git-fire@latest
 ```
 
-Or build from source:
+Binary lands in `$GOPATH/bin` (usually `~/go/bin`). Requires Go 1.21+.
+
+#### curl (macOS / Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+```
+
+Installs to `~/.local/bin`. Advises PATH setup if that directory isn't on your PATH.
+
+#### Manual binary
+
+Download the correct archive from [Releases](https://github.com/TBRX103/git-fire/releases/latest):
+
+| OS | Architecture | File |
+|----|-------------|------|
+| macOS | Apple Silicon (M1/M2/M3) | `git-fire_*_darwin_arm64.tar.gz` |
+| macOS | Intel | `git-fire_*_darwin_amd64.tar.gz` |
+| Linux | x86-64 | `git-fire_*_linux_amd64.tar.gz` |
+| Linux | ARM64 | `git-fire_*_linux_arm64.tar.gz` |
+| Linux | ARMv6 | `git-fire_*_linux_armv6.tar.gz` |
+| Windows | x86-64 | `git-fire_*_windows_amd64.zip` |
+| Windows | ARM64 | `git-fire_*_windows_arm64.zip` |
+| Windows | 32-bit | `git-fire_*_windows_386.zip` |
+
+```bash
+# Example: macOS Apple Silicon
+tar -xzf git-fire_*_darwin_arm64.tar.gz
+chmod +x git-fire
+mv git-fire ~/.local/bin/   # or /usr/local/bin/
+```
+
+Verify integrity: `sha256sum -c checksums.txt` (checksums.txt is in the same release).
+
+#### Build from source
 
 ```bash
 git clone https://github.com/TBRX103/git-fire.git
 cd git-fire
-go build -o git-fire .
+make install           # builds with version tag, installs to ~/.local/bin/git-fire
+```
+
+Or without Make:
+
+```bash
+go build -ldflags="-s -w" -o git-fire .
 ```
 
 ### Shell Completions
@@ -279,7 +338,8 @@ Run `git-fire --dry-run` regularly to see exactly what would be committed before
 ## 🌐 Website
 
 <p align="center">
-  <img src="assets/git-fire-icon.svg" alt="git-fire flame mark" width="72" height="96" />
+  <img src="assets/git-fire-icon.svg#gh-light-mode-only" alt="git-fire flame mark" width="72" height="96">
+  <img src="assets/git-fire-icon-dark.svg#gh-dark-mode-only" alt="git-fire flame mark" width="72" height="96">
 </p>
 
 [git-fire.com](https://git-fire.com) — coming soon.

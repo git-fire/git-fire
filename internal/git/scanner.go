@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,22 +18,44 @@ import (
 //
 // Registry entries in opts.KnownPaths are included regardless of whether they
 // fall under opts.RootPath — the registry is global.
+//
+// If opts.Ctx is cancelled the walk stops early; already-queued analysis
+// goroutines are abandoned. If opts.FolderProgress is non-nil each visited
+// directory path is forwarded there (non-blocking) and the channel is closed
+// when the walk is done.  If opts.DisableScan is true the filesystem walk is
+// skipped entirely and only KnownPaths entries are processed.
 func ScanRepositoriesStream(opts ScanOptions, out chan<- Repository) error {
+	ctx := opts.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	semaphore := make(chan struct{}, opts.Workers)
 	var wg sync.WaitGroup
 
 	absRoot, err := filepath.Abs(opts.RootPath)
 	if err != nil {
 		close(out)
+		if opts.FolderProgress != nil {
+			close(opts.FolderProgress)
+		}
 		return fmt.Errorf("resolving scan path: %w", err)
 	}
 
 	spawnAnalysis := func(repoPath string) {
+		// Check cancellation before queuing more work.
+		if ctx.Err() != nil {
+			return
+		}
 		wg.Add(1)
 		semaphore <- struct{}{}
 		go func(p string) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
+			// Re-check after acquiring the semaphore slot.
+			if ctx.Err() != nil {
+				return
+			}
 			fi, err := os.Stat(p)
 			if err != nil || !fi.IsDir() {
 				return
@@ -41,7 +64,10 @@ func ScanRepositoriesStream(opts ScanOptions, out chan<- Repository) error {
 			if err != nil {
 				return
 			}
-			out <- repo
+			// Send unless context was cancelled while we were analysing.
+			if ctx.Err() == nil {
+				out <- repo
+			}
 		}(repoPath)
 	}
 
@@ -55,60 +81,80 @@ func ScanRepositoriesStream(opts ScanOptions, out chan<- Repository) error {
 		spawnAnalysis(knownPath)
 	}
 
-	// Walk the directory tree to discover new (unknown) repos.
-	walkErr := filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			// Skip directories we can't access
-			return nil
-		}
-
-		if !info.IsDir() {
-			return nil
-		}
-
-		absPath, absErr := filepath.Abs(path)
-		if absErr != nil {
-			return nil
-		}
-
-		// If this directory is a known repo root:
-		//   rescan=false → skip the entire subtree (already queued above)
-		//   rescan=true  → continue walking so new submodules inside are found
-		if rescan, isKnown := opts.KnownPaths[absPath]; isKnown && !rescan {
-			return filepath.SkipDir
-		}
-
-		// Check if this is a .git directory (signals a repo root).
-		if info.Name() == ".git" {
-			repoPath := filepath.Dir(absPath)
-			// Only queue if not already handled via KnownPaths pre-analysis.
-			if _, alreadyKnown := opts.KnownPaths[repoPath]; !alreadyKnown {
-				spawnAnalysis(repoPath)
+	var walkErr error
+	if !opts.DisableScan {
+		// Walk the directory tree to discover new (unknown) repos.
+		walkErr = filepath.Walk(absRoot, func(path string, info os.FileInfo, err error) error {
+			// Stop walking if context was cancelled.
+			if ctx.Err() != nil {
+				return ctx.Err()
 			}
-			return filepath.SkipDir
-		}
 
-		// Check exclude patterns
-		for _, exclude := range opts.Exclude {
-			if info.Name() == exclude {
+			if err != nil {
+				// Skip directories we can't access
+				return nil
+			}
+
+			if !info.IsDir() {
+				return nil
+			}
+
+			absPath, absErr := filepath.Abs(path)
+			if absErr != nil {
+				return nil
+			}
+
+			// Emit folder progress (non-blocking so a slow consumer never stalls the walk).
+			if opts.FolderProgress != nil {
+				select {
+				case opts.FolderProgress <- path:
+				default:
+				}
+			}
+
+			// If this directory is a known repo root:
+			//   rescan=false → skip the entire subtree (already queued above)
+			//   rescan=true  → continue walking so new submodules inside are found
+			if rescan, isKnown := opts.KnownPaths[absPath]; isKnown && !rescan {
 				return filepath.SkipDir
 			}
-		}
 
-		// Check depth limit
-		depth := strings.Count(strings.TrimPrefix(path, absRoot), string(os.PathSeparator))
-		if depth > opts.MaxDepth {
-			return filepath.SkipDir
-		}
+			// Check if this is a .git directory (signals a repo root).
+			if info.Name() == ".git" {
+				repoPath := filepath.Dir(absPath)
+				// Only queue if not already handled via KnownPaths pre-analysis.
+				if _, alreadyKnown := opts.KnownPaths[repoPath]; !alreadyKnown {
+					spawnAnalysis(repoPath)
+				}
+				return filepath.SkipDir
+			}
 
-		return nil
-	})
+			// Check exclude patterns
+			for _, exclude := range opts.Exclude {
+				if info.Name() == exclude {
+					return filepath.SkipDir
+				}
+			}
+
+			// Check depth limit
+			depth := strings.Count(strings.TrimPrefix(path, absRoot), string(os.PathSeparator))
+			if depth > opts.MaxDepth {
+				return filepath.SkipDir
+			}
+
+			return nil
+		})
+	}
 
 	// Wait for all workers, then signal end-of-stream.
 	wg.Wait()
 	close(out)
+	if opts.FolderProgress != nil {
+		close(opts.FolderProgress)
+	}
 
-	if walkErr != nil {
+	// Context cancellation is a normal exit path; don't surface it as an error.
+	if walkErr != nil && ctx.Err() == nil {
 		return fmt.Errorf("error scanning repositories: %w", walkErr)
 	}
 	return nil

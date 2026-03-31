@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -32,6 +36,7 @@ var (
 	fireMode   bool
 	scanPath   string
 	skipCommit bool
+	noScan     bool
 	initConfig bool
 	forceInit  bool
 	backupTo   string
@@ -65,6 +70,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&fireMode, "fire", false, "Fire mode: TUI repo selector, skips confirmation prompt")
 	rootCmd.Flags().StringVar(&scanPath, "path", ".", "Path to scan for repositories")
 	rootCmd.Flags().BoolVar(&skipCommit, "skip-auto-commit", false, "Skip auto-committing dirty repos")
+	rootCmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip filesystem scan; back up only known (registry) repos this run")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL")
@@ -96,6 +102,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	if scanPath != "." {
 		cfg.Global.ScanPath = scanPath
+	}
+	if noScan {
+		cfg.Global.DisableScan = true
 	}
 
 	// Fire drill is same as dry run
@@ -145,14 +154,26 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts.Exclude = cfg.Global.ScanExclude
 	opts.Workers = cfg.Global.ScanWorkers
 	opts.KnownPaths = knownPaths
+	opts.DisableScan = cfg.Global.DisableScan
 
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+	if cfg.Global.DisableScan {
+		if noScan {
+			fmt.Println("⚠️  Scanning Disabled (this run only)")
+		} else {
+			fmt.Println("⚠️  Scanning Disabled")
+		}
+	}
 	fmt.Println()
 
-	// Fire mode and dry-run collect all repos upfront (TUI and plan summary need
-	// the full list). Normal live runs use the streaming pipeline so backup begins
-	// as soon as the first repo is discovered.
-	if fireMode || dryRun {
+	// Routing:
+	//   --fire         → streaming TUI (repos appear as discovered)
+	//   --dry-run      → batch collect then plan summary (no changes made)
+	//   default        → streaming backup pipeline
+	if fireMode {
+		return runFireStream(cfg, reg, regPath, opts)
+	}
+	if dryRun {
 		return runBatch(cfg, reg, regPath, opts)
 	}
 	return runStream(cfg, reg, regPath, opts)
@@ -170,7 +191,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 		wg        sync.WaitGroup
 	)
 
-	fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	if opts.DisableScan {
+		fmt.Printf("⏳ Loading %d known repositories from registry (filesystem scan disabled)...\n", len(opts.KnownPaths))
+	} else {
+		fmt.Printf("⏳ Loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	}
 	fmt.Println()
 
 	wg.Add(2)
@@ -228,28 +253,9 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 		return nil
 	}
 
-	// Repo selection: TUI when --fire is set, otherwise auto-select all.
-	if fireMode {
-		for i := range repos {
-			repos[i].Selected = true
-		}
-		selected, err := ui.RunRepoSelector(repos, reg, regPath)
-		if err != nil {
-			if errors.Is(err, ui.ErrCancelled) {
-				fmt.Println("Aborted.")
-				return nil
-			}
-			return fmt.Errorf("repo selection failed: %w", err)
-		}
-		if len(selected) == 0 {
-			fmt.Println("No repositories selected.")
-			return nil
-		}
-		repos = selected
-	} else {
-		for i := range repos {
-			repos[i].Selected = true
-		}
+	// Repo selection: auto-select all (dry-run path only — fireMode uses streaming).
+	for i := range repos {
+		repos[i].Selected = true
 	}
 
 	// Show selected repos
@@ -324,12 +330,152 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	return nil
 }
 
+// runFireStream runs the --fire TUI mode with progressive repo discovery.
+// The scan runs in the background; repos stream into the TUI as they are found
+// rather than waiting for the full scan to complete before showing the selector.
+func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
+	// Cancellable context so TUI can abort the scan on quit.
+	ctx, cancelScan := context.WithCancel(context.Background())
+	defer cancelScan()
+	opts.Ctx = ctx
+
+	folderProgress := make(chan string, 32)
+	opts.FolderProgress = folderProgress
+
+	scanChan := make(chan git.Repository, opts.Workers)
+	// tuiRepoChan receives upserted, filtered repos for the TUI.
+	tuiRepoChan := make(chan git.Repository, opts.Workers)
+
+	var scanErr error
+	scanDone := make(chan struct{})
+	go func() {
+		defer close(scanDone)
+		scanErr = git.ScanRepositoriesStream(opts, scanChan)
+	}()
+
+	now := time.Now()
+	defaultMode := git.ParseMode(cfg.Global.DefaultMode)
+	go func() {
+		defer close(tuiRepoChan)
+		for repo := range scanChan {
+			repo, include := upsertRepoIntoRegistry(reg, repo, now, defaultMode)
+			if include {
+				repo.Selected = true
+				tuiRepoChan <- repo
+			}
+		}
+		saveRegistry(reg, regPath)
+	}()
+
+	selected, err := ui.RunRepoSelectorStream(
+		tuiRepoChan,
+		folderProgress,
+		cfg.Global.DisableScan,
+		noScan,
+		cfg,
+		config.DefaultConfigPath(),
+		reg,
+		regPath,
+	)
+	// Drain both channels BEFORE cancelling so neither the upsert goroutine
+	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block
+	// on a send after the TUI exits. Only then cancel the scan and wait.
+	go func() { for range tuiRepoChan {} }()
+	go func() { for range folderProgress {} }()
+	cancelScan()
+	<-scanDone
+
+	if err != nil {
+		if errors.Is(err, ui.ErrCancelled) {
+			fmt.Println("Aborted.")
+			return nil
+		}
+		return fmt.Errorf("repo selection failed: %w", err)
+	}
+	if len(selected) == 0 {
+		fmt.Println("No repositories selected.")
+		return nil
+	}
+
+	if scanErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: scan error: %v\n", scanErr)
+	}
+
+	// Show selected repos
+	fmt.Println("Selected repositories:")
+	for _, repo := range selected {
+		status := ""
+		if repo.IsDirty {
+			status = " (dirty)"
+		}
+		fmt.Printf("  • %s%s\n", repo.Name, status)
+	}
+	fmt.Println()
+
+	// Build and execute plan
+	planner := executor.NewPlanner(cfg)
+	plan, err := planner.BuildPlan(selected, false)
+	if err != nil {
+		return fmt.Errorf("failed to build plan: %w", err)
+	}
+	if err := plan.Validate(); err != nil {
+		return fmt.Errorf("invalid plan: %w", err)
+	}
+
+	fmt.Println(plan.Summary())
+	fmt.Println()
+
+	logger, err := executor.NewLogger(executor.DefaultLogDir())
+	if err != nil {
+		return fmt.Errorf("failed to setup logger: %w", err)
+	}
+	defer logger.Close()
+
+	fmt.Println("🔥 Pushing repositories...")
+	fmt.Println()
+
+	runner := executor.NewRunner(cfg)
+	defer runner.Close()
+
+	go func() {
+		for progress := range runner.ProgressChan() {
+			fmt.Printf("[%d/%d] %s: %s (%s)\n",
+				progress.CurrentRepo, progress.TotalRepos,
+				progress.RepoName, progress.Action, progress.Status)
+			if progress.Error != nil {
+				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+			}
+		}
+	}()
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		return fmt.Errorf("execution failed: %w", err)
+	}
+
+	logger.LogResult(result)
+	printResult(result, logger.LogPath())
+
+	if result.Failed > 0 {
+		fmt.Println("\n⚠️  Some repositories failed to push. Check the log for details.")
+		return fmt.Errorf("some repositories failed")
+	}
+	return nil
+}
+
 // runStream is the default live-run path. It pipelines scan → registry upsert →
 // backup so that pushing starts as soon as the first repo is discovered, without
 // waiting for the full scan to complete. Workers block when the queue is
 // temporarily empty and drain naturally when scanning is done.
+//
+// After all backups complete, if the filesystem scan is still running the user
+// is prompted to wait or press Ctrl+C / Enter to abort the scan.
 func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
-	fmt.Println("🔥 Scanning and backing up repositories...")
+	if opts.DisableScan {
+		fmt.Println("🔥 Backing up known repositories (filesystem scan disabled)...")
+	} else {
+		fmt.Println("🔥 Scanning and backing up repositories...")
+	}
 	fmt.Println()
 
 	// Start SSH check in the background — we'll show the result at the end.
@@ -344,6 +490,15 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		}
 	}()
 
+	// Cancellable context so we can abort the scan after backups finish.
+	ctx, cancelScan := context.WithCancel(context.Background())
+	defer cancelScan()
+	opts.Ctx = ctx
+
+	// Buffer folder-progress so the walk never blocks on a slow consumer.
+	folderProgress := make(chan string, 32)
+	opts.FolderProgress = folderProgress
+
 	scanChan := make(chan git.Repository, opts.Workers)
 	repoChan := make(chan git.Repository, opts.Workers)
 
@@ -351,10 +506,18 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	// by the progress printer. Using int64 for atomic ops.
 	var totalFound int64
 	var scanErr error
+	scanDone := make(chan struct{})
 
-	// Goroutine 1: scan → scanChan (closed when scan finishes)
+	// Goroutine 1: scan → scanChan (closed when scan finishes or ctx cancelled)
 	go func() {
+		defer close(scanDone)
 		scanErr = git.ScanRepositoriesStream(opts, scanChan)
+	}()
+
+	// Drain folder-progress in the background (TUI uses it; CLI discards it).
+	go func() {
+		for range folderProgress {
+		}
 	}()
 
 	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
@@ -405,6 +568,39 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	// totalFound is updated atomically by the upsert goroutine as repos arrive.
 	result, execErr := runner.ExecuteStream(repoChan, planner, false, &totalFound)
 
+	// If the scan is still running after all backups are done, prompt the user.
+	select {
+	case <-scanDone:
+		// Scan already finished — nothing to do.
+	default:
+		// Scan is still walking the tree.
+		fmt.Println()
+		fmt.Println("✅ All backups complete. Scan still running.")
+		fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
+
+		// Cancel on either Ctrl+C or Enter.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		inputDone := make(chan struct{})
+		go func() {
+			defer close(inputDone)
+			r := bufio.NewReader(os.Stdin)
+			_, _ = r.ReadString('\n')
+		}()
+
+		select {
+		case <-sigCh:
+			fmt.Println("\nAborting scan...")
+			cancelScan()
+		case <-inputDone:
+			// User pressed Enter — let scan finish normally; just wait below.
+		case <-scanDone:
+			// Scan finished on its own while we were waiting.
+		}
+		signal.Stop(sigCh)
+		<-scanDone // always wait for the goroutine to exit cleanly
+	}
+
 	// Check scan error (non-fatal: report and continue to show results)
 	if scanErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: scan error: %v\n", scanErr)
@@ -445,19 +641,24 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		// Can't resolve path — include repo to be safe (never silently drop backups).
 		return repo, true
 	}
-	existing := reg.FindByPath(absPath)
-	if existing != nil {
-		if existing.Mode != "" {
-			repo.Mode = git.ParseMode(existing.Mode)
+	var modeStr string
+	var ignored bool
+	found := reg.UpdateByPath(absPath, func(e *registry.RegistryEntry) {
+		modeStr = e.Mode
+		e.LastSeen = now
+		if e.Status == registry.StatusIgnored {
+			ignored = true
+			return
+		}
+		e.Status = registry.StatusActive
+	})
+	if found {
+		if modeStr != "" {
+			repo.Mode = git.ParseMode(modeStr)
 		} else {
 			repo.Mode = defaultMode
 		}
-		existing.LastSeen = now
-		if existing.Status == registry.StatusIgnored {
-			return repo, false
-		}
-		existing.Status = registry.StatusActive
-		return repo, true
+		return repo, !ignored
 	}
 	// New discovery — register it immediately (opt-out model).
 	repo.Mode = defaultMode
@@ -545,9 +746,13 @@ func handleStatus() error {
 	if scanPath != "." {
 		cfg.Global.ScanPath = scanPath
 	}
+	if noScan {
+		cfg.Global.DisableScan = true
+	}
 
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
+	opts.DisableScan = cfg.Global.DisableScan
 
 	reg := &registry.Registry{}
 	if p, err := registry.DefaultRegistryPath(); err != nil {
@@ -558,6 +763,15 @@ func handleStatus() error {
 		reg = loaded
 	}
 	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
+
+	if cfg.Global.DisableScan {
+		if noScan {
+			fmt.Println("⚠️  Scanning Disabled (this run only)")
+		} else {
+			fmt.Println("⚠️  Scanning Disabled")
+		}
+		fmt.Println()
+	}
 
 	repos, err := git.ScanRepositories(opts)
 	if err != nil {

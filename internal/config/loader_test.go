@@ -314,3 +314,84 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+// ---- SaveConfig round-trip tests ----
+
+// saveConfigAndReload saves cfg to a temp file and reloads it via pelletier
+// (the same library SaveConfig uses to write), giving us a clean round-trip
+// without going through viper so env vars don't interfere.
+func saveConfigAndReload(t *testing.T, cfg *Config) Config {
+	t.Helper()
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := SaveConfig(cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile after SaveConfig: %v", err)
+	}
+	var loaded Config
+	if err := tomlUnmarshal(data, &loaded); err != nil {
+		t.Fatalf("toml.Unmarshal after SaveConfig: %v", err)
+	}
+	return loaded
+}
+
+func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
+	original := DefaultConfig()
+	original.Global.DefaultMode = "push-all"
+	original.Global.DisableScan = true
+	original.Global.AutoCommitDirty = false
+	original.Global.ConflictStrategy = "abort"
+
+	loaded := saveConfigAndReload(t, &original)
+
+	if loaded.Global.DefaultMode != "push-all" {
+		t.Errorf("DefaultMode: want push-all, got %s", loaded.Global.DefaultMode)
+	}
+	if !loaded.Global.DisableScan {
+		t.Error("DisableScan: want true, got false")
+	}
+	if loaded.Global.AutoCommitDirty {
+		t.Error("AutoCommitDirty: want false, got true")
+	}
+	if loaded.Global.ConflictStrategy != "abort" {
+		t.Errorf("ConflictStrategy: want abort, got %s", loaded.Global.ConflictStrategy)
+	}
+}
+
+func TestSaveConfig_RepoOverridesRoundTrip(t *testing.T) {
+	original := DefaultConfig()
+	original.Repos = []RepoOverride{
+		{PathPattern: "/home/user/myproject", Mode: "push-all"},
+	}
+
+	loaded := saveConfigAndReload(t, &original)
+
+	if len(loaded.Repos) != 1 {
+		t.Fatalf("Repos: want 1 entry, got %d", len(loaded.Repos))
+	}
+	if loaded.Repos[0].PathPattern != "/home/user/myproject" {
+		t.Errorf("PathPattern: want /home/user/myproject, got %s", loaded.Repos[0].PathPattern)
+	}
+	if loaded.Repos[0].Mode != "push-all" {
+		t.Errorf("Mode: want push-all, got %s", loaded.Repos[0].Mode)
+	}
+}
+
+func TestSaveConfig_AtomicWrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+
+	cfg := DefaultConfig()
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	if _, err := os.Stat(cfgPath); err != nil {
+		t.Errorf("config file missing after SaveConfig: %v", err)
+	}
+	if _, err := os.Stat(cfgPath + ".tmp"); err == nil {
+		t.Error("temp file still exists after SaveConfig")
+	}
+}

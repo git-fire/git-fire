@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: git-fire
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: git-fire
+    main: .
+    binary: git-fire
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/TBRX103/git-fire/cmd.Version={{ .Tag }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - "386"
+    goarm:
+      - "6"
+    ignore:
+      - { goos: darwin,  goarch: arm   }
+      - { goos: darwin,  goarch: "386" }
+      - { goos: windows, goarch: arm   }
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    # Produces: git-fire_1.2.3_linux_amd64.tar.gz  (or .zip for Windows)
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "New Features"
+      regexp: "^feat"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: Other
+      order: 999
+
+brews:
+  - name: git-fire
+    repository:
+      owner: TBRX103
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      pull_request:
+        enabled: false
+    directory: Formula
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+    homepage: "https://github.com/TBRX103/git-fire"
+    description: "Emergency git backup — commit and push all repos when disaster strikes"
+    license: MIT
+    install: bin.install "git-fire"
+    test: system "#{bin}/git-fire", "--version"
+
+scoops:
+  - name: git-fire
+    repository:
+      owner: TBRX103
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      directory: bucket
+      pull_request:
+        enabled: false
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+    homepage: "https://github.com/TBRX103/git-fire"
+    description: "Emergency git backup — commit and push all repos when disaster strikes"
+    license: MIT
+
+release:
+  github:
+    owner: TBRX103
+    name: git-fire
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }}"
+  footer: |
+    ## Install
+
+    **Homebrew (macOS / Linux)**
+    ```sh
+    brew tap TBRX103/tap && brew install git-fire
+    ```
+
+    **Scoop (Windows)**
+    ```powershell
+    scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket
+    scoop install git-fire
+    ```
+
+    **Go**
+    ```sh
+    go install github.com/TBRX103/git-fire@latest
+    ```
+
+    **curl (macOS / Linux)**
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+    ```
+
+    Full instructions: [README → Install](https://github.com/TBRX103/git-fire#install)

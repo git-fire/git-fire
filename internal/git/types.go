@@ -1,6 +1,9 @@
 package git
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Repository represents a discovered git repository
 type Repository struct {
@@ -91,6 +94,20 @@ type ScanOptions struct {
 	// it for fresh metadata. When true the scanner descends normally so that
 	// new submodules inside the repo can be discovered.
 	KnownPaths map[string]bool
+
+	// Ctx controls cancellation of the scan. A nil Ctx is treated as
+	// context.Background() — the scan runs to completion.
+	Ctx context.Context
+
+	// FolderProgress, when non-nil, receives the path of each directory visited
+	// during the filesystem walk so callers can display live progress. The
+	// channel is closed by the scanner after the walk completes. Non-blocking
+	// sends are used so a slow consumer never stalls the walk.
+	FolderProgress chan<- string
+
+	// DisableScan skips the filesystem walk entirely. Only repos already present
+	// in KnownPaths are processed. Use with --no-scan or disable_scan = true.
+	DisableScan bool
 }
 
 // DefaultScanOptions returns sensible defaults
