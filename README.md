@@ -102,6 +102,12 @@ If your build is literally on fire, run `git-fire`.
 
 If you want first-class support for a specific workflow or application, please open a feature request or submit a PR. We would love to support your use case.
 
+## Roadmap Direction: Integrations + Redundancy Layers
+
+Roadmap focus is practical integrations and emergency redundancy layers, especially for cases like SSH auth/key failures during high-pressure moments.
+
+The goal is "paranoid and lazy" at the same time: set up layers once, then run one command when it counts.
+
 ## Feature to Use-Case Map
 
 | Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
@@ -123,6 +129,15 @@ If you want first-class support for a specific workflow or application, please o
 - Secret detection warns before push.
 - Structured logs create a machine-readable audit trail.
 - 250+ tests cover core non-UI packages.
+
+## How Git-Fire Works (and Why It Is Worth Trusting)
+
+`git-fire` is intentionally simple in how it works, while aiming to become powerful in what it can do for emergency data safety over time.
+
+- Built in Go for a fast, typed, testable codebase with predictable cross-platform behavior.
+- Scans repository roots you explicitly provide (for example via `--path`) plus configured/default scan roots; it does not blindly crawl your entire system unless you point it there.
+- Uses concurrent scanning and worker-based execution.
+- Uses the native `git` binary and gives control points (`--dry-run`, `--skip-auto-commit`, `--status`) before making changes.
 
 ## Core Commands
 
