@@ -16,11 +16,6 @@
 > 1. `git-fire`
 > 2. Leave building
 
-<<<<<<< HEAD
-`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It is useful in emergencies and in normal daily developer and agent workflows.
-
-Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
-=======
 `git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It helps automate multi-repo push/checkpoint cycles for anyone who uses Git, from daily development to docs, data, and ops workflows.
 
 Manual push loops can fail silently in real life (network drops, auth problems, or tool hiccups). `git-fire` gives you an auditable recovery path and more peace of mind when you need consistency across many repos.
@@ -36,7 +31,6 @@ Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen ch
 ## Alpha Status
 
 `git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.
->>>>>>> origin/main
 
 ## Quick Start
 
@@ -106,18 +100,11 @@ git-fire
 
 ## Who Is This For
 
-<<<<<<< HEAD
-- **Polyrepo developers:** you touch 5-20+ repos and want one end-of-day or pre-travel checkpoint command.
-- **Platform/infra engineers:** you maintain many IaC/config/tooling repos and need consistent, auditable bulk checkpoints.
-- **Agent workflow users:** you run Claude/Cursor-style coding sessions and want a stop-hook safety net.
-- **Security/red team practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
-=======
 - **Anyone using Git across multiple repos:** you want one reliable checkpoint command before context switches, travel, maintenance, or riskier changes.
 - **Developers and platform/infra engineers:** you maintain many code/IaC/config repos and want consistent, auditable bulk checkpoints.
 - **Agent workflow users:** you run Claude/Cursor-style coding sessions and want a stop-hook safety net.
 - **Security/ops practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
 - **Data/research/documentation teams using Git:** you track analysis, notebooks, or docs in many repos and need repeatable backup behavior.
->>>>>>> origin/main
 - **Not the target:** single-repo users and monorepo teams that already have one-repo checkpoint discipline.
 
 ## Use Cases
@@ -129,8 +116,6 @@ git-fire
 - Before travel
 - Before large refactor
 
-<<<<<<< HEAD
-=======
 ### Non-developer multi-repo checkpoint
 
 - Before publishing docs/content from multiple repositories
@@ -143,7 +128,6 @@ git-fire
 - Snapshot cross-repo changes before major editing or migration passes
 - Standardize backup behavior for mixed technical and non-technical contributors
 
->>>>>>> origin/main
 ### Agent session safety net
 
 - Run at session stop to avoid losing uncommitted agent output
@@ -170,8 +154,6 @@ See [docs/security-ops.md](docs/security-ops.md).
 
 If your build is literally on fire, run `git-fire`.
 
-<<<<<<< HEAD
-=======
 ## Integrations and Toolchains
 
 `git-fire` can be integrated into your existing toolchains, IDE workflows, and automation hooks (for example session-stop hooks, task runners, CI helpers, or wrapper scripts).
@@ -201,8 +183,6 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - **Auto-commit strategy control:** choose whether dirty working trees are included with default behavior or skipped via `--skip-auto-commit`.
 - **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/` for auditability and debugging.
 - **Workflow composition:** combine with hooks, wrappers, task runners, or CI helper scripts for consistent team or solo automation.
-
->>>>>>> origin/main
 ## Feature to Use-Case Map
 
 | Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
