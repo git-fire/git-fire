@@ -1,4 +1,4 @@
-module github.com/TBRX103/git-fire
+module github.com/git-fire/git-fire
 
 go 1.24.2
 

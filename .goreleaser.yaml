@@ -16,7 +16,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/TBRX103/git-fire/cmd.Version={{ .Tag }}
+      - -s -w -X github.com/git-fire/git-fire/cmd.Version={{ .Tag }}
     goos:
       - linux
       - darwin
@@ -90,7 +90,7 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
-    homepage: "https://github.com/TBRX103/git-fire"
+    homepage: "https://github.com/git-fire/git-fire"
     description: "Emergency git backup — commit and push all repos when disaster strikes"
     license: MIT
     install: bin.install "git-fire"
@@ -109,13 +109,13 @@ scoops:
       name: goreleaserbot
       email: bot@goreleaser.com
     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
-    homepage: "https://github.com/TBRX103/git-fire"
+    homepage: "https://github.com/git-fire/git-fire"
     description: "Emergency git backup — commit and push all repos when disaster strikes"
     license: MIT
 
 release:
   github:
-    owner: TBRX103
+    owner: git-fire
     name: git-fire
   draft: false
   prerelease: auto
@@ -136,12 +136,12 @@ release:
 
     **Go**
     ```sh
-    go install github.com/TBRX103/git-fire@latest
+    go install github.com/git-fire/git-fire@latest
     ```
 
     **curl (macOS / Linux)**
     ```sh
-    curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
     ```
 
-    Full instructions: [README → Install](https://github.com/TBRX103/git-fire#install)
+    Full instructions: [README → Install](https://github.com/git-fire/git-fire#install)

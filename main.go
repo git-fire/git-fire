@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TBRX103/git-fire/cmd"
+	"github.com/git-fire/git-fire/cmd"
 )
 
 func main() {

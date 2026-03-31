@@ -5,7 +5,7 @@
 #   curl -fsSL https://git-fire.sh/emergency | bash
 #
 # OR if git-fire is hosted on GitHub:
-#   curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emergency.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
 #
 # What this does:
 # 1. Check if git-fire binary is installed
@@ -24,7 +24,7 @@ NC='\033[0m'
 
 INSTALL_DIR="$HOME/.local/bin"
 BINARY_NAME="git-fire"
-GITHUB_REPO="TBRX103/git-fire"
+GITHUB_REPO="git-fire/git-fire"
 
 banner() {
     echo -e "${RED}"

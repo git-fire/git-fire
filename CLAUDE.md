@@ -4,7 +4,7 @@
 
 `git-fire` is an emergency Go CLI tool that backs up all dirty local git repositories to their remotes with a single command. It is the OSS successor to `qw3rtman/git-fire`, targeting developer audiences on HN and Reddit.
 
-Module: `github.com/TBRX103/git-fire`
+Module: `github.com/git-fire/git-fire`
 Go version: 1.24.2
 
 ---
