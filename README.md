@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-MVP-green" alt="Status: MVP">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: alpha">
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
@@ -20,9 +20,31 @@
 
 Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
 
+### TUI screenshot
+
+Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
+
+![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
+
+## Alpha Status
+
+`git-fire` is currently in alpha, and we are actively looking for testers and feedback.
+
+## Project Snapshot
+
+- **Project:** `git-fire` (`github.com/git-fire/git-fire`)
+- **Language:** Go 1.24.2
+- **License:** MIT
+- **Status:** Alpha
+- **Core promise:** one command to discover repos, auto-commit dirty work (unless disabled), and push backups so local-only work is not lost
+
+Detailed product, architecture, safety, testing, and roadmap notes are in [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md).
+
 ## Quick Start
 
 ### One-line emergency mode
+
+> **Coming soon:** This emergency bootstrap URL is not live yet. Keep this command ready for the upcoming release.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
@@ -30,12 +52,15 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emer
 
 ### Install
 
+> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.  
+> Keep the commands below as the planned install paths for beta rollout.
+
 | Method | Command | Platform |
 |---|---|---|
-| Homebrew | `brew tap TBRX103/tap && brew install git-fire` | macOS / Linux |
-| Scoop | `scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket && scoop install git-fire` | Windows |
+| Homebrew (coming soon) | `brew tap git-fire/homebrew-tap && brew install git-fire` | macOS / Linux |
+| Scoop (coming soon) | `scoop bucket add git-fire https://github.com/git-fire/scoop-bucket && scoop install git-fire` | Windows |
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
-| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
+| Binary (coming soon) | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
 
 ### First run
 
@@ -97,6 +122,12 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 See [docs/agentic-flows.md](docs/agentic-flows.md).
 
+## Release Roadmap
+
+- **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
+- **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
+- **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
+
 ### TUI color profiles
 
 You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
@@ -154,6 +185,12 @@ Before running broad backups:
 - run `git-fire --dry-run` regularly to inspect what would be committed
 
 `git-fire` includes secret detection warnings, but commit responsibility remains with the user.
+
+## Alpha Risk and Warranty
+
+The product is stable in many common workflows, but it is still alpha and should not be fully trusted yet. Use at your own risk.
+
+No warranty is provided (express or implied), including merchantability or fitness for a particular purpose. Maintain your own backup strategy, verify backup results, and keep updating as fixes are released.
 
 ## Contributing
 

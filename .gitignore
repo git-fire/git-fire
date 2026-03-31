@@ -36,3 +36,9 @@ git-fire
 
 # Claude Code local settings (contains machine-specific paths and permissions)
 .claude/
+
+# Local-only business docs and backups
+VISION.md
+DOMAINS.md
+STRATEGY.md
+.local-business-doc-backups/

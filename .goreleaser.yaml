@@ -80,7 +80,7 @@ changelog:
 brews:
   - name: git-fire
     repository:
-      owner: TBRX103
+      owner: git-fire
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
       pull_request:
@@ -99,7 +99,7 @@ brews:
 scoops:
   - name: git-fire
     repository:
-      owner: TBRX103
+      owner: git-fire
       name: scoop-bucket
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
       directory: bucket
@@ -123,16 +123,19 @@ release:
   footer: |
     ## Install
 
-    **Homebrew (macOS / Linux)**
+    **Homebrew (macOS / Linux, coming soon)**
     ```sh
-    brew tap TBRX103/tap && brew install git-fire
+    brew tap git-fire/homebrew-tap && brew install git-fire
     ```
 
-    **Scoop (Windows)**
+    **Scoop (Windows, coming soon)**
     ```powershell
-    scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket
+    scoop bucket add git-fire https://github.com/git-fire/scoop-bucket
     scoop install git-fire
     ```
+
+    **Binaries (coming soon)**
+    Download from [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest)
 
     **Go**
     ```sh
