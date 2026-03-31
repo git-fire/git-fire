@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emerg
 |---|---|---|
 | Homebrew | `brew tap TBRX103/tap && brew install git-fire` | macOS / Linux |
 | Scoop | `scoop bucket add tbrx103 https://github.com/TBRX103/scoop-bucket && scoop install git-fire` | Windows |
-| Go | `go install github.com/TBRX103/git-fire@latest` | All (Go 1.21+) |
+| Go | `go install github.com/TBRX103/git-fire@latest` | All (Go 1.24.2+) |
 | Binary | [GitHub Releases](https://github.com/TBRX103/git-fire/releases/latest) | All |
 
 ### First run

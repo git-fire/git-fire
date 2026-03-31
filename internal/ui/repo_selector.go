@@ -809,21 +809,6 @@ func (m RepoSelectorModel) View() string {
 		scrollHint := ""
 		if m.cursor == i && (hasLeft || hasRight) {
 			scrollHint = "  " + scrollHintStyle.Render("<< SCROLL PATH >>")
-<<<<<<< HEAD
-			adjWidth := pWidth - lipgloss.Width(scrollHint)
-			if adjWidth < 8 {
-				adjWidth = 8
-			}
-			visible, hasLeft, hasRight = TruncatePath(parentPath, adjWidth, scrollOff)
-			leftInd, rightInd = " ", " "
-			if hasLeft {
-				leftInd = "‹"
-			}
-			if hasRight {
-				rightInd = "›"
-			}
-=======
->>>>>>> origin/main
 		}
 
 		line := fmt.Sprintf("%s %s %s (%s%s%s)  [%s] %s%s%s",

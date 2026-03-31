@@ -37,7 +37,8 @@ AWS_PROFILE = "default"
 # Dry run to preview git-fire actions (plugins are not executed)
 git-fire --dry-run
 
-# Actually execute (configured plugins run automatically)
+# Actually execute core backup flow
+# NOTE: Plugin loading is currently under implementation in the main CLI path.
 git-fire
 ```
 

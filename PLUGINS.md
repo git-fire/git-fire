@@ -14,7 +14,7 @@ For quick project onboarding, see [README.md](README.md). For docs navigation, s
 
 Only **command plugins** are available today. All other types are documented here as the intended design for when they are built.
 
-Use planned sections in this document as design reference, not as currently supported configuration.
+Runtime status note: plugin sections in this document are design/planning reference and are not wired into the main CLI command dispatch path yet. The runtime plugin loader/execution hook path is not enabled for normal `git-fire` runs, so adopters should treat examples as implementation guidance until full CLI integration lands.
 
 ---
 
