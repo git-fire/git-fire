@@ -3,10 +3,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g. 1.2.3 or 1.2.3-beta.1)'
+      tag:
+        description: 'Tag to release (e.g. v0.1.0-alpha)'
         required: true
         type: string
+        default: 'v0.1.0-alpha'
 
 permissions:
   contents: read
@@ -26,20 +27,27 @@ jobs:
 
       - name: Validate version format
         env:
-          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
         run: |
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
-            echo "Invalid version format: $VERSION"
-            echo "Expected: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease"
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
+            echo "Invalid tag format: $TAG"
+            echo "Expected: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease"
             exit 1
           fi
 
-      - name: Create and push tag
+      - name: Ensure tag does not already exist
         id: tag
         env:
-          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
         run: |
-          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists locally: $TAG"
+            exit 1
+          fi
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag already exists on origin: $TAG"
+            exit 1
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${TAG}" -m "Release ${TAG}"
@@ -71,5 +79,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
