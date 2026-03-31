@@ -20,6 +20,12 @@
 
 Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-fire` on PATH as a `git` subcommand).
 
+### TUI screenshot
+
+Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
+
+![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
+
 ## Alpha Status
 
 `git-fire` is currently in alpha, and we are actively looking for testers and feedback.
@@ -65,12 +71,6 @@ git-fire --dry-run --path ~/projects
 # run interactive backup
 git-fire
 ```
-
-### TUI screenshot
-
-Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
-
-![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot.png)
 
 ## Core Commands
 
