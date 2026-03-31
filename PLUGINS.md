@@ -70,9 +70,11 @@ when = "before-push"
 
 ---
 
-### 2. Go Plugins (Most Powerful) — ❌ Removed from roadmap
+### 2. Go Plugins (Historical context) — ❌ Removed from roadmap
 
-> Dynamic Go `.so` plugin loading is no longer planned for v0.2.
+> **ARCHIVAL ONLY:** Dynamic Go `.so` plugin loading is no longer planned.
+> Do not follow the build/setup steps in this section for production integration.
+> The examples below are retained only as historical design context.
 
 Write plugins in Go that integrate deeply:
 
@@ -146,7 +148,7 @@ func init() {
 }
 ```
 
-**Build and install:**
+**Historical build/install example (do not use in current versions):**
 ```bash
 cd plugins/s3_backup
 go build -buildmode=plugin -o ~/.config/git-fire/plugins/s3_backup.so
