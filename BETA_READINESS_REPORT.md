@@ -30,9 +30,9 @@ Merged PR feedback is in good shape: across 6 high-risk PRs with CodeRabbit revi
 
 ---
 
-## Decisions Needed From You
+## Decisions (Resolved on `beta-readiness-audit`)
 
-These items have multiple valid paths and require your product judgment before implementation.
+These items were resolved during the decision pass and are now tracked as implementation constraints in `BETA_BLOCKERS_PROGRESS.md`, `ROADMAP.md`, and `BETA_EXECUTION_STRATEGY.md`.
 
 ### Decision 1: `--backup-to` flag — remove or implement?
 
@@ -41,6 +41,7 @@ The `--backup-to <url>` flag is registered in the CLI but entirely unimplemented
 - **Option A:** Remove the flag now, move spec section to "Planned / Phase 2" (15 min fix)
 - **Option B:** Implement the feature before beta (multi-day effort)
 - **Option C:** Keep the flag but emit an error "not yet implemented" (30 min fix)
+- **Chosen direction:** Defer full feature to follow-up and make beta behavior explicit (no silent no-op).
 
 ### Decision 2: Fire confirmation prompt — spec vs reality
 
@@ -48,6 +49,7 @@ The spec describes an interactive "Is the building on fire?" prompt with countdo
 
 - **Option A:** Remove the prompt from the spec — immediate execution is the intended UX
 - **Option B:** Add a confirmation prompt before non-dry-run execution (feature work)
+- **Chosen direction:** Keep immediate execution for beta; track timer/alarm UX as follow-up work.
 
 ### Decision 3: Plugin system — how to present?
 
@@ -55,6 +57,7 @@ Plugin code exists (`internal/plugins/`) but is never wired into the CLI. Docs p
 
 - **Option A:** Add a "Coming Soon" banner to PLUGINS.md and agentic-flows.md (doc fix only)
 - **Option B:** Wire plugins into the CLI for beta (requires testing, ~1 day)
+- **Chosen direction:** Present as Coming Soon for beta; remove runtime-available claims and prioritize by demand.
 
 ### Decision 4: Push concurrency — doc fix or feature?
 
@@ -62,6 +65,23 @@ README says "pushes in parallel." Code pushes sequentially (intentionally, per C
 
 - **Option A:** Update docs to say "scans in parallel, pushes sequentially" (doc fix)
 - **Option B:** Implement parallel push workers with SSH contention handling (feature work)
+- **Chosen direction:** Run as isolated experiment branch; abandon if too risky and document as WIP until complete.
+
+### Decision 5: UI prompt/report screens in beta scope?
+
+Additional prompt/report UI screens are tracked in blockers docs as a follow-up decision.
+
+- **Option A:** Not required for beta
+- **Option B:** Required before beta
+- **Chosen direction:** Not required for beta; keep tracked as post-beta follow-up.
+
+### Decision 6: `--fire --dry-run` behavior policy
+
+This interaction required an explicit product call for implementation.
+
+- **Option A:** Mutually exclusive flags
+- **Option B:** Honor both in interactive dry mode
+- **Chosen direction:** Mutually exclusive for beta (explicit error when both are set).
 
 ---
 
