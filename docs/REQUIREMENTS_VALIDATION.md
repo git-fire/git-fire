@@ -1,12 +1,19 @@
 # Git-Fire Requirements Validation Matrix
 
+> Historical validation snapshot: this file reflects a point-in-time assessment from 2026-03-29 and is not the canonical source for current runtime behavior on `main`.
+>
+> For current behavior and docs source-of-truth, use:
+> - [../README.md](../README.md)
+> - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+> - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+
 **Last Updated:** 2026-03-29 (UAT backlog + spec/doc realignment pass)
 **Validation Scope:** MVP Feature Completeness vs. GIT_FIRE_SPEC.md
 **Purpose:** Identify gaps between specification and implementation before 1.0 release
 
 Status guidance:
-- This file is the active validation status anchor for OSS readers.
-- Historical run logs and planning artifacts are preserved for context, but are not canonical status:
+- This file is preserved as historical validation context.
+- Historical run logs and planning artifacts are preserved for context, and are not canonical status:
   - `docs/VALIDATION_PROGRESS.md`
   - `docs/FINAL_VALIDATION_PLAN.md`
   - `docs/UAT_BUGS.md`
