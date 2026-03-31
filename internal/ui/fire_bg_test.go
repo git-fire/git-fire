@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/TBRX103/git-fire/internal/config"
 )
 
 // ---- NewFireBackground ----
@@ -233,5 +235,17 @@ func TestRenderFireWave_DifferentFrames(t *testing.T) {
 	b := RenderFireWave(40, 10)
 	if a == b {
 		t.Error("RenderFireWave() frame 0 and frame 10 produced identical output, expected variation")
+	}
+}
+
+func TestRenderFireWave_UsesActiveColorProfile(t *testing.T) {
+	applyColorProfile(config.UIColorProfileClassic)
+	classicFirst := activeFireColors[0]
+
+	applyColorProfile(config.UIColorProfileSynthwave)
+	synthwaveFirst := activeFireColors[0]
+
+	if classicFirst == synthwaveFirst {
+		t.Error("expected different active fire colors between classic and synthwave profiles")
 	}
 }

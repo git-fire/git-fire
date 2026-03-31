@@ -37,6 +37,7 @@ var configRows = []configRow{
 	}},
 	{label: "Disable scan", kind: configRowBool},
 	{label: "Show fire animation", kind: configRowBool},
+	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
 }
 
 // configRowValue returns the current string representation of row i for cfg.
@@ -64,6 +65,8 @@ func configRowValue(i int, cfg *config.Config) string {
 			return "true"
 		}
 		return "false"
+	case 5:
+		return cfg.UI.ColorProfile
 	}
 	return ""
 }
@@ -101,6 +104,8 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.DefaultMode = opts[idx]
 		case 2:
 			cfg.Global.ConflictStrategy = opts[idx]
+		case 5:
+			cfg.UI.ColorProfile = opts[idx]
 		}
 	}
 }
@@ -128,6 +133,9 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
+		if m.cfg != nil {
+			applyColorProfile(m.cfg.UI.ColorProfile)
+		}
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
@@ -135,6 +143,9 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
+		if m.cfg != nil {
+			applyColorProfile(m.cfg.UI.ColorProfile)
+		}
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
@@ -170,16 +181,16 @@ func (m RepoSelectorModel) viewConfig() string {
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render("🔥 GIT FIRE — SETTINGS"))
 	s.WriteString("\n\n")
 
-	cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600")).Bold(true)
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCCCC"))
-	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF99")).Bold(true)
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	cursorStyle := lipgloss.NewStyle().Foreground(activeProfile().configCursor).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(activeProfile().configLabel)
+	valueStyle := lipgloss.NewStyle().Foreground(activeProfile().configValue).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(activeProfile().configDim)
 
 	for i, row := range configRows {
 		cur := " "

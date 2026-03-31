@@ -92,6 +92,27 @@ type UIConfig struct {
 	// Show the fire animation in the repo selector. Toggle live with 'f'.
 	// Automatically suppressed when the terminal is too short.
 	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
+
+	// Color profile for fire and TUI accents.
+	// Options: "classic", "synthwave", "forest", "arctic".
+	ColorProfile string `mapstructure:"color_profile" toml:"color_profile"`
+}
+
+const (
+	UIColorProfileClassic   = "classic"
+	UIColorProfileSynthwave = "synthwave"
+	UIColorProfileForest    = "forest"
+	UIColorProfileArctic    = "arctic"
+)
+
+// UIColorProfiles returns valid built-in UI color profile names.
+func UIColorProfiles() []string {
+	return []string{
+		UIColorProfileClassic,
+		UIColorProfileSynthwave,
+		UIColorProfileForest,
+		UIColorProfileArctic,
+	}
 }
 
 // PluginsConfig contains plugin configuration

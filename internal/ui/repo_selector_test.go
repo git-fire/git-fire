@@ -626,3 +626,19 @@ func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 		t.Errorf("configRowValue(4) after toggle = %q, want %q", val, "false")
 	}
 }
+
+func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ColorProfile = config.UIColorProfileClassic
+
+	// Row 5 is "Color profile"
+	val := configRowValue(5, &cfg)
+	if val != config.UIColorProfileClassic {
+		t.Errorf("configRowValue(5) = %q, want %q", val, config.UIColorProfileClassic)
+	}
+
+	applyConfigChange(5, &cfg, +1)
+	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
+		t.Error("applyConfigChange(5,+1) should move to next color profile")
+	}
+}

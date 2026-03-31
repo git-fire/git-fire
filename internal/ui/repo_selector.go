@@ -51,6 +51,10 @@ var (
 			Padding(1, 2)
 )
 
+func init() {
+	applyColorProfile(config.UIColorProfileClassic)
+}
+
 // ASCII fire frames for animation
 var fireFrames = []string{
 	`     (  )   (   )  )
@@ -166,6 +170,7 @@ type RepoSelectorModel struct {
 
 // NewRepoSelectorModel creates a new repo selector
 func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath string) RepoSelectorModel {
+	applyColorProfile(config.UIColorProfileClassic)
 	// Initialize all repos as selected by default
 	selected := make(map[int]bool)
 	for i := range repos {
@@ -175,23 +180,23 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	// Create spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
 	// Initialize fire background
 	fireBg := NewFireBackground(70, 5)
 
 	return RepoSelectorModel{
-		repos:           repos,
-		cursor:          0,
-		selected:        selected,
-		fireBg:          fireBg,
-		spinner:         s,
-		windowWidth:     80,
-		windowHeight:    40,
-		reg:             reg,
-		regPath:         regPath,
-		pathScrollDir:   1,
-		showFire:        true,
+		repos:         repos,
+		cursor:        0,
+		selected:      selected,
+		fireBg:        fireBg,
+		spinner:       s,
+		windowWidth:   80,
+		windowHeight:  40,
+		reg:           reg,
+		regPath:       regPath,
+		pathScrollDir: 1,
+		showFire:      true,
 	}
 }
 
@@ -208,9 +213,15 @@ func NewRepoSelectorModelStream(
 	reg *registry.Registry,
 	regPath string,
 ) RepoSelectorModel {
+	profileName := config.UIColorProfileClassic
+	if cfg != nil && cfg.UI.ColorProfile != "" {
+		profileName = cfg.UI.ColorProfile
+	}
+	applyColorProfile(profileName)
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
 	fireBg := NewFireBackground(70, 5)
 
@@ -220,24 +231,24 @@ func NewRepoSelectorModelStream(
 	}
 
 	return RepoSelectorModel{
-		repos:        nil,
-		cursor:       0,
-		selected:     make(map[int]bool),
-		fireBg:       fireBg,
-		spinner:      s,
-		windowWidth:  80,
-		windowHeight: 40,
-		reg:          reg,
-		regPath:      regPath,
-		scanChan:     scanChan,
-		progressChan: progressChan,
-		scanDone:             scanDisabled, // if scan is disabled there's nothing to wait for
-		progDone:             scanDisabled,
-		scanDisabled:         scanDisabled,
-		scanDisabledRunOnly:  scanDisabledRunOnly,
-		cfg:                  cfg,
-		cfgPath:              cfgPath,
-		showFire:             showFire,
+		repos:               nil,
+		cursor:              0,
+		selected:            make(map[int]bool),
+		fireBg:              fireBg,
+		spinner:             s,
+		windowWidth:         80,
+		windowHeight:        40,
+		reg:                 reg,
+		regPath:             regPath,
+		scanChan:            scanChan,
+		progressChan:        progressChan,
+		scanDone:            scanDisabled, // if scan is disabled there's nothing to wait for
+		progDone:            scanDisabled,
+		scanDisabled:        scanDisabled,
+		scanDisabledRunOnly: scanDisabledRunOnly,
+		cfg:                 cfg,
+		cfgPath:             cfgPath,
+		showFire:            showFire,
 	}
 }
 
@@ -577,8 +588,8 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		buf.WriteString("\n\n")
 	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2).
 		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
 	buf.WriteString("\n\n")
@@ -611,8 +622,9 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 
 // ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
 // Overhead:
-//   fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//   + help marginTop (1) + help body (3) + box border+padding (4) = 20
+//
+//	fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
+//	+ help marginTop (1) + help body (3) + box border+padding (4) = 20
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
 	const overhead = 20
 	n := m.windowHeight - overhead
@@ -745,8 +757,8 @@ func (m RepoSelectorModel) View() string {
 	titleText := "🔥 GIT FIRE - SELECT REPOSITORIES 🔥"
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
@@ -910,7 +922,7 @@ func (m RepoSelectorModel) View() string {
 func (m RepoSelectorModel) renderScanStatus() string {
 	scanStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#555555")).
+		BorderForeground(activeProfile().scanBorder).
 		Padding(0, 1)
 
 	switch {
@@ -921,11 +933,11 @@ func (m RepoSelectorModel) renderScanStatus() string {
 		} else {
 			label = "⚠️  Scanning Disabled"
 		}
-		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00")).Render(label))
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanWarn).Render(label))
 
 	case m.scanDone:
 		msg := fmt.Sprintf("✅ Scan Complete  (%d new repos found)", m.scanNewCount)
-		return scanStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#00CC66")).Render(msg))
+		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanDone).Render(msg))
 
 	default:
 		folder := m.scanCurrentPath
@@ -957,8 +969,8 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 
 	titleGradient := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#ff4500")).
-		Background(lipgloss.Color("#1a1a1a")).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥"))
 	s.WriteString("\n\n")
