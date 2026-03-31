@@ -11,7 +11,7 @@ import (
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -427,6 +427,19 @@ func TestRootCommand_InvalidFlag(t *testing.T) {
 	// Error should mention the unknown flag
 	if err != nil && !strings.Contains(err.Error(), "unknown flag") {
 		t.Errorf("Expected 'unknown flag' error, got: %v", err)
+	}
+}
+
+func TestBackupToExecuteError(t *testing.T) {
+	resetFlags()
+	backupTo = "git@github.com:user/backup"
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected --backup-to execute path to return an error")
+	}
+	if !strings.Contains(err.Error(), "--backup-to is not yet implemented") {
+		t.Fatalf("unexpected error for --backup-to: %v", err)
 	}
 }
 

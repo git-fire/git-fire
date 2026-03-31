@@ -1,12 +1,20 @@
-# Git-Fire for Agent Workflows
+# Git-Fire for Agentic Workflows
 
-`git-fire` is useful for agent sessions where changes span multiple repos and may remain uncommitted at interruption time.
+Agent sessions can leave dirty state across multiple repositories. `git-fire` gives you a single end-of-session checkpoint command with dry-run preview, conflict-safe push behavior, and structured logs.
 
-## Recommended patterns
+Related docs:
+- project quickstart: [../README.md](../README.md)
+- behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- security and operations guide: [security-ops.md](security-ops.md)
+- plugin reference: [../PLUGINS.md](../PLUGINS.md)
+
+---
+
+## Recommended Patterns
 
 ### 1) Session stop hook (safe mode)
 
-Back up already-created commits without auto-committing unfinished edits:
+Back up already-created commits without auto-committing unfinished edits.
 
 ```json
 {
@@ -53,4 +61,3 @@ See `PLUGINS.md` for plugin types and payload guidance.
 - Behavior reference: `GIT_FIRE_SPEC.md`
 - Plugin details: `PLUGINS.md`
 - Validation status: `docs/REQUIREMENTS_VALIDATION.md`
-
