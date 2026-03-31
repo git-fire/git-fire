@@ -24,15 +24,25 @@ Invocation note: you can use either `git-fire` or `git fire` (Git resolves `git-
 
 `git-fire` is currently in alpha, and we are actively looking for testers and feedback.
 
+## Project Snapshot
+
+- **Project:** `git-fire` (`github.com/git-fire/git-fire`)
+- **Language:** Go 1.24.2
+- **License:** MIT
+- **Status:** Alpha
+- **Core promise:** one command to discover repos, auto-commit dirty work (unless disabled), and push backups so local-only work is not lost
+
+Detailed product, architecture, safety, testing, and roadmap notes are in [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md).
+
 ## Quick Start
 
 ### One-line emergency mode
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/TBRX103/git-fire/main/scripts/emergency.sh | bash
-```
+> **Coming soon:** This emergency bootstrap URL is not live yet. Keep this command ready for the upcoming release.
 
-Coming soon: this URL/script path is not live yet. Keep this command handy for the upcoming emergency bootstrap release.
+```bash
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
+```
 
 ### Install
 
