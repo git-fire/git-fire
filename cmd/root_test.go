@@ -523,6 +523,66 @@ func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	if entry.Mode != git.ModePushAll.String() {
 		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
 	}
+	if !updated.IsNewRegistryEntry {
+		t.Fatal("expected IsNewRegistryEntry for first upsert")
+	}
+}
+
+func TestUpsertRepoIntoRegistry_SecondUpsertNotNew(t *testing.T) {
+	reg := &registry.Registry{}
+	now := time.Now()
+	repo := git.Repository{
+		Path: "/tmp/repo-twice",
+		Name: "repo-twice",
+	}
+	first, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if !first.IsNewRegistryEntry {
+		t.Fatal("first upsert should be new to registry")
+	}
+	second, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if second.IsNewRegistryEntry {
+		t.Fatal("second upsert should not mark IsNewRegistryEntry")
+	}
+}
+
+func TestTruncateScanProgressPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		maxLen    int
+		wantEqual string
+		wantLen   int
+		wantPref  string
+	}{
+		{
+			name:      "short path unchanged",
+			path:      "/home/u/proj",
+			maxLen:    72,
+			wantEqual: "/home/u/proj",
+		},
+		{
+			name:     "long path truncated",
+			path:     strings.Repeat("/x", 80),
+			maxLen:   20,
+			wantLen:  20,
+			wantPref: "...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateScanProgressPath(tt.path, tt.maxLen)
+			if tt.wantEqual != "" && got != tt.wantEqual {
+				t.Fatalf("got %q want %q", got, tt.wantEqual)
+			}
+			if tt.wantLen > 0 && len(got) != tt.wantLen {
+				t.Fatalf("len=%d want %d", len(got), tt.wantLen)
+			}
+			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
+				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+		})
+	}
 }
 
 // Helper function to reset flags between tests
