@@ -523,6 +523,41 @@ func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	if entry.Mode != git.ModePushAll.String() {
 		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
 	}
+	if !updated.IsNewRegistryEntry {
+		t.Fatal("expected IsNewRegistryEntry for first upsert")
+	}
+}
+
+func TestUpsertRepoIntoRegistry_SecondUpsertNotNew(t *testing.T) {
+	reg := &registry.Registry{}
+	now := time.Now()
+	repo := git.Repository{
+		Path: "/tmp/repo-twice",
+		Name: "repo-twice",
+	}
+	first, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if !first.IsNewRegistryEntry {
+		t.Fatal("first upsert should be new to registry")
+	}
+	second, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if second.IsNewRegistryEntry {
+		t.Fatal("second upsert should not mark IsNewRegistryEntry")
+	}
+}
+
+func TestTruncateScanProgressPath(t *testing.T) {
+	short := "/home/u/proj"
+	if got := truncateScanProgressPath(short, 72); got != short {
+		t.Fatalf("short path: got %q", got)
+	}
+	long := strings.Repeat("/x", 80)
+	got := truncateScanProgressPath(long, 20)
+	if len(got) != 20 {
+		t.Fatalf("len=%d want 20", len(got))
+	}
+	if !strings.HasPrefix(got, "...") {
+		t.Fatalf("expected ellipsis prefix, got %q", got)
+	}
 }
 
 // Helper function to reset flags between tests

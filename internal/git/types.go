@@ -15,6 +15,11 @@ type Repository struct {
 	LastModified time.Time // Last commit time
 	Selected     bool      // User selected for push
 	Mode         RepoMode  // Push mode for this repo
+
+	// IsNewRegistryEntry is set by the registry upsert step when streaming
+	// (--fire): true if this path had no registry entry before that upsert.
+	// Ignored elsewhere (zero value).
+	IsNewRegistryEntry bool
 }
 
 // Remote represents a git remote

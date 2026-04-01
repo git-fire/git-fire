@@ -169,7 +169,9 @@ type RepoSelectorModel struct {
 	scanDisabled        bool   // disable_scan = true in config OR --no-scan flag
 	scanDisabledRunOnly bool   // true when disabled by --no-scan flag (not persisted config)
 	scanCurrentPath     string // latest folder the scanner is visiting
-	scanNewCount        int    // repos discovered during this TUI session
+	// Streaming scan: repos shown in the TUI list (after registry upsert).
+	scanNewRegistryCount int // first-time registry entries this session
+	scanKnownRegistryCount int // paths already in registry before upsert
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
 	showFire bool
@@ -295,7 +297,11 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		idx := len(m.repos)
 		m.repos = append(m.repos, repo)
 		m.selected[idx] = true
-		m.scanNewCount++
+		if repo.IsNewRegistryEntry {
+			m.scanNewRegistryCount++
+		} else {
+			m.scanKnownRegistryCount++
+		}
 		if m.scanChan != nil {
 			cmds = append(cmds, waitForRepo(m.scanChan))
 		}
@@ -1034,7 +1040,14 @@ func (m RepoSelectorModel) renderScanStatus() string {
 		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanWarn).Render(label))
 
 	case m.scanDone:
-		msg := fmt.Sprintf("✅ Scan Complete  (%d new repos found)", m.scanNewCount)
+		total := m.scanNewRegistryCount + m.scanKnownRegistryCount
+		var msg string
+		if total == 0 {
+			msg = "✅ Scan Complete  (no repos in list)"
+		} else {
+			msg = fmt.Sprintf("✅ Scan Complete  (%d in list: %d new to registry, %d known)",
+				total, m.scanNewRegistryCount, m.scanKnownRegistryCount)
+		}
 		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanDone).Render(msg))
 
 	default:
@@ -1048,7 +1061,9 @@ func (m RepoSelectorModel) renderScanStatus() string {
 			folder = "..." + folder[len(folder)-maxLen+3:]
 		}
 		line1 := fmt.Sprintf("🔍 Scanning: %s", folder)
-		line2 := fmt.Sprintf("   New repos found this session: %d", m.scanNewCount)
+		total := m.scanNewRegistryCount + m.scanKnownRegistryCount
+		line2 := fmt.Sprintf("   In list: %d  (%d new to registry, %d known)",
+			total, m.scanNewRegistryCount, m.scanKnownRegistryCount)
 		return scanStyle.Render(line1 + "\n" + line2)
 	}
 }
