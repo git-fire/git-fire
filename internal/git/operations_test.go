@@ -220,6 +220,8 @@ exit 0
 	if output, cmdErr := cmd.CombinedOutput(); cmdErr == nil {
 		t.Fatalf("expected unborn HEAD after cleanup, but rev-parse HEAD succeeded: %s", strings.TrimSpace(string(output)))
 	}
+
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
 }
 
 func TestCreateFireBranch(t *testing.T) {
@@ -717,6 +719,28 @@ exit 0
 	currentSHA := testutil.GetCurrentSHA(t, repo)
 	if currentSHA != originalSHA {
 		t.Fatalf("expected cleanup reset to original HEAD %s, got %s", originalSHA, currentSHA)
+	}
+
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+}
+
+func assertUncommittedFilesContain(t *testing.T, repo string, expected ...string) {
+	t.Helper()
+
+	files, err := GetUncommittedFiles(repo)
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error: %v", err)
+	}
+
+	fileSet := make(map[string]struct{}, len(files))
+	for _, f := range files {
+		fileSet[f] = struct{}{}
+	}
+
+	for _, want := range expected {
+		if _, ok := fileSet[want]; !ok {
+			t.Fatalf("expected %q in uncommitted files, got %v", want, files)
+		}
 	}
 }
 

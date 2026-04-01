@@ -118,9 +118,13 @@ func DetectConflict(repoPath, branch, remote string) (bool, string, string, erro
 	// - merge-base == remoteSHA => local is only ahead (no divergence)
 	// - merge-base == localSHA  => local is behind (no divergence)
 	// - otherwise               => true divergence (conflict)
-	mergeBaseSHA, err := getMergeBaseSHA(repoPath, branch, remoteBranch)
+	mergeBaseSHA, hasMergeBase, err := getMergeBaseSHA(repoPath, branch, remoteBranch)
 	if err != nil {
 		return false, "", "", fmt.Errorf("failed to get merge-base: %w", err)
+	}
+	if !hasMergeBase {
+		// No common ancestor means true divergence for conflict-handling purposes.
+		return true, localSHA, remoteSHA, nil
 	}
 	hasConflict := mergeBaseSHA != remoteSHA && mergeBaseSHA != localSHA
 
@@ -146,14 +150,17 @@ func GetCommitSHA(repoPath, ref string) (string, error) {
 	return getCommitSHA(repoPath, ref)
 }
 
-func getMergeBaseSHA(repoPath, leftRef, rightRef string) (string, error) {
+func getMergeBaseSHA(repoPath, leftRef, rightRef string) (string, bool, error) {
 	cmd := exec.Command("git", "merge-base", leftRef, rightRef)
 	cmd.Dir = repoPath
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("git merge-base failed for %s and %s: %w", leftRef, rightRef, err)
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return "", false, nil
+		}
+		return "", false, commandError("git merge-base", err, output)
 	}
-	return strings.TrimSpace(string(output)), nil
+	return strings.TrimSpace(string(output)), true, nil
 }
 
 // CreateFireBranch creates a new fire backup branch
