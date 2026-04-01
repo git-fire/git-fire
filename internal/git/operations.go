@@ -418,8 +418,8 @@ func ListWorktrees(repoPath string) ([]Worktree, error) {
 
 // AutoCommitDirtyWithStrategy commits changes using the staged/unstaged dual branch strategy
 // Returns information about branches created and any error
-func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoCommitResult, error) {
-	result := &AutoCommitResult{}
+func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *AutoCommitResult, retErr error) {
+	result = &AutoCommitResult{}
 
 	// Set defaults
 	if !opts.UseDualBranch {
@@ -433,6 +433,12 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 	currentBranch, err := GetCurrentBranch(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	// Capture original HEAD once and use it for all cleanup/reset paths.
+	originalHeadSHA, err := getCommitSHA(repoPath, "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original HEAD SHA: %w", err)
 	}
 
 	// Check for staged and unstaged changes
@@ -452,7 +458,18 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
-	commitsToReset := 0
+	commitsCreated := 0
+
+	// Failure path cleanup: always reset to the original commit to avoid orphan
+	// backup commits, even when multiple commits were created.
+	defer func() {
+		if retErr == nil || commitsCreated == 0 {
+			return
+		}
+		if cleanupErr := resetSoftToCommit(repoPath, originalHeadSHA); cleanupErr != nil {
+			retErr = fmt.Errorf("%w; failed cleanup reset to original HEAD %s: %v", retErr, originalHeadSHA, cleanupErr)
+		}
+	}()
 
 	// Scenario 1: Only staged changes
 	if hasStaged && !hasUnstaged {
@@ -465,7 +482,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		if err := commitChanges(repoPath, message, false); err != nil {
 			return nil, fmt.Errorf("failed to commit staged changes: %w", err)
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Get SHA and create branch
 		sha, err := getCommitSHA(repoPath, "HEAD")
@@ -496,7 +513,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		if err := commitChanges(repoPath, message, true); err != nil {
 			return nil, fmt.Errorf("failed to commit unstaged changes: %w", err)
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Get SHA and create branch
 		sha, err := getCommitSHA(repoPath, "HEAD")
@@ -527,7 +544,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		if err := commitChanges(repoPath, message1, false); err != nil {
 			return nil, fmt.Errorf("failed to commit staged changes: %w", err)
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Create staged branch
 		sha1, err := getCommitSHA(repoPath, "HEAD")
@@ -554,7 +571,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		if err := commitChanges(repoPath, message2, true); err != nil {
 			return nil, fmt.Errorf("failed to commit unstaged changes: %w", err)
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Create full branch
 		sha2, err := getCommitSHA(repoPath, "HEAD")
@@ -574,16 +591,24 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		result.BothCreated = true
 	}
 
-	// Reset to original state if requested
-	if opts.ReturnToOriginal && commitsToReset > 0 {
-		cmd := exec.Command("git", "reset", "--soft", fmt.Sprintf("HEAD~%d", commitsToReset))
-		cmd.Dir = repoPath
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return nil, commandError("git reset --soft", err, output)
+	// Success path reset: preserve pre-existing staged/unstaged state by moving
+	// HEAD back to the original SHA instead of using HEAD~N math.
+	if opts.ReturnToOriginal && commitsCreated > 0 {
+		if err := resetSoftToCommit(repoPath, originalHeadSHA); err != nil {
+			return nil, err
 		}
 	}
 
 	return result, nil
+}
+
+func resetSoftToCommit(repoPath, sha string) error {
+	cmd := exec.Command("git", "reset", "--soft", sha)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git reset --soft", err, output)
+	}
+	return nil
 }
 
 // commitChanges commits changes with optional git add -A

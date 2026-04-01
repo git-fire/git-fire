@@ -397,3 +397,34 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 		t.Fatalf("Expected first action to be create-fire-branch, got %#v", plan.Actions)
 	}
 }
+
+func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict to be detected")
+	}
+	if !plan.Skip {
+		t.Fatal("Expected repo to be skipped when conflict_strategy=abort")
+	}
+	if !contains(plan.SkipReason, "conflict_strategy=abort") {
+		t.Fatalf("Expected skip reason to mention abort strategy, got %q", plan.SkipReason)
+	}
+	if len(plan.Actions) == 0 || plan.Actions[len(plan.Actions)-1].Type != ActionSkip {
+		t.Fatalf("Expected skip action, got %#v", plan.Actions)
+	}
+}

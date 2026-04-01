@@ -584,6 +584,59 @@ func TestAutoCommitDirtyWithStrategy_ReturnToOriginal(t *testing.T) {
 	testutil.RunGitCmd(t, repo, "status", "--porcelain")
 }
 
+func TestAutoCommitDirtyWithStrategy_FailureCleansUpToOriginalHead(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	originalSHA := testutil.GetCurrentSHA(t, repo)
+
+	// Prepare staged + unstaged changes so the strategy performs two commits.
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fail only the second commit ("full backup") via commit-msg hook.
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("mkdir hooks dir: %v", err)
+	}
+	hookPath := filepath.Join(hooksDir, "commit-msg")
+	hook := `#!/bin/sh
+msg_file="$1"
+if grep -q "full backup" "$msg_file"; then
+  exit 1
+fi
+exit 0
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0755); err != nil {
+		t.Fatalf("write commit-msg hook: %v", err)
+	}
+	testutil.RunGitCmd(t, repo, "config", "core.hooksPath", hooksDir)
+
+	_, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false, // failure cleanup must still reset to original
+	})
+	if err == nil {
+		t.Fatal("expected auto-commit strategy to fail on second commit")
+	}
+	if !strings.Contains(err.Error(), "failed to commit unstaged changes") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	currentSHA := testutil.GetCurrentSHA(t, repo)
+	if currentSHA != originalSHA {
+		t.Fatalf("expected cleanup reset to original HEAD %s, got %s", originalSHA, currentSHA)
+	}
+}
+
 func TestListWorktrees(t *testing.T) {
 	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
 		Name: "test-repo",
