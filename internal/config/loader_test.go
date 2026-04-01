@@ -218,6 +218,34 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "fire tick below min clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   5,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "fire tick above max clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   999999,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +259,12 @@ func TestValidate(t *testing.T) {
 			}
 			if tt.name == "invalid fire tick fallback to default" && tt.cfg.UI.FireTickMS != DefaultUIFireTickMS {
 				t.Errorf("FireTickMS fallback = %d, want %d", tt.cfg.UI.FireTickMS, DefaultUIFireTickMS)
+			}
+			if tt.name == "fire tick below min clamps" && tt.cfg.UI.FireTickMS != MinUIFireTickMS {
+				t.Errorf("FireTickMS clamp low = %d, want %d", tt.cfg.UI.FireTickMS, MinUIFireTickMS)
+			}
+			if tt.name == "fire tick above max clamps" && tt.cfg.UI.FireTickMS != MaxUIFireTickMS {
+				t.Errorf("FireTickMS clamp high = %d, want %d", tt.cfg.UI.FireTickMS, MaxUIFireTickMS)
 			}
 		})
 	}

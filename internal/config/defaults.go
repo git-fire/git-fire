@@ -5,6 +5,12 @@ import "time"
 const DefaultPushWorkers = 4
 const DefaultUIFireTickMS = 180
 
+// MinUIFireTickMS and MaxUIFireTickMS bound ui.fire_tick_ms after load so the TUI
+// tick interval cannot become a busy loop (tiny values) or an impractically long
+// sleep (huge values).
+const MinUIFireTickMS = 30
+const MaxUIFireTickMS = 60000
+
 // DefaultConfig returns safe default configuration
 func DefaultConfig() Config {
 	return Config{

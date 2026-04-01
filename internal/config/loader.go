@@ -155,6 +155,12 @@ func (c *Config) Validate() error {
 	}
 	if c.UI.FireTickMS <= 0 {
 		c.UI.FireTickMS = DefaultUIFireTickMS
+	} else {
+		if c.UI.FireTickMS < MinUIFireTickMS {
+			c.UI.FireTickMS = MinUIFireTickMS
+		} else if c.UI.FireTickMS > MaxUIFireTickMS {
+			c.UI.FireTickMS = MaxUIFireTickMS
+		}
 	}
 
 	if c.Global.PushWorkers <= 0 {

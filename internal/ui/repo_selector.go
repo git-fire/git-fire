@@ -524,6 +524,16 @@ func min(a, b int) int {
 // the list and controls remain usable.
 const fireHeightThreshold = 20
 
+// fireSectionReserveLines is the vertical line count used by View and
+// viewIgnoredMain for the fire block when visible: fire grid (Height) plus wave
+// row and blank line before the title (see Render + "\n" + wave + "\n\n").
+func (m RepoSelectorModel) fireSectionReserveLines() int {
+	if !m.fireVisible() {
+		return 0
+	}
+	return m.fireBg.Height + 2
+}
+
 // fireVisible reports whether the fire animation section should be rendered.
 func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
@@ -600,12 +610,11 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		innerW = 0
 	}
 
-	// Build non-list sections without rendering fire internals.
-	// Fire overhead is static by line count when visible:
-	// fire bg (Height) + newline (1) + wave (1) + blank lines (2)
+	// Build non-list sections without rendering fire internals; reserve the same
+	// line count as the fire block in View (fireSectionReserveLines).
 	var buf strings.Builder
-	if m.fireVisible() {
-		for i := 0; i < m.fireBg.Height+4; i++ {
+	if lines := m.fireSectionReserveLines(); lines > 0 {
+		for i := 0; i < lines; i++ {
 			buf.WriteString("\n")
 		}
 	}
@@ -645,10 +654,10 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 // ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
 // Overhead:
 //
-//	fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//	+ help marginTop (1) + help body (3) + box border+padding (4) = 20
+//	fire block (5 + 2) + title (1) + blank×2 (2) + help marginTop (1) + help body (3)
+//	+ box border+padding (4) = 18
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
-	const overhead = 20
+	const overhead = 18
 	n := m.windowHeight - overhead
 	if n < 1 {
 		n = 1
