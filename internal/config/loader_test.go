@@ -34,6 +34,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
 	}
+	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
+		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
+	}
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {
@@ -224,6 +227,49 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		// FireTickMS: non-positive → default; otherwise clamped to Min/Max (loader Validate).
+		{
+			name: "invalid fire tick fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "fire tick below min clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   5,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "fire tick above max clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   999999,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -234,6 +280,15 @@ func TestValidate(t *testing.T) {
 			}
 			if tt.name == "invalid push workers fallback to default" && tt.cfg.Global.PushWorkers != DefaultPushWorkers {
 				t.Errorf("PushWorkers fallback = %d, want %d", tt.cfg.Global.PushWorkers, DefaultPushWorkers)
+			}
+			if tt.name == "invalid fire tick fallback to default" && tt.cfg.UI.FireTickMS != DefaultUIFireTickMS {
+				t.Errorf("FireTickMS fallback = %d, want %d", tt.cfg.UI.FireTickMS, DefaultUIFireTickMS)
+			}
+			if tt.name == "fire tick below min clamps" && tt.cfg.UI.FireTickMS != MinUIFireTickMS {
+				t.Errorf("FireTickMS clamp low = %d, want %d", tt.cfg.UI.FireTickMS, MinUIFireTickMS)
+			}
+			if tt.name == "fire tick above max clamps" && tt.cfg.UI.FireTickMS != MaxUIFireTickMS {
+				t.Errorf("FireTickMS clamp high = %d, want %d", tt.cfg.UI.FireTickMS, MaxUIFireTickMS)
 			}
 		})
 	}
@@ -418,6 +473,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.AutoCommitDirty = false
 	original.Global.ConflictStrategy = "abort"
 	original.Global.PushWorkers = 7
+	original.UI.FireTickMS = 150
 	original.UI.ColorProfile = UIColorProfileSynthwave
 
 	loaded := saveConfigAndReload(t, &original)
@@ -439,6 +495,9 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.UI.ColorProfile != UIColorProfileSynthwave {
 		t.Errorf("UIColorProfile: want %s, got %s", UIColorProfileSynthwave, loaded.UI.ColorProfile)
+	}
+	if loaded.UI.FireTickMS != 150 {
+		t.Errorf("UIFireTickMS: want 150, got %d", loaded.UI.FireTickMS)
 	}
 }
 

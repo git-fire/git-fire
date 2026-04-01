@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 // ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
@@ -72,6 +72,10 @@ var fireFrames = []string{
 
 type tickMsg time.Time
 
+// pathScrollMsg drives path-marquee advancement at a fixed cadence that is
+// independent of the fire animation speed.
+type pathScrollMsg time.Time
+
 // repoDiscoveredMsg is sent when a new repo arrives via the scan channel.
 type repoDiscoveredMsg git.Repository
 
@@ -92,9 +96,19 @@ const (
 	repoViewConfig
 )
 
-func tickCmd() tea.Cmd {
-	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
+func tickCmd(interval time.Duration) tea.Cmd {
+	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// pathScrollCmd schedules the next path-marquee advancement tick.
+// 150 ms gives a smooth ~6-7 rune/s scroll regardless of fire speed.
+const pathScrollInterval = 150 * time.Millisecond
+
+func pathScrollCmd() tea.Cmd {
+	return tea.Tick(pathScrollInterval, func(t time.Time) tea.Msg {
+		return pathScrollMsg(t)
 	})
 }
 
@@ -145,8 +159,7 @@ type RepoSelectorModel struct {
 	// Path scrolling state for the focused repo row
 	pathScrollOffset int // current rune offset into the parent-dir path
 	pathScrollDir    int // +1 = scrolling right, -1 = scrolling left
-	pathScrollPause  int // ticks remaining to pause at each end
-	pathScrollTick   int // tick counter; advances scroll every N ticks
+	pathScrollPause  int // path-scroll ticks remaining to pause at each end
 
 	// Streaming scan state (nil channels = batch/static mode)
 	scanChan            <-chan git.Repository
@@ -160,6 +173,7 @@ type RepoSelectorModel struct {
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
 	showFire bool
+	fireTick time.Duration
 
 	// Config menu state
 	cfg           *config.Config
@@ -197,6 +211,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		regPath:       regPath,
 		pathScrollDir: 1,
 		showFire:      true,
+		fireTick:      time.Duration(config.DefaultUIFireTickMS) * time.Millisecond,
 	}
 }
 
@@ -226,8 +241,12 @@ func NewRepoSelectorModelStream(
 	fireBg := NewFireBackground(70, 5)
 
 	showFire := true
+	fireTickMS := config.DefaultUIFireTickMS
 	if cfg != nil {
 		showFire = cfg.UI.ShowFireAnimation
+		if cfg.UI.FireTickMS > 0 {
+			fireTickMS = cfg.UI.FireTickMS
+		}
 	}
 
 	return RepoSelectorModel{
@@ -249,11 +268,12 @@ func NewRepoSelectorModelStream(
 		cfg:                 cfg,
 		cfgPath:             cfgPath,
 		showFire:            showFire,
+		fireTick:            time.Duration(fireTickMS) * time.Millisecond,
 	}
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
-	cmds := []tea.Cmd{tickCmd(), m.spinner.Tick}
+	cmds := []tea.Cmd{tickCmd(m.fireTick), pathScrollCmd(), m.spinner.Tick}
 	if m.scanChan != nil && !m.scanDone {
 		cmds = append(cmds, waitForRepo(m.scanChan))
 	}
@@ -304,36 +324,14 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.frameIndex = (m.frameIndex + 1) % len(fireFrames)
-		m.fireBg.Update()
-		// Auto-scroll the path of the focused repo (every 2 ticks ≈ 600 ms)
-		m.pathScrollTick++
-		if m.pathScrollTick >= 2 && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
-			m.pathScrollTick = 0
-			repo := m.repos[m.cursor]
-			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
-			pathLen := len([]rune(parentPath))
-			pWidth := PathWidthFor(m.windowWidth, repo)
-			if pathLen > pWidth {
-				maxOffset := pathLen - pWidth
-				if m.pathScrollPause > 0 {
-					m.pathScrollPause--
-				} else {
-					m.pathScrollOffset += m.pathScrollDir
-					if m.pathScrollOffset >= maxOffset {
-						m.pathScrollOffset = maxOffset
-						m.pathScrollDir = -1
-						m.pathScrollPause = 5
-					} else if m.pathScrollOffset <= 0 {
-						m.pathScrollOffset = 0
-						m.pathScrollDir = 1
-						m.pathScrollPause = 5
-					}
-				}
-			} else {
-				m.pathScrollOffset = 0
-			}
+		if m.fireVisible() {
+			m.fireBg.Update()
 		}
-		return m, tickCmd()
+		return m, tickCmd(m.fireTick)
+
+	case pathScrollMsg:
+		m = m.advancePathScroll()
+		return m, pathScrollCmd()
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -515,9 +513,56 @@ func min(a, b int) int {
 // the list and controls remain usable.
 const fireHeightThreshold = 20
 
+// fireSectionReserveLines returns how many terminal rows the fire strip occupies
+// when drawn: the ANSI grid from FireBackground.Render (Height lines), plus two
+// lines after it—the wave string and the blank line before the title—matching
+// View / viewIgnoredMain assembly (Render, then "\n"+wave+"\n\n").
+//
+// Keep this in sync with those layouts. Over-counting (e.g. Height+4) shrinks the
+// repo list for no reason; under-counting lets the list overlap the fire block.
+func (m RepoSelectorModel) fireSectionReserveLines() int {
+	if !m.fireVisible() {
+		return 0
+	}
+	return m.fireBg.Height + 2
+}
+
 // fireVisible reports whether the fire animation section should be rendered.
 func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
+}
+
+// advancePathScroll steps the path marquee for the currently focused repo.
+// Called from pathScrollMsg which fires at a fixed interval (pathScrollInterval),
+// so cadence and edge pauses are measured in real time, not fire-tick time.
+func (m RepoSelectorModel) advancePathScroll() RepoSelectorModel {
+	if m.view != repoViewMain || len(m.repos) == 0 || m.cursor >= len(m.repos) {
+		return m
+	}
+	repo := m.repos[m.cursor]
+	parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+	pathLen := len([]rune(parentPath))
+	pWidth := PathWidthFor(m.windowWidth, repo)
+	if pathLen <= pWidth {
+		m.pathScrollOffset = 0
+		return m
+	}
+	maxOffset := pathLen - pWidth
+	if m.pathScrollPause > 0 {
+		m.pathScrollPause--
+		return m
+	}
+	m.pathScrollOffset += m.pathScrollDir
+	if m.pathScrollOffset >= maxOffset {
+		m.pathScrollOffset = maxOffset
+		m.pathScrollDir = -1
+		m.pathScrollPause = 5
+	} else if m.pathScrollOffset <= 0 {
+		m.pathScrollOffset = 0
+		m.pathScrollDir = 1
+		m.pathScrollPause = 5
+	}
+	return m
 }
 
 // withResetPathScroll returns m with path-scroll state zeroed.
@@ -526,7 +571,6 @@ func (m RepoSelectorModel) withResetPathScroll() RepoSelectorModel {
 	m.pathScrollOffset = 0
 	m.pathScrollDir = 1
 	m.pathScrollPause = 0
-	m.pathScrollTick = 0
 	return m
 }
 
@@ -572,20 +616,18 @@ func clampSelectorCursor(cursor, n int) int {
 // panel is present (streaming mode adds ~4–5 extra lines) and when help text
 // wraps in narrow terminals.
 func (m RepoSelectorModel) repoListVisibleCount() int {
-	cw := m.contentWidth()
-	fireW := min(cw, 70)
 	innerW := m.windowWidth - 6
 	if innerW < 0 {
 		innerW = 0
 	}
 
-	// Build the non-list sections exactly as View() does.
+	// Placeholder newlines stand in for the fire block so lipgloss.Height matches
+	// the real View without running fire shaders. Must equal fireSectionReserveLines().
 	var buf strings.Builder
-	if m.fireVisible() {
-		buf.WriteString(m.fireBg.Render())
-		buf.WriteString("\n")
-		buf.WriteString(RenderFireWave(fireW, m.frameIndex))
-		buf.WriteString("\n\n")
+	if lines := m.fireSectionReserveLines(); lines > 0 {
+		for i := 0; i < lines; i++ {
+			buf.WriteString("\n")
+		}
 	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(activeProfile().titleFg).
@@ -620,13 +662,50 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 	return n
 }
 
-// ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
-// Overhead:
-//
-//	fire bg (5) + blank (1) + wave (1) + blank×2 (2) + title (1) + blank×2 (2)
-//	+ help marginTop (1) + help body (3) + box border+padding (4) = 20
+// renderIgnoredViewTitle returns the styled title line for the ignored view.
+// Keep in sync with viewIgnoredMain.
+func (m RepoSelectorModel) renderIgnoredViewTitle() string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
+		Padding(0, 2).
+		Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥")
+}
+
+// renderIgnoredViewHelp returns the help block for the ignored view (below the list).
+func renderIgnoredViewHelp() string {
+	return helpStyle.Render(
+		"\n" +
+			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
+			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
+	)
+}
+
+// ignoredViewNonListHeight is the boxed vertical size of the ignored view without
+// any list rows: fire placeholder, title, help. Matches viewIgnoredMain assembly
+// so wrapping help on narrow terminals inflates overhead the same as in the real view.
+func (m RepoSelectorModel) ignoredViewNonListHeight() int {
+	innerW := m.windowWidth - 6
+	if innerW < 0 {
+		innerW = 0
+	}
+	var buf strings.Builder
+	if lines := m.fireSectionReserveLines(); lines > 0 {
+		for i := 0; i < lines; i++ {
+			buf.WriteString("\n")
+		}
+	}
+	buf.WriteString(m.renderIgnoredViewTitle())
+	buf.WriteString("\n\n")
+	buf.WriteString(renderIgnoredViewHelp())
+	return lipgloss.Height(boxStyle.Width(innerW).Render(buf.String()))
+}
+
+// ignoredListVisibleCount mirrors repoListVisibleCount: overhead is measured with
+// lipgloss so help wrapping and box padding match the rendered ignored view.
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
-	const overhead = 20
+	overhead := m.ignoredViewNonListHeight()
 	n := m.windowHeight - overhead
 	if n < 1 {
 		n = 1
@@ -986,12 +1065,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		s.WriteString("\n\n")
 	}
 
-	titleGradient := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(activeProfile().titleFg).
-		Background(activeProfile().titleBg).
-		Padding(0, 2)
-	s.WriteString(titleGradient.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥"))
+	s.WriteString(m.renderIgnoredViewTitle())
 	s.WriteString("\n\n")
 
 	if len(m.ignoredEntries) == 0 {
@@ -1069,12 +1143,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		}
 	}
 
-	help := helpStyle.Render(
-		"\n" +
-			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
-			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
-	)
-	s.WriteString(help)
+	s.WriteString(renderIgnoredViewHelp())
 
 	innerW := m.windowWidth - 6
 	if innerW < 0 {
