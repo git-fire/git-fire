@@ -222,6 +222,7 @@ exit 0
 	}
 
 	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
 }
 
 func TestCreateFireBranch(t *testing.T) {
@@ -658,15 +659,8 @@ func TestAutoCommitDirtyWithStrategy_ReturnToOriginal(t *testing.T) {
 		t.Errorf("Expected HEAD to return to %s, got %s", originalSHA, currentSHA)
 	}
 
-	// After git reset --soft, all changes become staged (this is expected behavior)
-	// git reset --soft moves HEAD but keeps changes in index
-	hasStaged, _ := HasStagedChanges(repo)
-	if !hasStaged {
-		t.Error("Expected changes to be staged after reset --soft")
-	}
-
-	// Verify both files exist and are staged
-	testutil.RunGitCmd(t, repo, "status", "--porcelain")
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
 }
 
 func TestAutoCommitDirtyWithStrategy_FailureCleansUpToOriginalHead(t *testing.T) {
@@ -706,7 +700,7 @@ exit 0
 	}
 	testutil.RunGitCmd(t, repo, "config", "core.hooksPath", hooksDir)
 
-	_, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
 		ReturnToOriginal: false, // failure cleanup must still reset to original
 	})
 	if err == nil {
@@ -716,12 +710,17 @@ exit 0
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if result == nil || result.StagedBranch == "" {
+		t.Fatalf("expected partial result with staged backup branch on failure, got %+v", result)
+	}
+
 	currentSHA := testutil.GetCurrentSHA(t, repo)
 	if currentSHA != originalSHA {
 		t.Fatalf("expected cleanup reset to original HEAD %s, got %s", originalSHA, currentSHA)
 	}
 
 	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
 }
 
 func assertUncommittedFilesContain(t *testing.T, repo string, expected ...string) {
@@ -740,6 +739,32 @@ func assertUncommittedFilesContain(t *testing.T, repo string, expected ...string
 	for _, want := range expected {
 		if _, ok := fileSet[want]; !ok {
 			t.Fatalf("expected %q in uncommitted files, got %v", want, files)
+		}
+	}
+}
+
+func assertStatusEntries(t *testing.T, repo string, expected ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", "status", "--porcelain=v1")
+	cmd.Dir = repo
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status --porcelain=v1 failed: %v (%s)", err, strings.TrimSpace(string(output)))
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	set := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		set[line] = struct{}{}
+	}
+
+	for _, want := range expected {
+		if _, ok := set[want]; !ok {
+			t.Fatalf("expected status entry %q, got %v", want, lines)
 		}
 	}
 }
