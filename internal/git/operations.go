@@ -114,8 +114,15 @@ func DetectConflict(repoPath, branch, remote string) (bool, string, string, erro
 		return false, localSHA, "", nil
 	}
 
-	// Check if they differ
-	hasConflict := localSHA != remoteSHA
+	// Compare ancestry, not just tip inequality:
+	// - merge-base == remoteSHA => local is only ahead (no divergence)
+	// - merge-base == localSHA  => local is behind (no divergence)
+	// - otherwise               => true divergence (conflict)
+	mergeBaseSHA, err := getMergeBaseSHA(repoPath, branch, remoteBranch)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get merge-base: %w", err)
+	}
+	hasConflict := mergeBaseSHA != remoteSHA && mergeBaseSHA != localSHA
 
 	return hasConflict, localSHA, remoteSHA, nil
 }
@@ -137,6 +144,16 @@ func getCommitSHA(repoPath, ref string) (string, error) {
 // GetCommitSHA returns the SHA for a ref in the repository.
 func GetCommitSHA(repoPath, ref string) (string, error) {
 	return getCommitSHA(repoPath, ref)
+}
+
+func getMergeBaseSHA(repoPath, leftRef, rightRef string) (string, error) {
+	cmd := exec.Command("git", "merge-base", leftRef, rightRef)
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git merge-base failed for %s and %s: %w", leftRef, rightRef, err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 // CreateFireBranch creates a new fire backup branch
@@ -436,7 +453,8 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 	}
 
 	// Capture original HEAD once and use it for all cleanup/reset paths.
-	originalHeadSHA, err := getCommitSHA(repoPath, "HEAD")
+	// Repos with no commits (unborn HEAD) are valid and handled explicitly.
+	originalHeadSHA, hasOriginalHead, err := getOptionalHeadSHA(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get original HEAD SHA: %w", err)
 	}
@@ -466,8 +484,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 		if retErr == nil || commitsCreated == 0 {
 			return
 		}
-		if cleanupErr := resetSoftToCommit(repoPath, originalHeadSHA); cleanupErr != nil {
-			retErr = fmt.Errorf("%w; failed cleanup reset to original HEAD %s: %v", retErr, originalHeadSHA, cleanupErr)
+		if hasOriginalHead {
+			if cleanupErr := resetSoftToCommit(repoPath, originalHeadSHA); cleanupErr != nil {
+				retErr = fmt.Errorf("%w; failed cleanup reset to original HEAD %s: %v", retErr, originalHeadSHA, cleanupErr)
+			}
+			return
+		}
+		if cleanupErr := resetToUnborn(repoPath); cleanupErr != nil {
+			retErr = fmt.Errorf("%w; failed cleanup reset to unborn HEAD: %v", retErr, cleanupErr)
 		}
 	}()
 
@@ -594,8 +618,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 	// Success path reset: preserve pre-existing staged/unstaged state by moving
 	// HEAD back to the original SHA instead of using HEAD~N math.
 	if opts.ReturnToOriginal && commitsCreated > 0 {
-		if err := resetSoftToCommit(repoPath, originalHeadSHA); err != nil {
-			return nil, err
+		if hasOriginalHead {
+			if err := resetSoftToCommit(repoPath, originalHeadSHA); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := resetToUnborn(repoPath); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -609,6 +639,34 @@ func resetSoftToCommit(repoPath, sha string) error {
 		return commandError("git reset --soft", err, output)
 	}
 	return nil
+}
+
+func resetToUnborn(repoPath string) error {
+	branch, err := GetCurrentBranch(repoPath)
+	if err != nil {
+		return fmt.Errorf("resolve current branch for unborn reset: %w", err)
+	}
+	ref := fmt.Sprintf("refs/heads/%s", branch)
+	cmd := exec.Command("git", "update-ref", "-d", ref)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git update-ref -d "+ref, err, output)
+	}
+	return nil
+}
+
+func getOptionalHeadSHA(repoPath string) (string, bool, error) {
+	cmd := exec.Command("git", "rev-parse", "--verify", "HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		errText := string(output)
+		if strings.Contains(errText, "Needed a single revision") || strings.Contains(errText, "unknown revision or path not in the working tree") {
+			return "", false, nil
+		}
+		return "", false, commandError("git rev-parse --verify HEAD", err, output)
+	}
+	return strings.TrimSpace(string(output)), true, nil
 }
 
 // commitChanges commits changes with optional git add -A

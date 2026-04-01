@@ -3,6 +3,7 @@ package git
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -83,26 +84,57 @@ func TestDetectConflict(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setup        func(string) // Setup function receives localRepo path
+		setup        func(*testing.T, string) // Setup function receives localRepo path
 		wantConflict bool
 		wantErr      bool
 	}{
 		{
 			name: "no conflict - branches match",
-			setup: func(repo string) {
+			setup: func(t *testing.T, repo string) {
 				// Do nothing - branches are already in sync
 			},
 			wantConflict: false,
 			wantErr:      false,
 		},
 		{
-			name: "conflict - local ahead",
-			setup: func(repo string) {
+			name: "no conflict - local ahead only",
+			setup: func(t *testing.T, repo string) {
 				// Add local commit
 				newFile := filepath.Join(repo, "new.txt")
-				os.WriteFile(newFile, []byte("new content"), 0644)
+				if err := os.WriteFile(newFile, []byte("new content"), 0644); err != nil {
+					t.Fatal(err)
+				}
 				testutil.RunGitCmd(t, repo, "add", "new.txt")
 				testutil.RunGitCmd(t, repo, "commit", "-m", "Local commit")
+			},
+			wantConflict: false,
+			wantErr:      false,
+		},
+		{
+			name: "conflict - true divergence",
+			setup: func(t *testing.T, repo string) {
+				// Local commit (ahead locally)
+				localFile := filepath.Join(repo, "local-only.txt")
+				if err := os.WriteFile(localFile, []byte("local content"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				testutil.RunGitCmd(t, repo, "add", "local-only.txt")
+				testutil.RunGitCmd(t, repo, "commit", "-m", "Local diverging commit")
+
+				// Independent remote commit from another clone (ahead remotely)
+				cloneBase := t.TempDir()
+				peerDir := filepath.Join(cloneBase, "peer")
+				testutil.RunGitCmd(t, cloneBase, "clone", remoteRepo, peerDir)
+				testutil.RunGitCmd(t, peerDir, "config", "user.email", "test@example.com")
+				testutil.RunGitCmd(t, peerDir, "config", "user.name", "Test User")
+
+				peerFile := filepath.Join(peerDir, "remote-only.txt")
+				if err := os.WriteFile(peerFile, []byte("remote content"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				testutil.RunGitCmd(t, peerDir, "add", "remote-only.txt")
+				testutil.RunGitCmd(t, peerDir, "commit", "-m", "Remote diverging commit")
+				testutil.RunGitCmd(t, peerDir, "push", "origin", currentBranch)
 			},
 			wantConflict: true,
 			wantErr:      false,
@@ -115,7 +147,7 @@ func TestDetectConflict(t *testing.T) {
 			testutil.RunGitCmd(t, localRepo, "reset", "--hard", "origin/"+currentBranch)
 
 			if tt.setup != nil {
-				tt.setup(localRepo)
+				tt.setup(t, localRepo)
 			}
 
 			hasConflict, localSHA, remoteSHA, err := DetectConflict(localRepo, currentBranch, "origin")
@@ -136,6 +168,57 @@ func TestDetectConflict(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_FailureCleansUpUnbornHead(t *testing.T) {
+	repo := t.TempDir()
+	testutil.RunGitCmd(t, repo, "init")
+	testutil.RunGitCmd(t, repo, "config", "user.email", "test@example.com")
+	testutil.RunGitCmd(t, repo, "config", "user.name", "Test User")
+
+	// Prepare staged + unstaged changes with no initial commit.
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fail only the second commit ("full backup").
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("mkdir hooks dir: %v", err)
+	}
+	hookPath := filepath.Join(hooksDir, "commit-msg")
+	hook := `#!/bin/sh
+msg_file="$1"
+if grep -q "full backup" "$msg_file"; then
+  exit 1
+fi
+exit 0
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0755); err != nil {
+		t.Fatalf("write commit-msg hook: %v", err)
+	}
+	testutil.RunGitCmd(t, repo, "config", "core.hooksPath", hooksDir)
+
+	_, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false,
+	})
+	if err == nil {
+		t.Fatal("expected auto-commit strategy to fail on second commit")
+	}
+
+	// Ensure we returned to unborn HEAD state.
+	cmd := exec.Command("git", "rev-parse", "--verify", "HEAD")
+	cmd.Dir = repo
+	if output, cmdErr := cmd.CombinedOutput(); cmdErr == nil {
+		t.Fatalf("expected unborn HEAD after cleanup, but rev-parse HEAD succeeded: %s", strings.TrimSpace(string(output)))
 	}
 }
 
