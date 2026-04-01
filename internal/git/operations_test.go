@@ -682,64 +682,66 @@ func TestGetCurrentBranch_DetachedHead(t *testing.T) {
 }
 
 func TestGetUncommittedFiles(t *testing.T) {
-	scenario := testutil.NewScenario(t)
-	repo := scenario.CreateRepo("test")
+	t.Run("mixed_working_tree", func(t *testing.T) {
+		scenario := testutil.NewScenario(t)
+		repo := scenario.CreateRepo("test")
 
-	// Committed file that will be modified in working tree ( M status)
-	repo.AddFile("tracked.txt", "original").Commit("add tracked")
-	repo.ModifyFile("tracked.txt", "modified")
+		// Committed file that will be modified in working tree ( M status)
+		repo.AddFile("tracked.txt", "original").Commit("add tracked")
+		repo.ModifyFile("tracked.txt", "modified")
 
-	// Staged new file (A  status) — added after the commit above
-	repo.AddFile("staged.txt", "staged content")
+		// Staged new file (A  status) — added after the commit above
+		repo.AddFile("staged.txt", "staged content")
 
-	// Untracked file (written directly, not staged)
-	if err := os.WriteFile(filepath.Join(repo.Path(), "untracked.txt"), []byte("hello\n"), 0644); err != nil {
-		t.Fatalf("failed to write untracked file: %v", err)
-	}
-
-	files, err := GetUncommittedFiles(repo.Path())
-	if err != nil {
-		t.Fatalf("GetUncommittedFiles() error = %v", err)
-	}
-
-	fileSet := make(map[string]bool, len(files))
-	for _, f := range files {
-		fileSet[f] = true
-	}
-
-	if !fileSet["staged.txt"] {
-		t.Errorf("expected staged.txt in results, got %v", files)
-	}
-	if !fileSet["tracked.txt"] {
-		t.Errorf("expected tracked.txt in results, got %v", files)
-	}
-	if !fileSet["untracked.txt"] {
-		t.Errorf("expected untracked.txt in results, got %v", files)
-	}
-}
-
-func TestGetUncommittedFiles_Deleted(t *testing.T) {
-	scenario := testutil.NewScenario(t)
-	repo := scenario.CreateRepo("test")
-	repo.AddFile("remove-me.txt", "content\n").Commit("add file")
-	if err := os.Remove(filepath.Join(repo.Path(), "remove-me.txt")); err != nil {
-		t.Fatalf("remove file: %v", err)
-	}
-
-	files, err := GetUncommittedFiles(repo.Path())
-	if err != nil {
-		t.Fatalf("GetUncommittedFiles() error = %v", err)
-	}
-	found := false
-	for _, f := range files {
-		if f == "remove-me.txt" {
-			found = true
-			break
+		// Untracked file (written directly, not staged)
+		if err := os.WriteFile(filepath.Join(repo.Path(), "untracked.txt"), []byte("hello\n"), 0644); err != nil {
+			t.Fatalf("failed to write untracked file: %v", err)
 		}
-	}
-	if !found {
-		t.Errorf("expected deleted tracked file remove-me.txt in results, got %v", files)
-	}
+
+		files, err := GetUncommittedFiles(repo.Path())
+		if err != nil {
+			t.Fatalf("GetUncommittedFiles() error = %v", err)
+		}
+
+		fileSet := make(map[string]bool, len(files))
+		for _, f := range files {
+			fileSet[f] = true
+		}
+
+		if !fileSet["staged.txt"] {
+			t.Errorf("expected staged.txt in results, got %v", files)
+		}
+		if !fileSet["tracked.txt"] {
+			t.Errorf("expected tracked.txt in results, got %v", files)
+		}
+		if !fileSet["untracked.txt"] {
+			t.Errorf("expected untracked.txt in results, got %v", files)
+		}
+	})
+
+	t.Run("deleted_tracked_file", func(t *testing.T) {
+		scenario := testutil.NewScenario(t)
+		repo := scenario.CreateRepo("test")
+		repo.AddFile("remove-me.txt", "content\n").Commit("add file")
+		if err := os.Remove(filepath.Join(repo.Path(), "remove-me.txt")); err != nil {
+			t.Fatalf("remove file: %v", err)
+		}
+
+		files, err := GetUncommittedFiles(repo.Path())
+		if err != nil {
+			t.Fatalf("GetUncommittedFiles() error = %v", err)
+		}
+		found := false
+		for _, f := range files {
+			if f == "remove-me.txt" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected deleted tracked file remove-me.txt in results, got %v", files)
+		}
+	})
 }
 
 func TestGetUncommittedFiles_SpacesInPath(t *testing.T) {

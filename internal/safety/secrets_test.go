@@ -188,72 +188,80 @@ Nothing suspicious here.
 }
 
 func TestScanFiles(t *testing.T) {
-	scanner := NewSecretScanner()
-	tmpDir := t.TempDir()
+	t.Run("mixed_files", func(t *testing.T) {
+		scanner := NewSecretScanner()
+		tmpDir := t.TempDir()
 
-	// Create test files
-	files := map[string]string{
-		".env":           "API_KEY=secret123",
-		"config.json":    `{"key": "value"}`,
-		"secrets.yml":    "password: secret",
-		"README.md":      "# README",
-		"credentials.json": `{"token": "abc123"}`,
-	}
-
-	for name, content := range files {
-		path := filepath.Join(tmpDir, name)
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to create test file %s: %v", name, err)
+		// Create test files
+		files := map[string]string{
+			".env":             "API_KEY=secret123",
+			"config.json":      `{"key": "value"}`,
+			"secrets.yml":      "password: secret",
+			"README.md":        "# README",
+			"credentials.json": `{"token": "abc123"}`,
 		}
-	}
 
-	fileList := []string{".env", "config.json", "secrets.yml", "README.md", "credentials.json"}
-
-	results, err := scanner.ScanFiles(tmpDir, fileList)
-	if err != nil {
-		t.Fatalf("ScanFiles() error = %v", err)
-	}
-
-	// Should detect .env, secrets.yml, and credentials.json by filename
-	if len(results) < 3 {
-		t.Errorf("Expected at least 3 suspicious files, got %d", len(results))
-	}
-
-	// Check that .env was detected
-	foundEnv := false
-	for _, result := range results {
-		if filepath.Base(result.Path) == ".env" {
-			foundEnv = true
-			break
+		for name, content := range files {
+			path := filepath.Join(tmpDir, name)
+			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				t.Fatalf("Failed to create test file %s: %v", name, err)
+			}
 		}
-	}
 
-	if !foundEnv {
-		t.Error("Expected to detect .env file")
-	}
-}
+		fileList := []string{".env", "config.json", "secrets.yml", "README.md", "credentials.json"}
 
-func TestScanFiles_DeletedSuspiciousFile(t *testing.T) {
-	scanner := NewSecretScanner()
-	tmpDir := t.TempDir()
-	envPath := filepath.Join(tmpDir, ".env")
-	if err := os.WriteFile(envPath, []byte("SECRET=x\n"), 0644); err != nil {
-		t.Fatalf("write .env: %v", err)
-	}
-	if err := os.Remove(envPath); err != nil {
-		t.Fatalf("remove .env: %v", err)
-	}
+		results, err := scanner.ScanFiles(tmpDir, fileList)
+		if err != nil {
+			t.Fatalf("ScanFiles() error = %v", err)
+		}
 
-	results, err := scanner.ScanFiles(tmpDir, []string{".env"})
-	if err != nil {
-		t.Fatalf("ScanFiles() error = %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("want 1 filename-based hit, got %d (%v)", len(results), results)
-	}
-	if results[0].Path != ".env" {
-		t.Errorf("got path %q, want .env", results[0].Path)
-	}
+		// Should detect .env, secrets.yml, and credentials.json by filename
+		if len(results) < 3 {
+			t.Errorf("Expected at least 3 suspicious files, got %d", len(results))
+		}
+
+		// Check that .env was detected
+		foundEnv := false
+		for _, result := range results {
+			if filepath.Base(result.Path) == ".env" {
+				foundEnv = true
+				break
+			}
+		}
+
+		if !foundEnv {
+			t.Error("Expected to detect .env file")
+		}
+	})
+
+	t.Run("deleted_suspicious_filename", func(t *testing.T) {
+		// Deleted paths still go through isSuspiciousFilename; scanFileContent is
+		// never reached (os.Open fails) — assert filename-only reason.
+		scanner := NewSecretScanner()
+		tmpDir := t.TempDir()
+		envPath := filepath.Join(tmpDir, ".env")
+		if err := os.WriteFile(envPath, []byte("SECRET=x\n"), 0644); err != nil {
+			t.Fatalf("write .env: %v", err)
+		}
+		if err := os.Remove(envPath); err != nil {
+			t.Fatalf("remove .env: %v", err)
+		}
+
+		results, err := scanner.ScanFiles(tmpDir, []string{".env"})
+		if err != nil {
+			t.Fatalf("ScanFiles() error = %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("want 1 filename-based hit, got %d (%v)", len(results), results)
+		}
+		if results[0].Path != ".env" {
+			t.Errorf("got path %q, want .env", results[0].Path)
+		}
+		const wantReason = "Filename matches common secret file pattern"
+		if results[0].Reason != wantReason {
+			t.Errorf("want reason %q (filename path only), got %q", wantReason, results[0].Reason)
+		}
+	})
 }
 
 func TestFormatWarning(t *testing.T) {
@@ -349,4 +357,3 @@ func TestRecommendedGitignorePatterns(t *testing.T) {
 		t.Error("Patterns should include .pem files")
 	}
 }
-
