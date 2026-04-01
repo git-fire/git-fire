@@ -37,6 +37,9 @@ Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen ch
 
 ### One-line emergency mode
 
+Use this for urgent situations only. `curl | bash` executes remote code directly.
+Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
+
 ```bash
 # replace v0.1.0-alpha with the release tag you want to run
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scripts/emergency.sh | bash

@@ -133,4 +133,4 @@ release:
     **Binaries**
     Download platform archives from this release's assets.
 
-    Full instructions: [README -> Install](https://github.com/git-fire/git-fire#install)
+    Full instructions: [README -> Install](https://github.com/git-fire/git-fire/blob/{{ .Tag }}/README.md#install)
