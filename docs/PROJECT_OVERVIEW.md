@@ -20,7 +20,7 @@ Core value: in a panic (or at end-of-day), run one command to discover repositor
 
 ## Primary Commands
 
-- `git-fire` (interactive backup flow)
+- `git-fire` (default streamed backup flow)
 - `git fire` (Git subcommand alias support)
 - `git-fire --dry-run` (plan only, non-destructive)
 - `git-fire --fire` (TUI selector + animation mode)
@@ -69,7 +69,7 @@ See [REGISTRY.md](REGISTRY.md).
 - Normal flows avoid force pushes.
 - Conflict safety branches (`git-fire-backup-*`) are used when needed.
 - Dry-run mode supports preflight verification.
-- Secret-pattern detection warns but does not block.
+- Secret-pattern detection blocks by default (configurable).
 
 See [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md).
 
@@ -88,7 +88,7 @@ See [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md).
 
 ### 9) Extensibility and Plugins
 
-- Plugin system supports command and webhook integrations.
+- Plugin internals exist, but default CLI auto-loading is not yet wired.
 - Plugin execution is non-fatal (errors are logged and run continues).
 - Typical use cases: object storage sync, notifications, archive steps.
 
@@ -119,7 +119,7 @@ See [../PLUGINS.md](../PLUGINS.md).
 
 - 250+ tests (see README badge).
 - CI runs build, vet, and race tests.
-- Target coverage: 80%+ for non-UI `internal/` packages.
+- Coverage is tracked per package with a risk-based focus, not a single global gate.
 - UI testing remains intentionally limited compared to non-UI packages.
 - Integration tests using real `git` are preferred over mocking.
 

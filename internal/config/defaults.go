@@ -15,6 +15,7 @@ func DefaultConfig() Config {
 			DefaultMode:      "push-known-branches",
 			ConflictStrategy: "new-branch",
 			AutoCommitDirty:  true,
+			BlockOnSecrets:   true,
 			ScanPath:         ".",
 			ScanExclude: []string{
 				".cache",
@@ -48,7 +49,7 @@ func DefaultConfig() Config {
 // ExampleConfigTOML returns an example configuration file
 func ExampleConfigTOML() string {
 	return `# Git Fire Configuration
-# Place this file at ~/.config/git-fire/config.toml or ./git-fire.toml
+# Place this file at ~/.config/git-fire/config.toml
 
 [global]
 # Default push mode for repositories
@@ -61,6 +62,10 @@ conflict_strategy = "new-branch"
 
 # Auto-commit uncommitted changes before pushing
 auto_commit_dirty = true
+
+# Block auto-commit/push when suspicious secrets are detected
+# Set false only if you explicitly accept the risk.
+block_on_secrets = true
 
 # Directory to scan for git repos
 scan_path = "."

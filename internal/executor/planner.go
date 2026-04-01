@@ -15,6 +15,10 @@ type Planner struct {
 	config *config.Config
 }
 
+type RepoPlanOptions struct {
+	DetectConflicts bool
+}
+
 // NewPlanner creates a new planner
 func NewPlanner(cfg *config.Config) *Planner {
 	return &Planner{
@@ -61,6 +65,10 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 // BuildRepoPlan creates a plan for a single repository. It is exported so the
 // streaming executor can plan each repo as it arrives from the scanner.
 func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
+	return p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: true})
+}
+
+func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOptions) (RepoPlan, error) {
 	repoPlan := RepoPlan{
 		Repo:    repo,
 		Actions: []Action{},
@@ -136,7 +144,7 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 			})
 
 		case git.ModePushCurrentBranch:
-			if p.config.Global.ConflictStrategy == "new-branch" {
+			if opts.DetectConflicts && p.config.Global.ConflictStrategy == "new-branch" {
 				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
 					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)

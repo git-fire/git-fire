@@ -94,7 +94,7 @@ Get-Command git-fire.exe
 # preview first (safe)
 git-fire --dry-run --path ~/projects
 
-# run interactive checkpoint
+# run default streamed checkpoint
 git-fire
 ```
 
@@ -180,6 +180,8 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - **Persistent repo registry:** discovered repos are saved in `~/.config/git-fire/repos.toml`, so future runs include them unless explicitly ignored.
 - **Status and auth checks:** `git-fire --status` gives a quick snapshot of SSH/auth and repo readiness before a full run.
 - **Execution-mode control:** `--dry-run` for zero-side-effect planning, `--fire` for interactive selection, `--path` for scoped discovery.
+- **Registry-only mode:** use `--no-scan` to back up only repos already in the registry for this run.
+- **Config trust boundary:** only `~/.config/git-fire/config.toml` is loaded by default; use `--config <path>` to opt into a project-local file.
 - **Auto-commit strategy control:** choose whether dirty working trees are included with default behavior or skipped via `--skip-auto-commit`.
 - **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/` for auditability and debugging.
 - **Workflow composition:** combine with hooks, wrappers, task runners, or CI helper scripts for consistent team or solo automation.
@@ -190,7 +192,7 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 | Parallel multi-repo execution | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Persistent repo registry | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Dry-run planning | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Secret detection warnings | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Secret detection guardrail (default block) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Structured JSON logs (`~/.cache/git-fire/logs/`) | ⚪ Optional | ✅ | ✅ | ✅ | ⚪ Optional |
 | `--status` SSH/repo snapshot | ✅ | ✅ | ✅ | ✅ | ⚪ Optional |
 | Conflict-safe backup branches (no force push in normal flow) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -201,7 +203,7 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - No force push in normal flows.
 - Conflict strategy creates backup branches (`git-fire-backup-*`) when needed.
 - Dry-run gives a no-side-effect plan preview.
-- Secret detection warns before push.
+- Secret detection blocks auto-commit/push by default (override in config if you explicitly accept risk).
 - Structured logs create a machine-readable audit trail.
 - Built to reduce risk from silent failure modes in manual workflows (network, auth, and command-sequencing errors across many repos).
 - 250+ tests cover core non-UI packages.
@@ -209,12 +211,13 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 ## Core Commands
 
 ```bash
-# interactive checkpoint flow
+# default streamed checkpoint flow
 git-fire
 git fire
 
 # non-destructive preview
 git-fire --dry-run
+git-fire --fire-drill
 
 # TUI selector mode
 git-fire --fire
@@ -227,6 +230,12 @@ git-fire --skip-auto-commit
 
 # inspect auth + repo status
 git-fire --status
+
+# use explicit config path (project-local opt-in)
+git-fire --config ./git-fire.toml
+
+# use only known registry repos for this run
+git-fire --no-scan
 
 # generate config template
 git-fire --init

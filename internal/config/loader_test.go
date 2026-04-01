@@ -21,6 +21,9 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.Global.AutoCommitDirty {
 		t.Error("Expected auto_commit_dirty to be true")
 	}
+	if !cfg.Global.BlockOnSecrets {
+		t.Error("Expected block_on_secrets to be true")
+	}
 
 	if cfg.Global.ScanWorkers != 8 {
 		t.Errorf("Expected scan_workers to be 8, got %d", cfg.Global.ScanWorkers)
@@ -76,7 +79,7 @@ platform = "gitlab"
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	cfg, err := Load()
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: configPath})
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
@@ -98,6 +101,26 @@ platform = "gitlab"
 
 	if cfg.Backup.Platform != "gitlab" {
 		t.Errorf("Expected platform to be 'gitlab', got '%s'", cfg.Backup.Platform)
+	}
+}
+
+func TestLoadConfig_DoesNotImplicitlyLoadCWDConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[global]\ndefault_mode = \"push-all\"\n"), 0o644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Global.DefaultMode != "push-known-branches" {
+		t.Fatalf("expected default mode from defaults, got %s", cfg.Global.DefaultMode)
 	}
 }
 
@@ -338,6 +361,17 @@ func TestParseDuration(t *testing.T) {
 				t.Errorf("ParseDuration(%s) = %v, want %v", tt.input, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestDefaultConfigPath(t *testing.T) {
+	path := DefaultConfigPath()
+	if filepath.Base(path) != "config.toml" {
+		t.Fatalf("expected filename config.toml, got %q", filepath.Base(path))
+	}
+	parent := filepath.Base(filepath.Dir(path))
+	if parent != "git-fire" {
+		t.Fatalf("expected parent directory git-fire, got %q", parent)
 	}
 }
 
