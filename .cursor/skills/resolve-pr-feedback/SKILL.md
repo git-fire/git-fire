@@ -1,58 +1,73 @@
 ---
 name: resolve-pr-feedback
 description: >-
-  Resolves GitHub PR review feedback: fresh full scan of PR comments every run,
-  plus retained chat context; explicit deferrals (never silent); fixes, tests,
-  and thread replies. Use for resolve PR feedback, address review, CodeRabbit,
-  or clearing review comments.
+  Resolves GitHub PR review feedback: fresh thread scan every run; remote branch
+  verified before claiming done; commit+push with replies; explicit deferrals
+  only. Use for resolve PR feedback, address review, CodeRabbit, or clearing
+  review comments.
 ---
 
 # Resolve PR feedback (complete workflow)
 
 ## Rule zero: fresh scan **and** kept context
 
-**Every invocation:** pull a **fresh** full view of review data (`gh` / API)—do not treat an older triage or another chat as the authoritative thread list.
+**Every invocation:** fetch a **fresh** full view of review data (`gh` / API). Do not treat an older triage or another chat as the thread list.
 
-**Also:** keep **conversation context** (what was already fixed, commits, disagreements). Merge the two:
+**Also:** use **conversation context** (what you already changed, commits). Merge: fresh scan → checklist; context → avoid duplicate work.
 
-- Fresh scan → current checklist of threads and bodies.
-- Context → what landed in code already, so you don’t duplicate work and you can say “already fixed in …” accurately.
+If `gh` / network fails, say so **immediately**—do not imply “nothing left.”
 
-Session context **does not** replace the scan; the scan **updates** what still needs a reply or a code change.
+## Rule one: remote is the source of truth for “fixed”
 
-If `gh` / network is unavailable, say so **immediately** and ask for a paste or offer commands—do not imply “nothing left” without data.
+Reviewers and bots read **`origin` / PR head**, not your working tree.
 
-## Rule one: no silent omissions — deferrals must be **obvious**
+1. After implementing feedback: **`git fetch`**, reconcile with **`origin/<branch>`** (pull/rebase/ff as appropriate), then **commit** and **`git push`**.
+2. **Before** telling the user or posting “addressed” on GitHub: verify the fix exists **on the remote** (e.g. `git show origin/<branch>:path/to/file | rg …` or compare `HEAD` to `origin/<branch>` — they must match after push).
+3. If you **cannot** push (permissions, user must push): say so **explicitly** and label the state **“local only, not on PR yet.”** Do not describe the fix as done for the review.
 
-If anything is **not** done, the user must see **why** in the agent’s reply. **Never** end a turn leaving open review threads **unmentioned**.
+**Failure mode this prevents:** claiming a fix, replying on threads, or arguing with bot output while **the branch still points at an older commit**—wasting everyone’s time.
+
+## Rule two: no silent omissions — deferrals must be obvious
+
+If anything is **not** done, the user sees **why**. Never end a turn with open threads **unmentioned**.
 
 | Situation | Say explicitly |
 |-----------|----------------|
-| Can’t post on GitHub (no `gh`, auth, sandbox) | Why; paste-ready replies per thread; optional `gh` commands |
-| Fix deferred (scope, risk, needs product call) | Which thread; reason; what would unblock |
-| Thread already addressed in repo | File/commit; **still** offer a short reply line they can post to resolve the conversation |
-| Thread is wrong / won’t fix | Reasoning; suggested reply so the reviewer isn’t left hanging |
-| Didn’t run full scan | Say so; don’t guess the thread list |
+| Can’t push / commit | Why; what’s local vs remote |
+| Can’t post on GitHub | Paste-ready replies; `gh` commands |
+| Fix deferred | Thread; reason; unblock criteria |
+| Already in code | **Commit SHA on remote** + file; still offer a one-line reply for the thread |
 
-**Unresolved GitHub conversations without a posted reply** are a failure mode unless the user chose “code only.” If you skip posting, **say you skipped** and give paste-ready text—that is **not** optional silence.
+Skipping GitHub replies requires **code-only** opt-in from the user, or explicit “could not post” + paste-ready text.
+
+## Rule three: own the workflow, don’t blame the bot
+
+If automated review says “not fixed”:
+
+1. Check **Rule one** first (remote SHA, push, right branch).
+2. Then **wrong commit** (e.g. bot cited `cafe770`, head is `fda42a8`) — cite **remote** commit and file links.
+3. Do **not** lead with “their script is broken” as the main story—lead with **whether the fix is on the PR head** and **what commit proves it**.
 
 ## Non-negotiables
 
-1. **Enumerate from live data** into a written checklist (can merge with context for “done vs open”).
-2. **Replies:** post via `gh` when possible; otherwise **paste-ready text + explicit note that nothing was posted to GitHub**.
-3. **Pasted comment text** from the user is authoritative—merge with the scan.
+1. Checklist from **live** PR data + reconcile with context.
+2. Tests (`go test -race -count=1 ./...` or project default) before commit.
+3. **Push** before “done” (Rule one).
+4. Replies on threads **after** remote matches, or note **local-only** + paste-ready text (Rule two).
 
-## Steps
+## Steps (order matters)
 
-1. Fresh scan + checklist (Rule zero) + reconcile with context (Rule zero).
-2. Per thread: fix, confirm, or **defer with reason** (Rule one).
-3. Tests as usual.
-4. GitHub: post or **state failure + paste-ready text** (Rule one).
+1. `git fetch` + sync local branch with `origin` (stash/commit/pull as needed—**never lose uncommitted work** without user OK).
+2. Full PR comment/thread scan → written checklist.
+3. Implement + test per item (or defer with reason).
+4. **Commit** → **push** → **verify on `origin`** (Rule one).
+5. Post thread replies (`gh api …` or paste-ready) with **correct commit SHA / links** (Rule two).
+6. Summarize: what shipped, what’s deferred, **remote commit** for fixes.
 
 ## UI / layout reviews
 
-Hard-coded **line counts / overhead** without `windowWidth`: suspect; compare to `repoListVisibleCount`-style lipgloss measurement.
+Fixed **line counts / overhead** without measuring at **`windowWidth`**: suspect; match **`repoListVisibleCount`**-style lipgloss measurement.
 
-## Why repeat the full scan
+## Why this skill exists
 
-Low cost vs one missed thread. **Rule one** is why the user doesn’t pay twice in confusion: deferrals are visible, not silent.
+**Partial workflow** (code only, no push, no replies) looks “done” in chat and **isn’t** done on GitHub—**that** is the failure mode, not a flaky comment.
