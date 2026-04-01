@@ -41,11 +41,13 @@ It translates findings into lanes, gates, ownership, and escalation rules that c
 - One PR should close one coherent risk slice.
 - Every agent branch opens a PR back into `feature/path_to_beta` (never directly to `main`).
 - Each PR is reviewed independently and merged independently.
+- PR must update source tracking docs by striking through completed or replaced items and linking the implementing PR.
 - PR description must include:
   - Finding IDs addressed
   - Tests run
   - Residual risk (if any)
   - Rollback notes for git-operation changes
+- If plan scope changes, PR must include a "Plan Change Rationale" section describing what changed and why.
 - No broad multi-lane PRs unless required by dependency coupling.
 
 ## Beta Exit Criteria (Hard Gate)
@@ -99,6 +101,7 @@ Every agent handoff must include:
 2. Commands run and outcomes.
 3. Remaining risks or blockers.
 4. Recommended next agent or lane.
+5. Which checklist/list items were struck through or re-scoped in source docs.
 
 ### Agent Scheduling Rules
 
@@ -223,6 +226,7 @@ For each phase PR or merge set, capture:
 - `make test-race`.
 - `make lint`.
 - Manual behavior checks for changed CLI paths (when code path is user-facing).
+- Traceability update proof: links to list items marked complete/replaced plus rationale entries for scope changes.
 
 Suggested report format per merge:
 
@@ -243,6 +247,16 @@ Status outputs should always include:
 - In progress now
 - Blocked with owner/action
 - Next 24-hour target
+
+## Review Enforcement Checklist
+
+For any PR targeting `feature/path_to_beta`, reviewers must block merge unless all are true:
+
+- Finding IDs in PR body map to active items in blockers/readiness docs.
+- Completed or replaced items are struck through in source tracking docs and linked back to the PR.
+- Any scope change includes a "Plan Change Rationale" with explicit why.
+- Validation evidence is present and reproducible.
+- Remaining risk is documented, even if "none."
 
 ## Risk Controls for Repo-Mutation Changes
 

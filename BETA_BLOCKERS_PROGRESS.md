@@ -358,6 +358,18 @@ The VALIDATION_PROGRESS.md claims ~78% overall coverage after its session. Curre
 
 ## Execution Plan
 
+### Tracking Hygiene (Required for Beta PRs)
+
+- When a listed item is completed, strike it through in this document and append the implementing PR link.
+- When a listed item changes scope, keep the old text struck through and add the updated item below it.
+- Every scope change must be accompanied by a short "why" note in the change log below.
+
+### Plan Change Log (append-only)
+
+| Date | Finding/Task IDs | Change | Why | PR |
+|---|---|---|---|---|
+| YYYY-MM-DD | D-xx / F-xx / Px-x | item changed, split, deferred, or replaced | rationale for the change | #PR |
+
 ### Phase 1: Beta Blockers (P0 code + CRITICAL docs) — ~1 day
 - Feature branch: `fix/beta-blockers-p0`
 - F-01 + F-11: Auto-commit cleanup with original SHA
