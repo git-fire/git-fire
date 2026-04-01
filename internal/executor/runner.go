@@ -1,9 +1,9 @@
 package executor
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,8 +23,11 @@ type Runner struct {
 
 // NewRunner creates a new runner
 func NewRunner(cfg *config.Config) *Runner {
-	// Create rate limiter with default config
+	// Seed from defaults, then apply user-configured global worker limit.
 	rateLimitConfig := DefaultRateLimitConfig()
+	if cfg != nil && cfg.Global.PushWorkers > 0 {
+		rateLimitConfig.GlobalLimit = cfg.Global.PushWorkers
+	}
 
 	return &Runner{
 		config:      cfg,
@@ -235,8 +238,15 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 
 	switch action.Type {
 	case ActionAutoCommit:
-		// Scan for secrets before committing — warn on stderr but always proceed
-		warnAboutSecrets(repo.Path)
+		// Scan for secrets before committing.
+		blockOnSecrets := true
+		if r.config != nil {
+			blockOnSecrets = r.config.Global.BlockOnSecrets
+		}
+		if errSecrets := checkSecrets(repo.Path, blockOnSecrets); errSecrets != nil {
+			err = errSecrets
+			break
+		}
 		result, commitErr := git.AutoCommitDirtyWithStrategy(repo.Path, git.CommitOptions{
 			Message:          fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
 			UseDualBranch:    true,
@@ -319,15 +329,18 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 	}
 
 	executedAction.Error = err
-
 	if err != nil {
+		executedAction.Error = errors.New(safety.SanitizeText(err.Error()))
+	}
+
+	if executedAction.Error != nil {
 		r.sendProgress(Progress{
 			CurrentRepo: current,
 			TotalRepos:  total,
 			RepoName:    repo.Name,
 			Action:      action.Description,
 			Status:      StatusFailed,
-			Error:       err,
+			Error:       executedAction.Error,
 		})
 	}
 
@@ -380,24 +393,39 @@ func (r *Runner) ExecuteStream(
 
 				var repoResult RepoResult
 				if dryRun {
-					repoResult = RepoResult{
-						Path:    job.repoPlan.Repo.Path,
-						Success: true,
-						Actions: job.repoPlan.Actions,
-					}
-					for _, action := range job.repoPlan.Actions {
-						if action.Type == ActionAutoCommit {
-							warnAboutSecrets(job.repoPlan.Repo.Path)
-							break
+					if job.repoPlan.Skip {
+						repoResult = RepoResult{
+							Path:    job.repoPlan.Repo.Path,
+							Success: false,
+							Actions: job.repoPlan.Actions,
 						}
+						r.sendProgress(Progress{
+							CurrentRepo: job.sequence,
+							TotalRepos:  tot,
+							RepoName:    job.repoPlan.Repo.Name,
+							Action:      job.repoPlan.SkipReason,
+							Status:      StatusSkipped,
+						})
+					} else {
+						repoResult = RepoResult{
+							Path:    job.repoPlan.Repo.Path,
+							Success: true,
+							Actions: job.repoPlan.Actions,
+						}
+						for _, action := range job.repoPlan.Actions {
+							if action.Type == ActionAutoCommit {
+								_ = checkSecrets(job.repoPlan.Repo.Path, false)
+								break
+							}
+						}
+						r.sendProgress(Progress{
+							CurrentRepo: job.sequence,
+							TotalRepos:  tot,
+							RepoName:    job.repoPlan.Repo.Name,
+							Action:      "[DRY RUN] Would execute actions",
+							Status:      StatusSuccess,
+						})
 					}
-					r.sendProgress(Progress{
-						CurrentRepo: job.sequence,
-						TotalRepos:  tot,
-						RepoName:    job.repoPlan.Repo.Name,
-						Action:      "[DRY RUN] Would execute actions",
-						Status:      StatusSuccess,
-					})
 				} else {
 					repoResult = r.executeRepo(job.repoPlan, job.sequence, tot)
 				}
@@ -410,7 +438,7 @@ func (r *Runner) ExecuteStream(
 	sequence := 0
 	planErrors := 0
 	// Keep final results in discovery order while worker completion is concurrent.
-	indexedResults := make(map[int]RepoResult)
+	orderedResults := make([]RepoResult, 0, sequenceCapHint(total))
 	var resultsMu sync.Mutex
 
 	var collectorWG sync.WaitGroup
@@ -418,9 +446,11 @@ func (r *Runner) ExecuteStream(
 	go func() {
 		defer collectorWG.Done()
 		for output := range outputs {
-			// Single map used by planning-error path and worker-output path.
 			resultsMu.Lock()
-			indexedResults[output.sequence] = output.result
+			for len(orderedResults) < output.sequence {
+				orderedResults = append(orderedResults, RepoResult{})
+			}
+			orderedResults[output.sequence-1] = output.result
 			resultsMu.Unlock()
 		}
 	}()
@@ -435,18 +465,21 @@ func (r *Runner) ExecuteStream(
 		if err != nil {
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.
-			fmt.Fprintf(os.Stderr, "warning: skipping %s: %v\n", repo.Path, err)
+			fmt.Fprintf(os.Stderr, "warning: skipping %s: %s\n", repo.Path, safety.SanitizeText(err.Error()))
 
 			// Create a failed RepoResult for this repo
 			planErrors++
 			failedResult := RepoResult{
 				Path:    repo.Path,
 				Success: false,
-				Error:   err,
+				Error:   errors.New(safety.SanitizeText(err.Error())),
 				Actions: make([]Action, 0),
 			}
 			resultsMu.Lock()
-			indexedResults[sequence] = failedResult
+			for len(orderedResults) < sequence {
+				orderedResults = append(orderedResults, RepoResult{})
+			}
+			orderedResults[sequence-1] = failedResult
 			resultsMu.Unlock()
 
 			// Send progress update
@@ -460,7 +493,7 @@ func (r *Runner) ExecuteStream(
 				RepoName:    repo.Name,
 				Action:      "Failed to build plan",
 				Status:      StatusFailed,
-				Error:       err,
+				Error:       failedResult.Error,
 			})
 
 			continue
@@ -473,14 +506,13 @@ func (r *Runner) ExecuteStream(
 	close(outputs)
 	collectorWG.Wait()
 
-	keys := make([]int, 0, len(indexedResults))
-	for k := range indexedResults {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-	result.RepoResults = make([]RepoResult, 0, len(keys))
-	for _, k := range keys {
-		result.RepoResults = append(result.RepoResults, indexedResults[k])
+	result.RepoResults = make([]RepoResult, 0, len(orderedResults))
+	// Empty-path entries are placeholders from out-of-order worker completion.
+	for _, rr := range orderedResults {
+		if rr.Path == "" {
+			continue
+		}
+		result.RepoResults = append(result.RepoResults, rr)
 	}
 	r.aggregateResultCounts(result)
 
@@ -505,26 +537,33 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 	}
 
 	for i, repoPlan := range plan.Repos {
-		repoResult := RepoResult{
+		if repoPlan.Skip {
+			result.RepoResults = append(result.RepoResults, RepoResult{
+				Path:    repoPlan.Repo.Path,
+				Success: false,
+				Actions: repoPlan.Actions,
+			})
+			r.sendProgress(Progress{
+				CurrentRepo: i + 1,
+				TotalRepos:  len(plan.Repos),
+				RepoName:    repoPlan.Repo.Name,
+				Action:      repoPlan.SkipReason,
+				Status:      StatusSkipped,
+			})
+			continue
+		}
+
+		result.RepoResults = append(result.RepoResults, RepoResult{
 			Path:    repoPlan.Repo.Path,
 			Success: true,
 			Actions: repoPlan.Actions,
-		}
-
-		if repoPlan.Skip {
-			result.Skipped++
-		} else {
-			result.Success++
-		}
-
-		result.TotalActions += len(repoPlan.Actions)
-		result.RepoResults = append(result.RepoResults, repoResult)
+		})
 
 		// Warn about secrets even in dry run — the whole point of dry run is to
 		// surface issues before they become real commits.
 		for _, action := range repoPlan.Actions {
 			if action.Type == ActionAutoCommit {
-				warnAboutSecrets(repoPlan.Repo.Path)
+				_ = checkSecrets(repoPlan.Repo.Path, false)
 				break
 			}
 		}
@@ -540,6 +579,7 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
+	r.aggregateResultCounts(result)
 
 	return result, nil
 }
@@ -615,12 +655,45 @@ func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
 	return ""
 }
 
-// warnAboutSecrets scans uncommitted files for secrets and prints warnings to stderr.
-func warnAboutSecrets(repoPath string) {
-	if uncommitted, scanErr := git.GetUncommittedFiles(repoPath); scanErr == nil && len(uncommitted) > 0 {
-		scanner := safety.NewSecretScanner()
-		if suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted); scanErr == nil && len(suspicious) > 0 {
-			fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+// checkSecrets scans uncommitted files for secrets and optionally blocks execution.
+func checkSecrets(repoPath string, block bool) error {
+	uncommitted, scanErr := git.GetUncommittedFiles(repoPath)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("failed to list uncommitted files for secret scan: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan skipped: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(uncommitted) == 0 {
+		return nil
+	}
+
+	scanner := safety.NewSecretScanner()
+	suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("secret scan failed: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan failed: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(suspicious) > 0 {
+		fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+		if block {
+			return fmt.Errorf("potential secrets detected in uncommitted files")
 		}
 	}
+	return nil
+}
+
+func sequenceCapHint(total *int64) int {
+	if total == nil {
+		return 0
+	}
+	v := int(atomic.LoadInt64(total))
+	if v < 0 {
+		return 0
+	}
+	return v
 }

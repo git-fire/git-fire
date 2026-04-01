@@ -359,7 +359,7 @@ func TestScanRepositories_RespectsExcludePatterns(t *testing.T) {
 	_ = nodeModulesDir
 }
 
-func TestScanRepositories_ExtractsBranches(t *testing.T) {
+func TestScanRepositories_DoesNotRequireBranchEnumeration(t *testing.T) {
 	// Create repo with multiple branches
 	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{
 		Name:     "multi-branch",
@@ -381,22 +381,13 @@ func TestScanRepositories_ExtractsBranches(t *testing.T) {
 
 	repo := repos[0]
 
-	// Should have extracted branches
-	if len(repo.Branches) == 0 {
-		t.Fatal("Expected branches to be extracted")
+	// Scanner now collects only metadata required by planner/runner hot paths.
+	// Branch enumeration is intentionally deferred to git operations that need it.
+	if repo.Name == "" || repo.Path == "" {
+		t.Fatal("expected repo identity metadata to be populated")
 	}
-
-	// Should find the branches we created (plus main/master)
-	branchNames := make(map[string]bool)
-	for _, branch := range repo.Branches {
-		branchNames[branch] = true
-	}
-
-	expectedBranches := []string{"feature-a", "feature-b", "develop"}
-	for _, branch := range expectedBranches {
-		if !branchNames[branch] {
-			t.Errorf("Expected to find branch %s", branch)
-		}
+	if len(repo.Branches) != 0 {
+		t.Errorf("expected Branches to be empty (deferred enumeration), got %v", repo.Branches)
 	}
 }
 

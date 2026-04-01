@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/git-fire/git-fire/internal/safety"
 )
 
 // CommitOptions configures auto-commit behavior
@@ -56,7 +58,7 @@ func AutoCommitDirty(repoPath string, opts CommitOptions) error {
 		cmd := exec.Command("git", "add", "-A")
 		cmd.Dir = repoPath
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("git add failed: %w\nOutput: %s", err, output)
+			return commandError("git add", err, output)
 		}
 	}
 
@@ -69,7 +71,7 @@ func AutoCommitDirty(repoPath string, opts CommitOptions) error {
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit failed: %w\nOutput: %s", err, output)
+		return commandError("git commit", err, output)
 	}
 
 	return nil
@@ -95,7 +97,7 @@ func DetectConflict(repoPath, branch, remote string) (bool, string, string, erro
 	cmd := exec.Command("git", "fetch", remote)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return false, "", "", fmt.Errorf("git fetch failed: %w\nOutput: %s", err, output)
+		return false, "", "", commandError("git fetch", err, output)
 	}
 
 	// Get local SHA
@@ -154,7 +156,7 @@ func CreateFireBranch(repoPath, originalBranch, localSHA string) (string, error)
 	cmd := exec.Command("git", "branch", branchName)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("failed to create fire branch: %w\nOutput: %s", err, output)
+		return "", commandError("git branch "+branchName, err, output)
 	}
 
 	return branchName, nil
@@ -169,7 +171,7 @@ func PushBranch(repoPath, remote, branch string) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git push failed: %w\nStderr: %s", err, stderr.String())
+		return commandError("git push", err, stderr.Bytes())
 	}
 
 	return nil
@@ -184,7 +186,7 @@ func PushAllBranches(repoPath, remote string) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git push --all failed: %w\nStderr: %s", err, stderr.String())
+		return commandError("git push --all", err, stderr.Bytes())
 	}
 
 	return nil
@@ -196,7 +198,7 @@ func PushKnownBranches(repoPath, remote string) error {
 	cmd := exec.Command("git", "fetch", remote)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git fetch failed: %w\nOutput: %s", err, output)
+		return commandError("git fetch", err, output)
 	}
 
 	// Get list of remote branches
@@ -577,7 +579,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		cmd := exec.Command("git", "reset", "--soft", fmt.Sprintf("HEAD~%d", commitsToReset))
 		cmd.Dir = repoPath
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("failed to reset to original state: %w\nOutput: %s", err, output)
+			return nil, commandError("git reset --soft", err, output)
 		}
 	}
 
@@ -590,14 +592,14 @@ func commitChanges(repoPath, message string, addAll bool) error {
 		cmd := exec.Command("git", "add", "-A")
 		cmd.Dir = repoPath
 		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("git add failed: %w\nOutput: %s", err, output)
+			return commandError("git add", err, output)
 		}
 	}
 
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git commit failed: %w\nOutput: %s", err, output)
+		return commandError("git commit", err, output)
 	}
 
 	return nil
@@ -647,7 +649,15 @@ func createBranch(repoPath, branchName string) error {
 	cmd := exec.Command("git", "branch", branchName)
 	cmd.Dir = repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to create branch %s: %w\nOutput: %s", branchName, err, output)
+		return commandError("git branch "+branchName, err, output)
 	}
 	return nil
+}
+
+func commandError(action string, err error, output []byte) error {
+	out := strings.TrimSpace(string(output))
+	if out == "" {
+		return fmt.Errorf("%s failed: %w", action, err)
+	}
+	return fmt.Errorf("%s failed: %w (stderr: %s)", action, err, safety.SanitizeText(out))
 }

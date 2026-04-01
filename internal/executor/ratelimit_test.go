@@ -259,6 +259,37 @@ func TestHostLimiter_MultipleHosts(t *testing.T) {
 	limiter.Release(gitlabURL)
 }
 
+func TestHostLimiter_GlobalLimitAcrossHosts(t *testing.T) {
+	config := RateLimitConfig{
+		GlobalLimit:  1,
+		PerHostLimit: 10,
+		PerHostDelay: 0,
+		HostLimits:   make(map[string]int),
+	}
+	limiter := NewHostLimiter(config)
+
+	first := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		limiter.Acquire("git@github.com:user/repo.git")
+		close(first)
+		time.Sleep(50 * time.Millisecond)
+		limiter.Release("git@github.com:user/repo.git")
+		close(done)
+	}()
+	<-first
+
+	start := time.Now()
+	limiter.Acquire("git@gitlab.com:user/repo.git")
+	elapsed := time.Since(start)
+	limiter.Release("git@gitlab.com:user/repo.git")
+	<-done
+
+	if elapsed < 40*time.Millisecond {
+		t.Fatalf("expected global limiter to block second acquire, blocked only %v", elapsed)
+	}
+}
+
 func TestHostLimiter_WithDelay(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping delay test in short mode")

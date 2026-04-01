@@ -57,6 +57,13 @@ func TestRootCommand_Flags(t *testing.T) {
 			},
 		},
 		{
+			name: "config flag",
+			args: []string{"--config", "/tmp/git-fire.toml"},
+			checkVar: func() bool {
+				return configFile == "/tmp/git-fire.toml"
+			},
+		},
+		{
 			name: "status flag",
 			args: []string{"--status"},
 			checkVar: func() bool {
@@ -525,8 +532,10 @@ func resetFlags() {
 	fireMode = false
 	scanPath = "."
 	skipCommit = false
+	noScan = false
 	initConfig = false
 	forceInit = false
 	backupTo = ""
+	configFile = ""
 	showStatus = false
 }
