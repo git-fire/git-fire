@@ -2,11 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/git-fire/git-fire/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/git-fire/git-fire/internal/config"
 )
 
 // configRow describes one editable row in the config menu.
@@ -37,7 +39,22 @@ var configRows = []configRow{
 		"abort",
 	}},
 	{label: "Disable scan", kind: configRowBool},
+	{label: "Push workers", kind: configRowEnum, options: []string{
+		"1",
+		"2",
+		"4",
+		"8",
+		"16",
+	}},
 	{label: "Show fire animation", kind: configRowBool},
+	{label: "Fire speed (ms)", kind: configRowEnum, options: []string{
+		"120",
+		"150",
+		"180",
+		"220",
+		"280",
+		"340",
+	}},
 	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
 	{label: "Custom hex palette", kind: configRowComingSoon},
 }
@@ -63,13 +80,20 @@ func configRowValue(i int, cfg *config.Config) string {
 		}
 		return "false"
 	case 4:
+		return strconv.Itoa(cfg.Global.PushWorkers)
+	case 5:
 		if cfg.UI.ShowFireAnimation {
 			return "true"
 		}
 		return "false"
-	case 5:
-		return cfg.UI.ColorProfile
 	case 6:
+		if cfg.UI.FireTickMS <= 0 {
+			return strconv.Itoa(config.DefaultUIFireTickMS)
+		}
+		return strconv.Itoa(cfg.UI.FireTickMS)
+	case 7:
+		return cfg.UI.ColorProfile
+	case 8:
 		return palettePreviewString(activeFireColors)
 	}
 	return ""
@@ -89,7 +113,7 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.AutoCommitDirty = !cfg.Global.AutoCommitDirty
 		case 3:
 			cfg.Global.DisableScan = !cfg.Global.DisableScan
-		case 4:
+		case 5:
 			cfg.UI.ShowFireAnimation = !cfg.UI.ShowFireAnimation
 		}
 	case configRowEnum:
@@ -108,7 +132,14 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.DefaultMode = opts[idx]
 		case 2:
 			cfg.Global.ConflictStrategy = opts[idx]
-		case 5:
+		case 4:
+			workers, err := strconv.Atoi(opts[idx])
+			if err == nil && workers > 0 {
+				cfg.Global.PushWorkers = workers
+			}
+		case 6:
+			applyFireTickChange(cfg, opts, dir)
+		case 7:
 			cfg.UI.ColorProfile = opts[idx]
 		}
 	case configRowComingSoon:
@@ -156,6 +187,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
+			m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
 		}
 
 	case "left", "h":
@@ -166,6 +198,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 		m = m.saveConfig()
 		if m.cfg != nil {
 			m.showFire = m.cfg.UI.ShowFireAnimation
+			m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
 		}
 	}
 
@@ -263,4 +296,43 @@ func (m RepoSelectorModel) viewConfig() string {
 	}
 
 	return boxStyle.Render(s.String())
+}
+
+func applyFireTickChange(cfg *config.Config, options []string, dir int) {
+	if cfg == nil || len(options) == 0 || dir == 0 {
+		return
+	}
+	cur := cfg.UI.FireTickMS
+	if cur <= 0 {
+		cur = config.DefaultUIFireTickMS
+	}
+
+	// Support manual overrides from config.toml by moving to the next/prev preset
+	// relative to the current numeric value, even if it is not exactly a preset.
+	if dir > 0 {
+		for _, opt := range options {
+			v, err := strconv.Atoi(opt)
+			if err == nil && v > cur {
+				cfg.UI.FireTickMS = v
+				return
+			}
+		}
+		// Wrap to first preset.
+		if v, err := strconv.Atoi(options[0]); err == nil {
+			cfg.UI.FireTickMS = v
+		}
+		return
+	}
+
+	for i := len(options) - 1; i >= 0; i-- {
+		v, err := strconv.Atoi(options[i])
+		if err == nil && v < cur {
+			cfg.UI.FireTickMS = v
+			return
+		}
+	}
+	// Wrap to last preset.
+	if v, err := strconv.Atoi(options[len(options)-1]); err == nil {
+		cfg.UI.FireTickMS = v
+	}
 }

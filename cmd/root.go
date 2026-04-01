@@ -40,6 +40,7 @@ var (
 	initConfig bool
 	forceInit  bool
 	backupTo   string
+	configFile string
 	showStatus bool
 )
 
@@ -73,7 +74,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip filesystem scan; back up only known (registry) repos this run")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
-	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL")
+	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
+	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
 
@@ -87,6 +89,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+	if backupTo != "" {
+		// TODO(v0.2): implement backup-to remote URL
+		return fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)")
+	}
 
 	// Verify git is available before doing anything else
 	if _, err := exec.LookPath("git"); err != nil {
@@ -94,7 +100,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg := config.LoadOrDefault()
+	cfg, cfgErr := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
+	if cfgErr != nil {
+		return fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error()))
+	}
 
 	// Override config with flags
 	if skipCommit {
@@ -310,7 +319,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 				progress.CurrentRepo, progress.TotalRepos,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -398,7 +407,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	}
 
 	if scanErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: scan error: %v\n", scanErr)
+		fmt.Fprintf(os.Stderr, "warning: scan error: %s\n", safety.SanitizeText(scanErr.Error()))
 	}
 
 	// Show selected repos
@@ -443,7 +452,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 				progress.CurrentRepo, progress.TotalRepos,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -559,7 +568,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 				progress.CurrentRepo, totalStr,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %v\n", progress.Error)
+				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -603,7 +612,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 
 	// Check scan error (non-fatal: report and continue to show results)
 	if scanErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: scan error: %v\n", scanErr)
+		fmt.Fprintf(os.Stderr, "warning: scan error: %s\n", safety.SanitizeText(scanErr.Error()))
 	}
 
 	logger.LogResult(result)
@@ -617,7 +626,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		}
 		fmt.Println()
 	case sshErr := <-sshErrChan:
-		fmt.Fprintf(os.Stderr, "warning: SSH check failed: %v\n", sshErr)
+		fmt.Fprintf(os.Stderr, "warning: SSH check failed: %s\n", safety.SanitizeText(sshErr.Error()))
 	}
 
 	printResult(result, logger.LogPath())
@@ -742,7 +751,10 @@ func handleStatus() error {
 	fmt.Println(sshStatus.Summary())
 
 	// Show repositories
-	cfg := config.LoadOrDefault()
+	cfg, err := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
+	if err != nil {
+		return fmt.Errorf("failed to load config: %s", safety.SanitizeText(err.Error()))
+	}
 	if scanPath != "." {
 		cfg.Global.ScanPath = scanPath
 	}

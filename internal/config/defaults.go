@@ -2,17 +2,32 @@ package config
 
 import "time"
 
+const DefaultPushWorkers = 4
+const DefaultUIFireTickMS = 180
+
+// MinUIFireTickMS and MaxUIFireTickMS clamp ui.fire_tick_ms after load (see
+// Config.Validate). That field becomes the Bubble Tea program's tick period: the
+// main event loop wakes on that interval even when the fire layer is hidden (only
+// fire updates are skipped). Values far below ~30ms spin CPU without visible
+// benefit; values above one minute make path scroll and other UI cadence feel
+// stuck. These bounds favor reliability for an emergency backup tool over
+// honoring every edge-case TOML number.
+const MinUIFireTickMS = 30
+const MaxUIFireTickMS = 60000
+
 // DefaultConfig returns safe default configuration
 func DefaultConfig() Config {
 	return Config{
 		UI: UIConfig{
 			ShowFireAnimation: true,
+			FireTickMS:        DefaultUIFireTickMS,
 			ColorProfile:      UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
 			DefaultMode:      "push-known-branches",
 			ConflictStrategy: "new-branch",
 			AutoCommitDirty:  true,
+			BlockOnSecrets:   true,
 			ScanPath:         ".",
 			ScanExclude: []string{
 				".cache",
@@ -26,6 +41,7 @@ func DefaultConfig() Config {
 			},
 			ScanDepth:        10,
 			ScanWorkers:      8,
+			PushWorkers:      DefaultPushWorkers,
 			CacheTTL:         24 * time.Hour,
 			RescanSubmodules: false,
 			DisableScan:      false,
@@ -45,7 +61,7 @@ func DefaultConfig() Config {
 // ExampleConfigTOML returns an example configuration file
 func ExampleConfigTOML() string {
 	return `# Git Fire Configuration
-# Place this file at ~/.config/git-fire/config.toml or ./git-fire.toml
+# Place this file at ~/.config/git-fire/config.toml
 
 [global]
 # Default push mode for repositories
@@ -58,6 +74,10 @@ conflict_strategy = "new-branch"
 
 # Auto-commit uncommitted changes before pushing
 auto_commit_dirty = true
+
+# Block auto-commit/push when suspicious secrets are detected
+# Set false only if you explicitly accept the risk.
+block_on_secrets = true
 
 # Directory to scan for git repos
 scan_path = "."
@@ -80,6 +100,9 @@ scan_depth = 10
 # Number of parallel workers for scanning
 scan_workers = 8
 
+# Number of parallel workers for pushing repositories
+push_workers = 4
+
 # Cache TTL (e.g., "24h", "1h30m")
 cache_ttl = "24h"
 
@@ -95,6 +118,11 @@ disable_scan = false
 # Toggle live during a session with the 'f' key.
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
+
+# Fire animation speed in milliseconds per frame (also drives the TUI tick).
+# Lower = faster/smoother but higher CPU usage. Recommended: 120-300.
+# Values outside 30-60000 ms are clamped when the config is loaded.
+fire_tick_ms = 180
 
 # Built-in color profile for fire + borders/accents in the TUI.
 # Options: "classic", "synthwave", "forest", "arctic"

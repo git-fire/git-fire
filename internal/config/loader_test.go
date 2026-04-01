@@ -21,12 +21,21 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.Global.AutoCommitDirty {
 		t.Error("Expected auto_commit_dirty to be true")
 	}
+	if !cfg.Global.BlockOnSecrets {
+		t.Error("Expected block_on_secrets to be true")
+	}
 
 	if cfg.Global.ScanWorkers != 8 {
 		t.Errorf("Expected scan_workers to be 8, got %d", cfg.Global.ScanWorkers)
 	}
+	if cfg.Global.PushWorkers != DefaultPushWorkers {
+		t.Errorf("Expected push_workers to be %d, got %d", DefaultPushWorkers, cfg.Global.PushWorkers)
+	}
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
+	}
+	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
+		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
 	}
 }
 
@@ -62,6 +71,7 @@ func TestLoadConfig_WithFile(t *testing.T) {
 default_mode = "push-all"
 auto_commit_dirty = false
 scan_workers = 16
+push_workers = 3
 
 [backup]
 platform = "gitlab"
@@ -72,7 +82,7 @@ platform = "gitlab"
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	cfg, err := Load()
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: configPath})
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
@@ -88,9 +98,32 @@ platform = "gitlab"
 	if cfg.Global.ScanWorkers != 16 {
 		t.Errorf("Expected scan_workers to be 16, got %d", cfg.Global.ScanWorkers)
 	}
+	if cfg.Global.PushWorkers != 3 {
+		t.Errorf("Expected push_workers to be 3, got %d", cfg.Global.PushWorkers)
+	}
 
 	if cfg.Backup.Platform != "gitlab" {
 		t.Errorf("Expected platform to be 'gitlab', got '%s'", cfg.Backup.Platform)
+	}
+}
+
+func TestLoadConfig_DoesNotImplicitlyLoadCWDConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[global]\ndefault_mode = \"push-all\"\n"), 0o644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Global.DefaultMode != "push-known-branches" {
+		t.Fatalf("expected default mode from defaults, got %s", cfg.Global.DefaultMode)
 	}
 }
 
@@ -180,6 +213,63 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid push workers fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+					PushWorkers:      0,
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+				},
+			},
+			wantErr: false,
+		},
+		// FireTickMS: non-positive → default; otherwise clamped to Min/Max (loader Validate).
+		{
+			name: "invalid fire tick fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "fire tick below min clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   5,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "fire tick above max clamps",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileClassic,
+					FireTickMS:   999999,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -187,6 +277,18 @@ func TestValidate(t *testing.T) {
 			err := tt.cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.name == "invalid push workers fallback to default" && tt.cfg.Global.PushWorkers != DefaultPushWorkers {
+				t.Errorf("PushWorkers fallback = %d, want %d", tt.cfg.Global.PushWorkers, DefaultPushWorkers)
+			}
+			if tt.name == "invalid fire tick fallback to default" && tt.cfg.UI.FireTickMS != DefaultUIFireTickMS {
+				t.Errorf("FireTickMS fallback = %d, want %d", tt.cfg.UI.FireTickMS, DefaultUIFireTickMS)
+			}
+			if tt.name == "fire tick below min clamps" && tt.cfg.UI.FireTickMS != MinUIFireTickMS {
+				t.Errorf("FireTickMS clamp low = %d, want %d", tt.cfg.UI.FireTickMS, MinUIFireTickMS)
+			}
+			if tt.name == "fire tick above max clamps" && tt.cfg.UI.FireTickMS != MaxUIFireTickMS {
+				t.Errorf("FireTickMS clamp high = %d, want %d", tt.cfg.UI.FireTickMS, MaxUIFireTickMS)
 			}
 		})
 	}
@@ -317,6 +419,17 @@ func TestParseDuration(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigPath(t *testing.T) {
+	path := DefaultConfigPath()
+	if filepath.Base(path) != "config.toml" {
+		t.Fatalf("expected filename config.toml, got %q", filepath.Base(path))
+	}
+	parent := filepath.Base(filepath.Dir(path))
+	if parent != "git-fire" {
+		t.Fatalf("expected parent directory git-fire, got %q", parent)
+	}
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
@@ -359,6 +472,8 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.DisableScan = true
 	original.Global.AutoCommitDirty = false
 	original.Global.ConflictStrategy = "abort"
+	original.Global.PushWorkers = 7
+	original.UI.FireTickMS = 150
 	original.UI.ColorProfile = UIColorProfileSynthwave
 
 	loaded := saveConfigAndReload(t, &original)
@@ -375,8 +490,14 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	if loaded.Global.ConflictStrategy != "abort" {
 		t.Errorf("ConflictStrategy: want abort, got %s", loaded.Global.ConflictStrategy)
 	}
+	if loaded.Global.PushWorkers != 7 {
+		t.Errorf("PushWorkers: want 7, got %d", loaded.Global.PushWorkers)
+	}
 	if loaded.UI.ColorProfile != UIColorProfileSynthwave {
 		t.Errorf("UIColorProfile: want %s, got %s", UIColorProfileSynthwave, loaded.UI.ColorProfile)
+	}
+	if loaded.UI.FireTickMS != 150 {
+		t.Errorf("UIFireTickMS: want 150, got %d", loaded.UI.FireTickMS)
 	}
 }
 

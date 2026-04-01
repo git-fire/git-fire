@@ -11,7 +11,7 @@ import (
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -54,6 +54,13 @@ func TestRootCommand_Flags(t *testing.T) {
 			args: []string{"--init"},
 			checkVar: func() bool {
 				return initConfig == true
+			},
+		},
+		{
+			name: "config flag",
+			args: []string{"--config", "/tmp/git-fire.toml"},
+			checkVar: func() bool {
+				return configFile == "/tmp/git-fire.toml"
 			},
 		},
 		{
@@ -430,6 +437,19 @@ func TestRootCommand_InvalidFlag(t *testing.T) {
 	}
 }
 
+func TestBackupToExecuteError(t *testing.T) {
+	resetFlags()
+	backupTo = "git@github.com:user/backup"
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected --backup-to execute path to return an error")
+	}
+	if !strings.Contains(err.Error(), "--backup-to is not yet implemented") {
+		t.Fatalf("unexpected error for --backup-to: %v", err)
+	}
+}
+
 func TestRootCommand_CombinedFlags(t *testing.T) {
 	// Reset flags
 	resetFlags()
@@ -512,8 +532,10 @@ func resetFlags() {
 	fireMode = false
 	scanPath = "."
 	skipCommit = false
+	noScan = false
 	initConfig = false
 	forceInit = false
 	backupTo = ""
+	configFile = ""
 	showStatus = false
 }

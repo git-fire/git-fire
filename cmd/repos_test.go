@@ -11,7 +11,7 @@ import (
 	"time"
 	"github.com/git-fire/git-fire/internal/executor"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/testutil"
+	testutil "github.com/git-fire/git-testkit"
 )
 
 // ---- buildKnownPaths ----
@@ -456,6 +456,34 @@ func TestSetRepoStatus_NotFound(t *testing.T) {
 	isolateHome(t)
 	if err := setRepoStatus("/not/tracked", registry.StatusIgnored, "ignored"); err == nil {
 		t.Error("expected error for untracked path")
+	}
+}
+
+func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	abs, _ := filepath.Abs("/wrapper/repo")
+	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "repo", Status: registry.StatusActive})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := reposIgnore(reposIgnoreCmd, []string{abs}); err != nil {
+		t.Fatalf("reposIgnore() error = %v", err)
+	}
+	loaded, _ := registry.Load(regPath)
+	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
+		t.Fatalf("reposIgnore should mark status as ignored")
+	}
+
+	if err := reposUnignore(reposUnignoreCmd, []string{abs}); err != nil {
+		t.Fatalf("reposUnignore() error = %v", err)
+	}
+	loaded, _ = registry.Load(regPath)
+	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
+		t.Fatalf("reposUnignore should mark status as active")
 	}
 }
 
