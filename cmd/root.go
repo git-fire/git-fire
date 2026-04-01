@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -526,11 +527,39 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		scanErr = git.ScanRepositoriesStream(opts, scanChan)
 	}()
 
-	// Drain folder-progress in the background (TUI uses it; CLI discards it).
-	go func() {
-		for range folderProgress {
-		}
-	}()
+	// Folder progress: TUI consumes paths live; default stream prints periodic
+	// updates so long walks are not silent.
+	var lastFolder atomic.Pointer[string]
+	if !opts.DisableScan {
+		go func() {
+			for p := range folderProgress {
+				pp := p
+				lastFolder.Store(&pp)
+			}
+		}()
+		go func() {
+			tick := time.NewTicker(2 * time.Second)
+			defer tick.Stop()
+			const scanPrefix = "   🔍 Scanning… "
+			for {
+				select {
+				case <-scanDone:
+					return
+				case <-tick.C:
+					ptr := lastFolder.Load()
+					if ptr != nil && *ptr != "" {
+						maxPathLen := scanProgressPathMaxLen(scanPrefix)
+						fmt.Printf("%s%s\n", scanPrefix, truncateScanProgressPath(*ptr, maxPathLen))
+					}
+				}
+			}
+		}()
+	} else {
+		go func() {
+			for range folderProgress {
+			}
+		}()
+	}
 
 	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
 	now := time.Now()
@@ -651,6 +680,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	absPath, err := filepath.Abs(repo.Path)
 	if err != nil {
 		// Can't resolve path — include repo to be safe (never silently drop backups).
+		repo.IsNewRegistryEntry = false
 		return repo, true
 	}
 	var modeStr string
@@ -665,6 +695,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		e.Status = registry.StatusActive
 	})
 	if found {
+		repo.IsNewRegistryEntry = false
 		if modeStr != "" {
 			repo.Mode = git.ParseMode(modeStr)
 		} else {
@@ -674,6 +705,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	}
 	// New discovery — register it immediately (opt-out model).
 	repo.Mode = defaultMode
+	repo.IsNewRegistryEntry = true
 	reg.Upsert(registry.RegistryEntry{
 		Path:     absPath,
 		Name:     repo.Name,
@@ -683,6 +715,37 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		LastSeen: now,
 	})
 	return repo, true
+}
+
+// truncateScanProgressPath shortens a filesystem path for one-line CLI output.
+func truncateScanProgressPath(path string, maxLen int) string {
+	if maxLen <= 0 || len(path) <= maxLen {
+		return path
+	}
+	ellipsis := "..."
+	if maxLen <= len(ellipsis) {
+		return path[:maxLen]
+	}
+	return ellipsis + path[len(path)-(maxLen-len(ellipsis)):]
+}
+
+func scanProgressPathMaxLen(prefix string) int {
+	const (
+		fallback = 72
+		minLen   = 8
+	)
+	cols, err := strconv.Atoi(os.Getenv("COLUMNS"))
+	if err != nil || cols <= 0 {
+		return fallback
+	}
+	dynamic := cols - len(prefix)
+	if dynamic < minLen {
+		return minLen
+	}
+	if dynamic > fallback {
+		return fallback
+	}
+	return dynamic
 }
 
 // saveRegistry persists the registry and logs a warning on failure.
