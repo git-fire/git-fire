@@ -546,17 +546,42 @@ func TestUpsertRepoIntoRegistry_SecondUpsertNotNew(t *testing.T) {
 }
 
 func TestTruncateScanProgressPath(t *testing.T) {
-	short := "/home/u/proj"
-	if got := truncateScanProgressPath(short, 72); got != short {
-		t.Fatalf("short path: got %q", got)
+	tests := []struct {
+		name      string
+		path      string
+		maxLen    int
+		wantEqual string
+		wantLen   int
+		wantPref  string
+	}{
+		{
+			name:      "short path unchanged",
+			path:      "/home/u/proj",
+			maxLen:    72,
+			wantEqual: "/home/u/proj",
+		},
+		{
+			name:     "long path truncated",
+			path:     strings.Repeat("/x", 80),
+			maxLen:   20,
+			wantLen:  20,
+			wantPref: "...",
+		},
 	}
-	long := strings.Repeat("/x", 80)
-	got := truncateScanProgressPath(long, 20)
-	if len(got) != 20 {
-		t.Fatalf("len=%d want 20", len(got))
-	}
-	if !strings.HasPrefix(got, "...") {
-		t.Fatalf("expected ellipsis prefix, got %q", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateScanProgressPath(tt.path, tt.maxLen)
+			if tt.wantEqual != "" && got != tt.wantEqual {
+				t.Fatalf("got %q want %q", got, tt.wantEqual)
+			}
+			if tt.wantLen > 0 && len(got) != tt.wantLen {
+				t.Fatalf("len=%d want %d", len(got), tt.wantLen)
+			}
+			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
+				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+		})
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -536,6 +537,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		go func() {
 			tick := time.NewTicker(2 * time.Second)
 			defer tick.Stop()
+			const scanPrefix = "   🔍 Scanning… "
 			for {
 				select {
 				case <-scanDone:
@@ -543,7 +545,8 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 				case <-tick.C:
 					ptr := lastFolder.Load()
 					if ptr != nil && *ptr != "" {
-						fmt.Printf("   🔍 Scanning… %s\n", truncateScanProgressPath(*ptr, 72))
+						maxPathLen := scanProgressPathMaxLen(scanPrefix)
+						fmt.Printf("%s%s\n", scanPrefix, truncateScanProgressPath(*ptr, maxPathLen))
 					}
 				}
 			}
@@ -721,6 +724,25 @@ func truncateScanProgressPath(path string, maxLen int) string {
 		return path[:maxLen]
 	}
 	return ellipsis + path[len(path)-(maxLen-len(ellipsis)):]
+}
+
+func scanProgressPathMaxLen(prefix string) int {
+	const (
+		fallback = 72
+		minLen   = 8
+	)
+	cols, err := strconv.Atoi(os.Getenv("COLUMNS"))
+	if err != nil || cols <= 0 {
+		return fallback
+	}
+	dynamic := cols - len(prefix)
+	if dynamic < minLen {
+		return minLen
+	}
+	if dynamic > fallback {
+		return fallback
+	}
+	return dynamic
 }
 
 // saveRegistry persists the registry and logs a warning on failure.
