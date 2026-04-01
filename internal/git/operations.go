@@ -663,17 +663,21 @@ func resetToUnborn(repoPath string) error {
 }
 
 func getOptionalHeadSHA(repoPath string) (string, bool, error) {
-	cmd := exec.Command("git", "rev-parse", "--verify", "HEAD")
+	cmd := exec.Command("git", "rev-parse", "-q", "--verify", "HEAD")
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		errText := string(output)
-		if strings.Contains(errText, "Needed a single revision") || strings.Contains(errText, "unknown revision or path not in the working tree") {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return "", false, nil
 		}
-		return "", false, commandError("git rev-parse --verify HEAD", err, output)
+		return "", false, commandError("git rev-parse -q --verify HEAD", err, output)
 	}
-	return strings.TrimSpace(string(output)), true, nil
+
+	sha := strings.TrimSpace(string(output))
+	if sha == "" {
+		return "", false, fmt.Errorf("git rev-parse -q --verify HEAD returned empty output")
+	}
+	return sha, true, nil
 }
 
 // commitChanges commits changes with optional git add -A
