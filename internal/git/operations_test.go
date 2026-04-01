@@ -718,6 +718,30 @@ func TestGetUncommittedFiles(t *testing.T) {
 	}
 }
 
+func TestGetUncommittedFiles_Deleted(t *testing.T) {
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("test")
+	repo.AddFile("remove-me.txt", "content\n").Commit("add file")
+	if err := os.Remove(filepath.Join(repo.Path(), "remove-me.txt")); err != nil {
+		t.Fatalf("remove file: %v", err)
+	}
+
+	files, err := GetUncommittedFiles(repo.Path())
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error = %v", err)
+	}
+	found := false
+	for _, f := range files {
+		if f == "remove-me.txt" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected deleted tracked file remove-me.txt in results, got %v", files)
+	}
+}
+
 func TestGetUncommittedFiles_SpacesInPath(t *testing.T) {
 	scenario := testutil.NewScenario(t)
 	repo := scenario.CreateRepo("test")

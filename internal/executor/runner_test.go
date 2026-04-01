@@ -865,6 +865,80 @@ func TestRunner_ExecuteStream(t *testing.T) {
 	}
 }
 
+func TestRunner_ExecuteStream_DryRun_SkippedNotCountedAsSuccess(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+	defer runner.Close()
+
+	go func() {
+		for range runner.ProgressChan() {
+		}
+	}()
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("solo")
+
+	repoChan := make(chan git.Repository, 1)
+	repoChan <- git.Repository{
+		Path:     repo.Path(),
+		Name:     "solo",
+		Selected: true,
+		Mode:     git.ModePushKnownBranches,
+	}
+	close(repoChan)
+
+	planner := NewPlanner(&cfg)
+	var total int64 = 1
+
+	result, err := runner.ExecuteStream(repoChan, planner, true, &total)
+	if err != nil {
+		t.Fatalf("ExecuteStream error: %v", err)
+	}
+	if result.Success != 0 {
+		t.Errorf("dry run with skipped plan: want success count 0, got %d", result.Success)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("dry run with skipped plan: want skipped count 1, got %d", result.Skipped)
+	}
+}
+
+func TestDryRunExecute_SkippedAggregatesLikeLiveRun(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	plan := &PushPlan{
+		DryRun: true,
+		Repos: []RepoPlan{
+			{
+				Repo:        git.Repository{Path: "/tmp/skipped", Name: "skipped"},
+				Skip:        true,
+				SkipReason:  "No remotes configured",
+				Actions:     []Action{{Type: ActionPushAll, Description: "noop"}},
+			},
+			{
+				Repo: git.Repository{Path: "/tmp/fake-repo", Name: "would-run"},
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Success != 1 || result.Skipped != 1 {
+		t.Fatalf("want success=1 skipped=1, got success=%d skipped=%d", result.Success, result.Skipped)
+	}
+	if result.RepoResults[0].Success {
+		t.Error("first repo (skipped) should have Success false")
+	}
+	if !result.RepoResults[1].Success {
+		t.Error("second repo (dry-run actions) should have Success true")
+	}
+}
+
 func TestRunner_Execute_ParallelPushWorkers(t *testing.T) {
 	serialDuration := runSlowTwoRepoPush(t, 1)
 	parallelDuration := runSlowTwoRepoPush(t, 2)

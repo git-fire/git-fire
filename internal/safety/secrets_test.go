@@ -233,6 +233,29 @@ func TestScanFiles(t *testing.T) {
 	}
 }
 
+func TestScanFiles_DeletedSuspiciousFile(t *testing.T) {
+	scanner := NewSecretScanner()
+	tmpDir := t.TempDir()
+	envPath := filepath.Join(tmpDir, ".env")
+	if err := os.WriteFile(envPath, []byte("SECRET=x\n"), 0644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+	if err := os.Remove(envPath); err != nil {
+		t.Fatalf("remove .env: %v", err)
+	}
+
+	results, err := scanner.ScanFiles(tmpDir, []string{".env"})
+	if err != nil {
+		t.Fatalf("ScanFiles() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("want 1 filename-based hit, got %d (%v)", len(results), results)
+	}
+	if results[0].Path != ".env" {
+		t.Errorf("got path %q, want .env", results[0].Path)
+	}
+}
+
 func TestFormatWarning(t *testing.T) {
 	files := []SuspiciousFile{
 		{

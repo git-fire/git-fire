@@ -393,24 +393,39 @@ func (r *Runner) ExecuteStream(
 
 				var repoResult RepoResult
 				if dryRun {
-					repoResult = RepoResult{
-						Path:    job.repoPlan.Repo.Path,
-						Success: true,
-						Actions: job.repoPlan.Actions,
-					}
-					for _, action := range job.repoPlan.Actions {
-						if action.Type == ActionAutoCommit {
-							_ = checkSecrets(job.repoPlan.Repo.Path, false)
-							break
+					if job.repoPlan.Skip {
+						repoResult = RepoResult{
+							Path:    job.repoPlan.Repo.Path,
+							Success: false,
+							Actions: job.repoPlan.Actions,
 						}
+						r.sendProgress(Progress{
+							CurrentRepo: job.sequence,
+							TotalRepos:  tot,
+							RepoName:    job.repoPlan.Repo.Name,
+							Action:      job.repoPlan.SkipReason,
+							Status:      StatusSkipped,
+						})
+					} else {
+						repoResult = RepoResult{
+							Path:    job.repoPlan.Repo.Path,
+							Success: true,
+							Actions: job.repoPlan.Actions,
+						}
+						for _, action := range job.repoPlan.Actions {
+							if action.Type == ActionAutoCommit {
+								_ = checkSecrets(job.repoPlan.Repo.Path, false)
+								break
+							}
+						}
+						r.sendProgress(Progress{
+							CurrentRepo: job.sequence,
+							TotalRepos:  tot,
+							RepoName:    job.repoPlan.Repo.Name,
+							Action:      "[DRY RUN] Would execute actions",
+							Status:      StatusSuccess,
+						})
 					}
-					r.sendProgress(Progress{
-						CurrentRepo: job.sequence,
-						TotalRepos:  tot,
-						RepoName:    job.repoPlan.Repo.Name,
-						Action:      "[DRY RUN] Would execute actions",
-						Status:      StatusSuccess,
-					})
 				} else {
 					repoResult = r.executeRepo(job.repoPlan, job.sequence, tot)
 				}
@@ -522,20 +537,27 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 	}
 
 	for i, repoPlan := range plan.Repos {
-		repoResult := RepoResult{
+		if repoPlan.Skip {
+			result.RepoResults = append(result.RepoResults, RepoResult{
+				Path:    repoPlan.Repo.Path,
+				Success: false,
+				Actions: repoPlan.Actions,
+			})
+			r.sendProgress(Progress{
+				CurrentRepo: i + 1,
+				TotalRepos:  len(plan.Repos),
+				RepoName:    repoPlan.Repo.Name,
+				Action:      repoPlan.SkipReason,
+				Status:      StatusSkipped,
+			})
+			continue
+		}
+
+		result.RepoResults = append(result.RepoResults, RepoResult{
 			Path:    repoPlan.Repo.Path,
 			Success: true,
 			Actions: repoPlan.Actions,
-		}
-
-		if repoPlan.Skip {
-			result.Skipped++
-		} else {
-			result.Success++
-		}
-
-		result.TotalActions += len(repoPlan.Actions)
-		result.RepoResults = append(result.RepoResults, repoResult)
+		})
 
 		// Warn about secrets even in dry run — the whole point of dry run is to
 		// surface issues before they become real commits.
@@ -557,6 +579,7 @@ func (r *Runner) dryRunExecute(plan *PushPlan) (*ExecutionResult, error) {
 
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
+	r.aggregateResultCounts(result)
 
 	return result, nil
 }
