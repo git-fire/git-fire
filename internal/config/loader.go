@@ -245,6 +245,18 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 	return toml.Unmarshal(data, v)
 }
 
+// sanitizeSecretsForSave clears secret fields that may be sourced from the
+// environment so they are never written to disk (avoids persisting GIT_FIRE_*
+// credentials into config.toml).
+func sanitizeSecretsForSave(cfg *Config) {
+	if os.Getenv("GIT_FIRE_API_TOKEN") != "" || os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != "" {
+		cfg.Backup.APIToken = ""
+	}
+	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" || os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != "" {
+		cfg.Auth.SSHPassphrase = ""
+	}
+}
+
 // SaveConfig marshals cfg to TOML and atomically writes it to path.
 // It creates the parent directory if necessary.
 func SaveConfig(cfg *Config, path string) error {
@@ -253,8 +265,11 @@ func SaveConfig(cfg *Config, path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	toSave := *cfg
+	sanitizeSecretsForSave(&toSave)
+
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(&toSave); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
 

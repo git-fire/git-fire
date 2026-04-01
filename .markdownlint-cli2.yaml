@@ -1,0 +1,10 @@
+# Project markdownlint-cli2 defaults (technical docs use wide tables and long paths).
+config:
+  MD013: false # line length
+  MD060: false # table column spacing style
+
+# Lint only docs touched in spec-alignment passes by default (`markdownlint-cli2` with no args).
+globs:
+  - "GIT_FIRE_SPEC.md"
+  - "docs/README.md"
+  - "docs/PROJECT_OVERVIEW.md"

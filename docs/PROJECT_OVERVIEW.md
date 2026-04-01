@@ -28,6 +28,7 @@ Core value: in a panic (or at end-of-day), run one command to discover repositor
 - `git-fire --skip-auto-commit` (push existing commits only)
 - `git-fire --status` (auth/repo status)
 - `git-fire --init` (generate config template)
+- `git-fire repos …` (list / scan / ignore / unignore / remove registry entries)
 
 ## Core Functionality
 
