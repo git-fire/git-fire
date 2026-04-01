@@ -33,10 +33,6 @@ Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen ch
 
 `git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.
 
-## Alpha Status
-
-`git-fire` is currently in alpha, and we are actively looking for testers and feedback.
-
 ## Project Snapshot
 
 - **Project:** `git-fire` (`github.com/git-fire/git-fire`)
@@ -241,8 +237,6 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
 
-See [docs/agentic-flows.md](docs/agentic-flows.md).
-
 Practical workaround today: `git-fire && your-script`
 
 ## Release Roadmap
@@ -296,12 +290,6 @@ Start with [docs/README.md](docs/README.md).
 `git-fire` is alpha software. Keep independent backups, verify results, and treat this as a fast checkpointing layer, not your only data safety mechanism.
 
 No warranty is provided (express or implied), including merchantability or fitness for a particular purpose.
-
-## Alpha Risk and Warranty
-
-The product is stable in many common workflows, but it is still alpha and should not be fully trusted yet. Use at your own risk.
-
-No warranty is provided (express or implied), including merchantability or fitness for a particular purpose. Maintain your own backup strategy, verify backup results, and keep updating as fixes are released.
 
 ## Contributing
 
