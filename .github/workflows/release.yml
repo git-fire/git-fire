@@ -3,10 +3,11 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g. 1.2.3 or 1.2.3-beta.1)'
+      tag:
+        description: 'Tag to release (e.g. v0.1.0-alpha)'
         required: true
         type: string
+        default: 'v0.1.0-alpha'
 
 permissions:
   contents: read
@@ -24,26 +25,60 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate version format
-        env:
-          VERSION: ${{ inputs.version }}
+      - name: Require main branch
         run: |
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
-            echo "Invalid version format: $VERSION"
-            echo "Expected: MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-prerelease"
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Release workflow must be run from main; got ${GITHUB_REF}."
             exit 1
           fi
 
-      - name: Create and push tag
+      - name: Validate version format
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)$'; then
+            echo "Invalid tag format: $TAG"
+            echo "Expected: vMAJOR.MINOR.PATCH-prerelease (prerelease required)"
+            exit 1
+          fi
+
+          # Enforce SemVer rule: numeric prerelease identifiers must not have leading zeros.
+          PRERELEASE="${TAG#v}"
+          PRERELEASE="${PRERELEASE#*.*.*}"
+          PRERELEASE="${PRERELEASE#-}"
+          if [ -n "$PRERELEASE" ]; then
+            IFS='.' read -r -a identifiers <<< "$PRERELEASE"
+            for ident in "${identifiers[@]}"; do
+              if [[ "$ident" =~ ^[0-9]+$ ]] && [[ "$ident" != "0" ]] && [[ "$ident" =~ ^0 ]]; then
+                echo "Invalid prerelease identifier with leading zero: $ident"
+                exit 1
+              fi
+            done
+          fi
+
+      - name: Ensure tag is reusable or create it
         id: tag
         env:
-          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
         run: |
-          TAG="v${VERSION}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin "${TAG}"
+          HEAD_SHA="$(git rev-parse HEAD)"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            TAG_SHA="$(git rev-list -n1 "$TAG")"
+            echo "Tag already exists locally: $TAG ($TAG_SHA)"
+            exit 1
+          else
+            REMOTE_SHA="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}' | head -n1)"
+            if [ -n "$REMOTE_SHA" ]; then
+              echo "Tag already exists on origin: $TAG ($REMOTE_SHA)"
+              exit 1
+            else
+              git config user.name  "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag -a "${TAG}" -m "Release ${TAG}"
+              git push origin "refs/tags/${TAG}"
+            fi
+          fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
 
   goreleaser:
@@ -71,5 +106,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}

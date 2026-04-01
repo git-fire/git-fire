@@ -35,16 +35,62 @@ Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen ch
 
 ## Quick Start
 
-### Install
+### One-line emergency mode
 
-> **Coming soon:** Homebrew, Scoop, and packaged binary distribution are not published yet.
+Use this for urgent situations only. `curl | bash` executes remote code directly.
+Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
+
+```bash
+# replace v0.1.0-alpha with the release tag you want to run
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scripts/emergency.sh | bash
+```
+
+### Install
 
 | Method | Command | Platform |
 |---|---|---|
-| Homebrew (coming soon) | `brew tap git-fire/homebrew-tap && brew install git-fire` | macOS / Linux |
-| Scoop (coming soon) | `scoop bucket add git-fire https://github.com/git-fire/scoop-bucket && scoop install git-fire` | Windows |
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
-| Binary (coming soon) | [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest) | All |
+| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
+
+For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
+Homebrew/Scoop publishing will be enabled in a later stable release.
+
+#### PATH setup (required)
+
+After install, make sure the binary location is on your `PATH`.
+
+**Go install (Linux/macOS):**
+```bash
+export PATH="$HOME/go/bin:$PATH"
+```
+Add that line to `~/.zshrc` or `~/.bashrc` to persist.
+
+**Manual binary install (Linux/macOS):**
+```bash
+# after extracting the release archive:
+chmod +x git-fire
+sudo mv git-fire /usr/local/bin/
+```
+
+**Manual binary install (Windows PowerShell):**
+```powershell
+# after extracting the release archive:
+New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
+Move-Item .\git-fire.exe "$env:USERPROFILE\bin\git-fire.exe" -Force
+```
+Then add `$env:USERPROFILE\bin` to your user `PATH` if not already present.
+
+#### Verify install
+
+```bash
+git-fire --version
+which git-fire
+```
+On Windows PowerShell:
+```powershell
+git-fire.exe --version
+Get-Command git-fire.exe
+```
 
 ### First run
 
@@ -143,7 +189,6 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - **Auto-commit strategy control:** choose whether dirty working trees are included with default behavior or skipped via `--skip-auto-commit`.
 - **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/` for auditability and debugging.
 - **Workflow composition:** combine with hooks, wrappers, task runners, or CI helper scripts for consistent team or solo automation.
-
 ## Feature to Use-Case Map
 
 | Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
@@ -166,15 +211,6 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 - Structured logs create a machine-readable audit trail.
 - Built to reduce risk from silent failure modes in manual workflows (network, auth, and command-sequencing errors across many repos).
 - 250+ tests cover core non-UI packages.
-
-## How Git-Fire Works (and Why It Is Worth Trusting)
-
-`git-fire` is intentionally simple in how it works, while aiming to become powerful in what it can do for emergency data safety over time.
-
-- Built in Go for a fast, typed, testable codebase with predictable cross-platform behavior.
-- Scans repository roots you explicitly provide (for example via `--path`) plus configured/default scan roots; it does not blindly crawl your entire system unless you point it there.
-- Uses concurrent scanning and worker-based execution.
-- Uses the native `git` binary and gives control points (`--dry-run`, `--skip-auto-commit`, `--status`) before making changes.
 
 ## Core Commands
 
@@ -219,7 +255,35 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
 
-Practical workaround today: `git-fire && your-script`
+See [docs/agentic-flows.md](docs/agentic-flows.md).
+
+### TUI color profiles
+
+You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
+
+| Profile | Style |
+|---------|-------|
+| `classic` | Original orange/yellow fire |
+| `synthwave` | 80s neon purple/pink/cyan |
+| `forest` | Green ember palette |
+| `arctic` | Cool cyan/ice palette |
+
+| Method | How |
+|--------|-----|
+| In-TUI settings | Press **`c`** → **Color profile** → `space` / `←` / `→` |
+| Config file | Set `color_profile` under `[ui]` |
+
+```toml
+[ui]
+show_fire_animation = true
+color_profile = "synthwave"
+```
+
+Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
+
+### Extensibility with plugins
+
+Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
 
 See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
@@ -233,11 +297,14 @@ Start with [docs/README.md](docs/README.md).
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Validation status: [docs/REQUIREMENTS_VALIDATION.md](docs/REQUIREMENTS_VALIDATION.md)
 
-## Alpha Risk and Warranty
+## Security Notes
 
-`git-fire` is alpha software. Keep independent backups, verify results, and treat this as a fast checkpointing layer, not your only data safety mechanism.
+Before running broad backups:
+- keep secrets out of tracked files
+- rely on `.gitignore` and `.git/info/exclude` for local secret files
+- run `git-fire --dry-run` regularly to inspect what would be committed
 
-No warranty is provided (express or implied), including merchantability or fitness for a particular purpose.
+`git-fire` includes secret detection warnings, but commit responsibility remains with the user.
 
 ## Contributing
 
