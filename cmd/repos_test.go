@@ -106,9 +106,7 @@ func TestStatusLabel_EmptyString(t *testing.T) {
 func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 	// Set HOME to a temp dir so registry.DefaultRegistryPath() points there
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a real git repo to track
 	scenario := testutil.NewScenario(t)
@@ -139,9 +137,7 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 
 func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Write a corrupt registry file
 	regDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -170,9 +166,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 	}
 
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a path inside an unreadable parent dir so os.Stat returns EACCES,
 	// not ENOENT. The parent has mode 0o000 so traversal is denied.
@@ -226,9 +220,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 
 func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Corrupt the registry file
 	regDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -273,9 +265,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create two repos
 	scenario := testutil.NewScenario(t)
@@ -326,10 +316,26 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 func isolateHome(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
-	orig := os.Getenv("HOME")
-	t.Cleanup(func() { os.Setenv("HOME", orig) })
-	os.Setenv("HOME", tmp)
+	setTestUserDirs(t, tmp)
 	return tmp
+}
+
+// setTestUserDirs normalizes user-dir environment variables for tests that
+// depend on UserConfigDir/UserCacheDir path resolution.
+func setTestUserDirs(t *testing.T, home string) {
+	t.Helper()
+	origHome := os.Getenv("HOME")
+	origXDGConfig := os.Getenv("XDG_CONFIG_HOME")
+	origXDGCache := os.Getenv("XDG_CACHE_HOME")
+	t.Cleanup(func() {
+		_ = os.Setenv("HOME", origHome)
+		_ = os.Setenv("XDG_CONFIG_HOME", origXDGConfig)
+		_ = os.Setenv("XDG_CACHE_HOME", origXDGCache)
+	})
+
+	_ = os.Setenv("HOME", home)
+	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
 }
 
 func TestLoadRegistry(t *testing.T) {
@@ -487,6 +493,27 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 	}
 }
 
+func TestReposRemove_UsesXDGRegistryPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	abs, _ := filepath.Abs("/xdg/repo")
+	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "xdg", Status: registry.StatusActive})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := reposRemove(reposRemoveCmd, []string{abs}); err != nil {
+		t.Fatalf("reposRemove() error = %v", err)
+	}
+	loaded, _ := registry.Load(regPath)
+	if loaded.FindByPath(abs) != nil {
+		t.Fatal("entry should be removed when using XDG config path")
+	}
+}
+
 func TestStatusLabel_AllValues(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{registry.StatusActive, "active "},
@@ -504,9 +531,7 @@ func TestStatusLabel_AllValues(t *testing.T) {
 
 func TestHandleInit_ForceFlag(t *testing.T) {
 	tmpHome := t.TempDir()
-	orig := os.Getenv("HOME")
-	defer os.Setenv("HOME", orig)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// First call creates the file
 	forceInit = false
