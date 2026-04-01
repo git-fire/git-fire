@@ -239,7 +239,11 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 	switch action.Type {
 	case ActionAutoCommit:
 		// Scan for secrets before committing.
-		if errSecrets := checkSecrets(repo.Path, r.config.Global.BlockOnSecrets); errSecrets != nil {
+		blockOnSecrets := true
+		if r.config != nil {
+			blockOnSecrets = r.config.Global.BlockOnSecrets
+		}
+		if errSecrets := checkSecrets(repo.Path, blockOnSecrets); errSecrets != nil {
 			err = errSecrets
 			break
 		}
@@ -442,9 +446,7 @@ func (r *Runner) ExecuteStream(
 		}
 		sequence++
 
-		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{
-			DetectConflicts: false,
-		})
+		repoPlan, err := planner.BuildRepoPlan(repo)
 		if err != nil {
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.
