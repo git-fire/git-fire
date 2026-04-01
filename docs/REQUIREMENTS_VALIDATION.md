@@ -388,7 +388,6 @@ All backup mode requirements (GitHub/GitLab/Gitea API, manifest generation, auto
 ### Functional Requirements
 
 - ✅ Core operations work (scan, commit, detect conflicts, push)
-- 🔲 Interactive prompt with countdown (deferred — not in current CLI; see spec)
 - 🔲 Fire drill mode shows detailed report (BLOCKER)
 - 🔲 Completion report displays stats (BLOCKER)
 - ✅ Dual-branch strategy (staged/unstaged)
@@ -398,6 +397,10 @@ All backup mode requirements (GitHub/GitLab/Gitea API, manifest generation, auto
 - ✅ Secret detection and warnings
 - ✅ Per-host rate limiting (`internal/executor/ratelimit.go`)
 - 🔴 Worktree parallelization (PARTIAL)
+
+### Deferred / out-of-scope for 1.0
+
+- ⏸ Interactive prompt with countdown (deferred — not in current CLI; see spec)
 
 ### Testing Requirements
 
