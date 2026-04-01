@@ -5,9 +5,13 @@ import "time"
 const DefaultPushWorkers = 4
 const DefaultUIFireTickMS = 180
 
-// MinUIFireTickMS and MaxUIFireTickMS bound ui.fire_tick_ms after load so the TUI
-// tick interval cannot become a busy loop (tiny values) or an impractically long
-// sleep (huge values).
+// MinUIFireTickMS and MaxUIFireTickMS clamp ui.fire_tick_ms after load (see
+// Config.Validate). That field becomes the Bubble Tea program's tick period: the
+// main event loop wakes on that interval even when the fire layer is hidden (only
+// fire updates are skipped). Values far below ~30ms spin CPU without visible
+// benefit; values above one minute make path scroll and other UI cadence feel
+// stuck. These bounds favor reliability for an emergency backup tool over
+// honoring every edge-case TOML number.
 const MinUIFireTickMS = 30
 const MaxUIFireTickMS = 60000
 
@@ -115,9 +119,9 @@ disable_scan = false
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
 
-# Fire animation speed in milliseconds per frame.
-# Lower = faster/smoother but higher CPU usage.
-# Recommended range for most terminals: 120-300.
+# Fire animation speed in milliseconds per frame (also drives the TUI tick).
+# Lower = faster/smoother but higher CPU usage. Recommended: 120-300.
+# Values outside 30-60000 ms are clamped when the config is loaded.
 fire_tick_ms = 180
 
 # Built-in color profile for fire + borders/accents in the TUI.

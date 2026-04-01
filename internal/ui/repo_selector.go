@@ -524,9 +524,13 @@ func min(a, b int) int {
 // the list and controls remain usable.
 const fireHeightThreshold = 20
 
-// fireSectionReserveLines is the vertical line count used by View and
-// viewIgnoredMain for the fire block when visible: fire grid (Height) plus wave
-// row and blank line before the title (see Render + "\n" + wave + "\n\n").
+// fireSectionReserveLines returns how many terminal rows the fire strip occupies
+// when drawn: the ANSI grid from FireBackground.Render (Height lines), plus two
+// lines after it—the wave string and the blank line before the title—matching
+// View / viewIgnoredMain assembly (Render, then "\n"+wave+"\n\n").
+//
+// Keep this in sync with those layouts. Over-counting (e.g. Height+4) shrinks the
+// repo list for no reason; under-counting lets the list overlap the fire block.
 func (m RepoSelectorModel) fireSectionReserveLines() int {
 	if !m.fireVisible() {
 		return 0
@@ -610,8 +614,8 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		innerW = 0
 	}
 
-	// Build non-list sections without rendering fire internals; reserve the same
-	// line count as the fire block in View (fireSectionReserveLines).
+	// Placeholder newlines stand in for the fire block so lipgloss.Height matches
+	// the real View without running fire shaders. Must equal fireSectionReserveLines().
 	var buf strings.Builder
 	if lines := m.fireSectionReserveLines(); lines > 0 {
 		for i := 0; i < lines; i++ {
@@ -651,12 +655,51 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 	return n
 }
 
-// ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
-// baseOverhead is title, help, and box chrome (everything except the optional fire
-// block). Fire lines match viewIgnoredMain via fireSectionReserveLines().
+// renderIgnoredViewTitle returns the styled title line for the ignored view.
+// Keep in sync with viewIgnoredMain.
+func (m RepoSelectorModel) renderIgnoredViewTitle() string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(activeProfile().titleFg).
+		Background(activeProfile().titleBg).
+		Padding(0, 2).
+		Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥")
+}
+
+// renderIgnoredViewHelp returns the help block for the ignored view (below the list).
+func renderIgnoredViewHelp() string {
+	return helpStyle.Render(
+		"\n" +
+			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
+			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
+	)
+}
+
+// ignoredViewNonListHeight is the boxed vertical size of the ignored view without
+// any list rows: fire placeholder, title, help. Matches viewIgnoredMain assembly
+// so wrapping help on narrow terminals inflates overhead the same as in the real view.
+func (m RepoSelectorModel) ignoredViewNonListHeight() int {
+	innerW := m.windowWidth - 6
+	if innerW < 0 {
+		innerW = 0
+	}
+	var buf strings.Builder
+	if lines := m.fireSectionReserveLines(); lines > 0 {
+		for i := 0; i < lines; i++ {
+			buf.WriteString("\n")
+		}
+	}
+	buf.WriteString(m.renderIgnoredViewTitle())
+	buf.WriteString("\n\n")
+	buf.WriteString(renderIgnoredViewHelp())
+	return lipgloss.Height(boxStyle.Width(innerW).Render(buf.String()))
+}
+
+// ignoredListVisibleCount mirrors repoListVisibleCount: overhead is measured with
+// lipgloss so help wrapping and box padding match the rendered ignored view.
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
-	const baseOverhead = 11
-	n := m.windowHeight - (baseOverhead + m.fireSectionReserveLines())
+	overhead := m.ignoredViewNonListHeight()
+	n := m.windowHeight - overhead
 	if n < 1 {
 		n = 1
 	}
@@ -1015,12 +1058,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		s.WriteString("\n\n")
 	}
 
-	titleGradient := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(activeProfile().titleFg).
-		Background(activeProfile().titleBg).
-		Padding(0, 2)
-	s.WriteString(titleGradient.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED) 🔥"))
+	s.WriteString(m.renderIgnoredViewTitle())
 	s.WriteString("\n\n")
 
 	if len(m.ignoredEntries) == 0 {
@@ -1098,12 +1136,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		}
 	}
 
-	help := helpStyle.Render(
-		"\n" +
-			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
-			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
-	)
-	s.WriteString(help)
+	s.WriteString(renderIgnoredViewHelp())
 
 	innerW := m.windowWidth - 6
 	if innerW < 0 {

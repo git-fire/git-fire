@@ -168,6 +168,10 @@ func (c *Config) Validate() error {
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
 	}
+
+	// ui.fire_tick_ms: normalize and clamp before any time.Duration conversion.
+	// Callers (cmd + TUI) use this as the scheduler period; reject absurd inputs here
+	// so we never pass a sub-millisecond busy loop or multi-minute stall to tea.Tick.
 	if c.UI.FireTickMS <= 0 {
 		c.UI.FireTickMS = DefaultUIFireTickMS
 	} else {

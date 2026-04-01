@@ -227,6 +227,7 @@ func TestValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		// FireTickMS: non-positive → default; otherwise clamped to Min/Max (loader Validate).
 		{
 			name: "invalid fire tick fallback to default",
 			cfg: Config{

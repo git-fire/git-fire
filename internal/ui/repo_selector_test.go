@@ -621,24 +621,52 @@ func TestRepoSelectorModel_FireVisibleThreshold(t *testing.T) {
 
 func TestRepoSelectorModel_IgnoredListVisibleCount_FireOverhead(t *testing.T) {
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.windowWidth = 80
 	m.windowHeight = 25
 	m.fireBg = NewFireBackground(70, 5)
-	fireLines := 5 + 2
 
 	m.showFire = true
-	if got, want := m.ignoredListVisibleCount(), m.windowHeight-(11+fireLines); got != want {
-		t.Errorf("fire on: ignoredListVisibleCount() = %d, want %d", got, want)
+	visibleFireOn := m.ignoredListVisibleCount()
+	reserve := m.fireSectionReserveLines()
+	if reserve != 5+2 {
+		t.Fatalf("fireSectionReserveLines() = %d, want 7 for height 5 + 2", reserve)
 	}
 
 	m.showFire = false
-	if got, want := m.ignoredListVisibleCount(), m.windowHeight-11; got != want {
-		t.Errorf("fire off: ignoredListVisibleCount() = %d, want %d (must not reserve fire lines)", got, want)
+	visibleFireOff := m.ignoredListVisibleCount()
+	if d := visibleFireOff - visibleFireOn; d != reserve {
+		t.Errorf("visible delta fire off−on = %d, want fireSectionReserveLines()=%d", d, reserve)
 	}
 
 	m.showFire = true
 	m.windowHeight = fireHeightThreshold // fire suppressed by short terminal
-	if got, want := m.ignoredListVisibleCount(), m.windowHeight-11; got != want {
-		t.Errorf("short terminal: ignoredListVisibleCount() = %d, want %d (fire block not shown)", got, want)
+	visibleShortWithFireFlag := m.ignoredListVisibleCount()
+	m.showFire = false
+	visibleShortFireOff := m.ignoredListVisibleCount()
+	if visibleShortWithFireFlag != visibleShortFireOff {
+		t.Errorf("short terminal: fire on vs off visible = %d vs %d, want equal (fire not shown)", visibleShortWithFireFlag, visibleShortFireOff)
+	}
+}
+
+func TestRepoSelectorModel_IgnoredListVisibleCount_NarrowWidthMoreChrome(t *testing.T) {
+	wide := NewRepoSelectorModel(sampleRepos(), nil, "")
+	wide.windowWidth = 120
+	wide.windowHeight = 40
+	wide.fireBg = NewFireBackground(70, 5)
+	wide.showFire = false
+
+	narrow := NewRepoSelectorModel(sampleRepos(), nil, "")
+	narrow.windowWidth = 32
+	narrow.windowHeight = 40
+	narrow.fireBg = NewFireBackground(70, 5)
+	narrow.showFire = false
+
+	if g, w := narrow.ignoredListVisibleCount(), wide.ignoredListVisibleCount(); g > w {
+		t.Errorf("narrow width should not reserve fewer list rows than wide: narrow=%d wide=%d", g, w)
+	}
+	if narrow.ignoredViewNonListHeight() <= wide.ignoredViewNonListHeight() {
+		t.Errorf("ignored chrome height narrow=%d should exceed wide=%d when help wraps",
+			narrow.ignoredViewNonListHeight(), wide.ignoredViewNonListHeight())
 	}
 }
 
