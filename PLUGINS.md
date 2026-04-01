@@ -1,26 +1,30 @@
-# Git-Fire Plugin Architecture
+# Git-Fire Plugins: Status + Planned API (RFC)
 
-Git-fire is designed to be extensible beyond just git operations. This document describes how to add external tools, remote services, and custom backup strategies.
+Plugin support is in active development. Command plugin internals exist but are not auto-loaded in the default CLI path yet. This is a v0.2 target.
 
 For quick project onboarding, see [README.md](README.md). For docs navigation, see [docs/README.md](docs/README.md). For a working example, see [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
-## Implementation Status
+## Current Status
 
-| Plugin Type | Status | Notes |
-|------------|--------|-------|
-| Command plugins | 🟡 **Core implementation present; CLI wiring pending** | Types/executors exist in `internal/plugins`, but normal CLI runs do not auto-load from config yet |
-| Go plugins (.so) | 🗓 Planned (Phase 2) | Dynamic `.so` loading via Go plugin package |
-| Webhook/HTTP plugins | 🗓 Planned (Phase 2) | REST API callbacks |
+| Feature | Status |
+|---------|--------|
+| Plugin type definitions | ✅ Implemented |
+| Internal executor | ✅ Implemented |
+| CLI auto-loading from config | 🔜 v0.2 |
+| Reference plugins (S3, webhook) | 🔜 v0.2 |
+| Go `.so` dynamic plugins | ❌ Removed from roadmap |
 
-Only **command plugin internals** are implemented today. End-to-end plugin loading/execution in the default CLI path is still being wired. Other plugin types are documented here as intended design.
-
-Runtime status note: planned sections in this document are design reference, and default CLI command dispatch does not yet auto-load plugin config for normal `git-fire` runs. Treat examples as implementation guidance until full runtime wiring lands.
+Only command plugin internals are implemented today. End-to-end plugin loading/execution in the default CLI path is still being wired.
 
 ---
 
-## Philosophy
+## Planned API / RFC
 
-While git-fire is built around git, **emergencies don't respect tool boundaries**. Sometimes you need to:
+The rest of this document is design documentation for the planned plugin API. It reflects intended behavior and config shape for v0.2+, not current default CLI behavior.
+
+### Philosophy
+
+While git-fire is built around git, emergencies don't respect tool boundaries. Sometimes you need to:
 - Upload to S3 as a redundant backup
 - Trigger a remote backup service
 - Call a company-specific backup script
@@ -31,7 +35,7 @@ The plugin system makes git-fire a **general-purpose emergency data evacuation t
 
 ---
 
-## Plugin Types
+## Plugin Types (Planned API)
 
 ### 1. Command Plugins (Simplest)
 
@@ -66,9 +70,11 @@ when = "before-push"
 
 ---
 
-### 2. Go Plugins (Most Powerful) — 🗓 Planned
+### 2. Go Plugins (Historical context) — ❌ Removed from roadmap
 
-> **Not yet implemented.** This describes the intended design for Phase 2.
+> **ARCHIVAL ONLY:** Dynamic Go `.so` plugin loading is no longer planned.
+> Do not follow the build/setup steps in this section for production integration.
+> The examples below are retained only as historical design context.
 
 Write plugins in Go that integrate deeply:
 
@@ -142,7 +148,7 @@ func init() {
 }
 ```
 
-**Build and install:**
+**Historical build/install example (do not use in current versions):**
 ```bash
 cd plugins/s3_backup
 go build -buildmode=plugin -o ~/.config/git-fire/plugins/s3_backup.so
@@ -161,7 +167,7 @@ compress = true
 
 ### 3. HTTP/Webhook Plugins — 🗓 Planned
 
-> **Not yet implemented.** This describes the intended design for Phase 2.
+> **Not yet implemented.** This describes the intended design for v0.2.
 
 Call remote services:
 
@@ -227,7 +233,7 @@ flags = ["--fast-list", "--transfers=32"]
 
 ---
 
-## Implementation Plan
+## Implementation Plan (RFC)
 
 ### Phase 1: Command Plugins — ✅ Complete
 
@@ -269,9 +275,9 @@ type CommandPlugin struct {
 }
 ```
 
-### Phase 2: Go Plugins — 🗓 Planned
+### Phase 2: Go Plugins — ❌ Removed from roadmap
 
-Add plugin loading via Go's `plugin` package:
+This section is retained as historical design context and is not on the current roadmap:
 
 ```go
 // Load .so files from ~/.config/git-fire/plugins/
@@ -297,7 +303,7 @@ func LoadGoPlugins() error {
 }
 ```
 
-### Phase 3: Webhook/HTTP Plugins — 🗓 Planned
+### Phase 3: Webhook/HTTP Plugins — 🔜 v0.2 target
 
 REST API integration:
 
@@ -344,7 +350,7 @@ command = "aws"
 args = ["s3", "sync", "{repo_path}", "s3://emergency/{repo_name}-{timestamp}/"]
 when = "after-push"
 
-# Slack via curl — works today with command plugins
+# Slack via curl — planned command-plugin style configuration
 [[plugins.command]]
 name = "slack-notify"
 command = "curl"
@@ -401,9 +407,9 @@ on_failure = "ignore"  # Don't fail if USB not mounted
 
 ---
 
-## CLI Integration
+## CLI Integration (Planned)
 
-Planned runtime behavior is automatic plugin execution during backup when configured in `~/.config/git-fire/config.toml`. That flow is not yet wired in the default CLI path; use this section as target behavior/reference:
+Planned runtime behavior is automatic plugin execution during backup when configured in `~/.config/git-fire/config.toml`. That flow is not yet wired in the default CLI path; use this section as target behavior/reference.
 
 ```bash
 # Preview backup plan including plugin actions
@@ -413,7 +419,7 @@ git-fire --dry-run
 git-fire --init
 ```
 
-> **Planned CLI flags** (not yet implemented): `--list-plugins`, `--plugin <name>`, `--no-plugins`, `--test-plugin`, `--show-plugins`. These will be added in Phase 2 alongside webhook and Go plugin support.
+> **Planned CLI flags** (not yet implemented): `--list-plugins`, `--plugin <name>`, `--no-plugins`, `--test-plugin`, `--show-plugins`. These are roadmap items for the v0.2 plugin wiring work.
 
 ---
 
@@ -425,7 +431,6 @@ git-fire --init
    - Warn about plaintext secrets in config
 
 2. **Plugin Validation**
-   - Verify plugin signatures (for Go plugins)
    - Sandbox command plugins (limit file access)
    - Require explicit plugin enable in config
 
@@ -462,9 +467,9 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
 
 ---
 
-## Getting Started
+## Getting Started (Planned)
 
-**To add your first plugin:**
+**To add your first plugin (once v0.2 wiring lands):**
 
 1. Create config file:
    ```bash
@@ -490,4 +495,4 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
    git-fire
    ```
 
-**Your backup strategy, your tools, your rules.** 🔥
+If you want plugin support today, use `git-fire && your-script` as the practical workaround.

@@ -12,13 +12,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+type LoadOptions struct {
+	ConfigFile string
+}
+
 // Load loads configuration from files and environment variables
 // Priority (highest to lowest):
 //  1. Environment variables (GIT_FIRE_*)
-//  2. ./git-fire.toml (current directory)
+//  2. Explicit --config file (optional)
 //  3. ~/.config/git-fire/config.toml (user config)
 //  4. Default config
 func Load() (*Config, error) {
+	return LoadWithOptions(LoadOptions{})
+}
+
+// LoadWithOptions loads config with optional explicit config file override.
+func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v := viper.New()
 
 	// Set defaults
@@ -29,9 +38,11 @@ func Load() (*Config, error) {
 	v.SetConfigType("toml")
 
 	// Add config paths
-	v.AddConfigPath(".")                      // Current directory (./git-fire.toml)
 	v.AddConfigPath("$HOME/.config/git-fire") // User config
 	v.AddConfigPath("/etc/git-fire")          // System config
+	if opts.ConfigFile != "" {
+		v.SetConfigFile(opts.ConfigFile)
+	}
 
 	// Environment variables
 	v.SetEnvPrefix("GIT_FIRE")
@@ -44,7 +55,10 @@ func Load() (*Config, error) {
 			// Config file found but has errors
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		// Config file not found - use defaults (this is OK)
+		// Config file not found - use defaults only when not explicitly requested.
+		if opts.ConfigFile != "" {
+			return nil, fmt.Errorf("config file not found: %s", opts.ConfigFile)
+		}
 	}
 
 	// Unmarshal into struct
@@ -88,10 +102,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("global.default_mode", defaults.Global.DefaultMode)
 	v.SetDefault("global.conflict_strategy", defaults.Global.ConflictStrategy)
 	v.SetDefault("global.auto_commit_dirty", defaults.Global.AutoCommitDirty)
+	v.SetDefault("global.block_on_secrets", defaults.Global.BlockOnSecrets)
 	v.SetDefault("global.scan_path", defaults.Global.ScanPath)
 	v.SetDefault("global.scan_exclude", defaults.Global.ScanExclude)
 	v.SetDefault("global.scan_depth", defaults.Global.ScanDepth)
 	v.SetDefault("global.scan_workers", defaults.Global.ScanWorkers)
+	v.SetDefault("global.push_workers", defaults.Global.PushWorkers)
 	v.SetDefault("global.cache_ttl", defaults.Global.CacheTTL)
 	v.SetDefault("global.rescan_submodules", defaults.Global.RescanSubmodules)
 	v.SetDefault("global.disable_scan", defaults.Global.DisableScan)
@@ -106,6 +122,7 @@ func setDefaults(v *viper.Viper) {
 
 	// UI defaults
 	v.SetDefault("ui.show_fire_animation", defaults.UI.ShowFireAnimation)
+	v.SetDefault("ui.fire_tick_ms", defaults.UI.FireTickMS)
 	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
 }
 
@@ -150,6 +167,23 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+
+	// ui.fire_tick_ms: normalize and clamp before any time.Duration conversion.
+	// Callers (cmd + TUI) use this as the scheduler period; reject absurd inputs here
+	// so we never pass a sub-millisecond busy loop or multi-minute stall to tea.Tick.
+	if c.UI.FireTickMS <= 0 {
+		c.UI.FireTickMS = DefaultUIFireTickMS
+	} else {
+		if c.UI.FireTickMS < MinUIFireTickMS {
+			c.UI.FireTickMS = MinUIFireTickMS
+		} else if c.UI.FireTickMS > MaxUIFireTickMS {
+			c.UI.FireTickMS = MaxUIFireTickMS
+		}
+	}
+
+	if c.Global.PushWorkers <= 0 {
+		c.Global.PushWorkers = DefaultPushWorkers
 	}
 
 	return nil

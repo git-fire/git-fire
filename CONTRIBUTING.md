@@ -57,6 +57,12 @@ The main project maintainer is `TBRX103`.
 | `internal/plugins` | Plugin system — command execution and registry |
 | `internal/testutil` | Shared test helpers: repo fixtures, scenarios, snapshots |
 
+## Current Alpha Limitations
+
+- Plugin auto-loading from config is not yet wired into the default CLI run path (`v0.2` target).
+- `--backup-to` is exposed but not yet implemented (`v0.2` target).
+- Webhook/reference plugin execution paths are planned but not implemented in the runtime path yet (`v0.2` target).
+
 ## Reporting Issues
 
 Open a GitHub issue with a minimal reproduction case. For security issues, please email the maintainer directly rather than opening a public issue.

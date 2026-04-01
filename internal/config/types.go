@@ -23,11 +23,15 @@ type GlobalConfig struct {
 	// Auto-commit uncommitted changes before pushing
 	AutoCommitDirty bool `mapstructure:"auto_commit_dirty" toml:"auto_commit_dirty"`
 
+	// Block auto-commit/push when suspicious secrets are detected.
+	BlockOnSecrets bool `mapstructure:"block_on_secrets" toml:"block_on_secrets"`
+
 	// Scan configuration
 	ScanPath    string        `mapstructure:"scan_path"    toml:"scan_path"`
 	ScanExclude []string      `mapstructure:"scan_exclude" toml:"scan_exclude"`
 	ScanDepth   int           `mapstructure:"scan_depth"   toml:"scan_depth"`
 	ScanWorkers int           `mapstructure:"scan_workers" toml:"scan_workers"`
+	PushWorkers int           `mapstructure:"push_workers" toml:"push_workers"`
 	CacheTTL    time.Duration `mapstructure:"cache_ttl"    toml:"cache_ttl"`
 
 	// Re-scan known repos for new submodules (global default; overridable per-repo in registry)
@@ -92,6 +96,10 @@ type UIConfig struct {
 	// Show the fire animation in the repo selector. Toggle live with 'f'.
 	// Automatically suppressed when the terminal is too short.
 	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
+
+	// Fire animation tick interval in milliseconds.
+	// Lower values animate faster but can increase terminal CPU usage.
+	FireTickMS int `mapstructure:"fire_tick_ms" toml:"fire_tick_ms"`
 
 	// Color profile for fire and TUI accents.
 	// Options: "classic", "synthwave", "forest", "arctic".

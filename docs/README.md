@@ -14,6 +14,7 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 ## Guides
 
 - Agent workflows and automation patterns: [agentic-flows.md](agentic-flows.md)
+- Security and operations checkpoint workflows: [security-ops.md](security-ops.md)
 - Persistent repository registry internals: [REGISTRY.md](REGISTRY.md)
 - Plugin examples: [../examples/plugins/s3-upload.md](../examples/plugins/s3-upload.md)
 
@@ -24,10 +25,15 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 
 ## Active vs Historical Validation Docs
 
-- Active status anchor: [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
-- Historical reports and plans (use as context, not canonical status):
+- Current behavior/source-of-truth:
+  - [../README.md](../README.md)
+  - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+  - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- Historical validation snapshot and planning context:
+  - [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
   - [VALIDATION_PROGRESS.md](VALIDATION_PROGRESS.md)
   - [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
   - [UAT_BUGS.md](UAT_BUGS.md)
   - [validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md](validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md)
+- Artifact retention policy: [validation-artifacts/README.md](validation-artifacts/README.md)
 
