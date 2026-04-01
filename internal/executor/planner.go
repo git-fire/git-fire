@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
@@ -39,7 +40,7 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 			continue // Skip unselected repos
 		}
 
-		repoPlan, err := p.BuildRepoPlan(repo)
+		repoPlan, err := p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
 		if err != nil {
 			return nil, fmt.Errorf("failed to plan repo %s: %w", repo.Path, err)
 		}
@@ -68,7 +69,50 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 	return p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: true})
 }
 
+func firstRemoteURL(repo git.Repository) string {
+	if len(repo.Remotes) == 0 {
+		return ""
+	}
+	return repo.Remotes[0].URL
+}
+
+func (p *Planner) resolveRepoMode(repo git.Repository) git.RepoMode {
+	if p.config == nil {
+		return repo.Mode
+	}
+	absPath, err := filepath.Abs(repo.Path)
+	if err != nil {
+		return repo.Mode
+	}
+	if o := p.config.FindRepoOverride(absPath, firstRemoteURL(repo)); o != nil && o.Mode != "" {
+		return git.ParseMode(o.Mode)
+	}
+	return repo.Mode
+}
+
+func (p *Planner) effectiveAutoCommitDirty(repo git.Repository) bool {
+	if p.config == nil || !p.config.Global.AutoCommitDirty {
+		return false
+	}
+	absPath, err := filepath.Abs(repo.Path)
+	if err != nil {
+		return p.config.Global.AutoCommitDirty
+	}
+	if o := p.config.FindRepoOverride(absPath, firstRemoteURL(repo)); o != nil && o.SkipAutoCommit {
+		return false
+	}
+	return true
+}
+
+func (p *Planner) withResolvedOverrides(repo git.Repository) git.Repository {
+	out := repo
+	out.Mode = p.resolveRepoMode(repo)
+	return out
+}
+
 func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOptions) (RepoPlan, error) {
+	repo = p.withResolvedOverrides(repo)
+
 	repoPlan := RepoPlan{
 		Repo:    repo,
 		Actions: []Action{},
@@ -97,7 +141,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 	}
 
 	// Step 1: Auto-commit if dirty
-	if repo.IsDirty && p.config.Global.AutoCommitDirty {
+	if repo.IsDirty && p.effectiveAutoCommitDirty(repo) {
 		repoPlan.Actions = append(repoPlan.Actions, Action{
 			Type:        ActionAutoCommit,
 			Description: "Auto-commit uncommitted changes",
