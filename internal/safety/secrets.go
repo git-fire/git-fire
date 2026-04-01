@@ -26,18 +26,18 @@ type SuspiciousFile struct {
 
 // SecretScanner scans for potential secrets in files
 type SecretScanner struct {
-	patterns          []SecretPattern
-	suspiciousNames   []string
-	suspiciousExts    []string
+	patterns           []SecretPattern
+	suspiciousNames    []string
+	suspiciousExts     []string
 	suspiciousKeywords []string
 }
 
 // NewSecretScanner creates a scanner with default patterns
 func NewSecretScanner() *SecretScanner {
 	return &SecretScanner{
-		patterns:          defaultPatterns(),
-		suspiciousNames:   defaultSuspiciousNames(),
-		suspiciousExts:    defaultSuspiciousExtensions(),
+		patterns:           defaultPatterns(),
+		suspiciousNames:    defaultSuspiciousNames(),
+		suspiciousExts:     defaultSuspiciousExtensions(),
 		suspiciousKeywords: defaultSuspiciousKeywords(),
 	}
 }
@@ -267,13 +267,6 @@ func (s *SecretScanner) scanFileContent(path string) ([]SuspiciousFile, error) {
 	}
 
 	return results, nil
-}
-
-// GetUncommittedFiles returns list of uncommitted files in a repo
-func GetUncommittedFiles(repoPath string) ([]string, error) {
-	// This would normally shell out to git, but for now return empty
-	// to avoid coupling with git operations in this package
-	return []string{}, nil
 }
 
 // FormatWarning formats a warning message for suspicious files

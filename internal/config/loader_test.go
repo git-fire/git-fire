@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -534,5 +535,34 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 	}
 	if _, err := os.Stat(cfgPath + ".tmp"); err == nil {
 		t.Error("temp file still exists after SaveConfig")
+	}
+}
+
+func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
+	t.Setenv("GIT_FIRE_API_TOKEN", "secret-from-env")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "ssh-secret")
+
+	cfg := DefaultConfig()
+	cfg.Backup.APIToken = "should-not-appear-on-disk"
+	cfg.Auth.SSHPassphrase = "also-never-persisted"
+
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "should-not-appear-on-disk") || strings.Contains(content, "also-never-persisted") {
+		t.Errorf("SaveConfig wrote secret values to disk: %q", content)
+	}
+	var loaded Config
+	if err := tomlUnmarshal(data, &loaded); err != nil {
+		t.Fatalf("toml unmarshal: %v", err)
+	}
+	if loaded.Backup.APIToken != "" || loaded.Auth.SSHPassphrase != "" {
+		t.Errorf("expected empty secrets in file, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
 	}
 }

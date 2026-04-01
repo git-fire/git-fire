@@ -397,3 +397,123 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 		t.Fatalf("Expected first action to be create-fire-branch, got %#v", plan.Actions)
 	}
 }
+
+func TestBuildRepoPlan_SkipConflictDetection_NoFetch(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlanWithOptions(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	}, RepoPlanOptions{DetectConflicts: false})
+	if err != nil {
+		t.Fatalf("BuildRepoPlanWithOptions() error = %v", err)
+	}
+	if plan.HasConflict {
+		t.Fatal("With DetectConflicts=false, planner should not run fetch/conflict detection")
+	}
+	var sawPush bool
+	for _, a := range plan.Actions {
+		if a.Type == ActionPushBranch && a.Branch != fireBranchPlaceholder {
+			sawPush = true
+		}
+	}
+	if !sawPush {
+		t.Fatalf("expected a normal push-branch action, got %#v", plan.Actions)
+	}
+}
+
+func TestBuildPlan_DryRunSkipsConflictDetection(t *testing.T) {
+	_, local, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildPlan([]git.Repository{{
+		Path:     local.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+		IsDirty:  false,
+	}}, true)
+	if err != nil {
+		t.Fatalf("BuildPlan dry-run: %v", err)
+	}
+	if plan.Conflicts > 0 {
+		t.Errorf("dry-run plan should not run conflict detection (no fetch); Conflicts=%d", plan.Conflicts)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("expected 1 repo plan, got %d: %+v", len(plan.Repos), plan)
+	}
+	if plan.Repos[0].HasConflict {
+		t.Errorf("unexpected conflict in dry-run plan: %+v", plan.Repos[0])
+	}
+}
+
+func TestBuildPlan_RepoOverrideMode(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Repos = []config.RepoOverride{
+		{PathPattern: "/override/repo/*", Mode: "leave-untouched"},
+	}
+	planner := NewPlanner(&cfg)
+
+	repo := git.Repository{
+		Path:     "/override/repo/myapp",
+		Name:     "myapp",
+		Selected: true,
+		Mode:     git.ModePushAll,
+		Remotes: []git.Remote{
+			{Name: "origin", URL: "git@github.com:x/y.git"},
+		},
+	}
+	plan, err := planner.BuildPlan([]git.Repository{repo}, false)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("want 1 repo plan, got %d", len(plan.Repos))
+	}
+	if !plan.Repos[0].Skip || plan.Repos[0].SkipReason == "" {
+		t.Fatalf("override should force leave-untouched / skip, got Skip=%v reason=%q", plan.Repos[0].Skip, plan.Repos[0].SkipReason)
+	}
+}
+
+func TestBuildPlan_RepoOverrideSkipAutoCommit(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.AutoCommitDirty = true
+	cfg.Repos = []config.RepoOverride{
+		{PathPattern: "/no/commit/*", Mode: "push-all", SkipAutoCommit: true},
+	}
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildPlan([]git.Repository{{
+		Path:     "/no/commit/r",
+		Name:     "r",
+		Selected: true,
+		Mode:     git.ModePushAll,
+		IsDirty:  true,
+		Remotes:  []git.Remote{{Name: "origin", URL: "git@example.com/r.git"}},
+	}}, false)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("expected 1 repo plan, got %d", len(plan.Repos))
+	}
+	if plan.Repos[0].Skip {
+		t.Fatalf("repo should not be skipped in this test; reason=%q", plan.Repos[0].SkipReason)
+	}
+	for _, a := range plan.Repos[0].Actions {
+		if a.Type == ActionAutoCommit {
+			t.Fatal("SkipAutoCommit override should omit auto-commit action")
+		}
+	}
+}

@@ -18,10 +18,9 @@ func selectorPersistMode(reg *registry.Registry, regPath, repoPath string, mode 
 	if err != nil {
 		return err
 	}
-	entry := reg.FindByPath(absPath)
-	if entry != nil {
-		entry.Mode = mode.String()
-	} else {
+	if !reg.UpdateByPath(absPath, func(e *registry.RegistryEntry) {
+		e.Mode = mode.String()
+	}) {
 		reg.Upsert(registry.RegistryEntry{
 			Path:   absPath,
 			Name:   filepath.Base(absPath),
