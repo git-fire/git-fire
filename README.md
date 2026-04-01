@@ -22,6 +22,12 @@ Manual push loops can fail silently in real life (network drops, auth problems, 
 
 Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
 
+### TUI screenshot
+
+Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
+
+![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
+
 ## Alpha Status
 
 `git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.

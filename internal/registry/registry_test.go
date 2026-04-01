@@ -285,6 +285,38 @@ func TestFindByPath_MutationReflectsInSlice(t *testing.T) {
 	}
 }
 
+// ---- UpdateByPath ----
+
+func TestUpdateByPath_Found(t *testing.T) {
+	reg := &Registry{
+		Repos: []RegistryEntry{{Path: "/repos/a", Name: "a", Status: StatusActive}},
+	}
+	ok := reg.UpdateByPath("/repos/a", func(e *RegistryEntry) {
+		e.Status = StatusIgnored
+		e.Name = "a-updated"
+	})
+	if !ok {
+		t.Fatal("UpdateByPath() returned false for existing path")
+	}
+	if reg.Repos[0].Status != StatusIgnored || reg.Repos[0].Name != "a-updated" {
+		t.Fatalf("UpdateByPath() did not persist changes: %+v", reg.Repos[0])
+	}
+}
+
+func TestUpdateByPath_NotFound(t *testing.T) {
+	reg := &Registry{}
+	called := false
+	ok := reg.UpdateByPath("/repos/missing", func(e *RegistryEntry) {
+		called = true
+	})
+	if ok {
+		t.Fatal("UpdateByPath() should return false for missing path")
+	}
+	if called {
+		t.Fatal("UpdateByPath() callback should not run for missing path")
+	}
+}
+
 // ---- DefaultRegistryPath ----
 
 func TestDefaultRegistryPath(t *testing.T) {
