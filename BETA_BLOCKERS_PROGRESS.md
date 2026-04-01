@@ -1,6 +1,7 @@
 # Beta Blockers — Full Findings & Execution Plan
 
-**Branch:** `beta-readiness-audit`
+**Branch (audit origin):** `beta-readiness-audit`
+**Branch (current beta integration):** `feature/path_to_beta`
 **Source:** `main` @ `2c935f8`
 **Date:** 2026-03-31
 **Purpose:** Preserve all audit context, agent findings, and scan results so we can systematically action every blocker via feature branches.
@@ -14,8 +15,8 @@ Each section below captures raw findings from a specific audit workstream. The [
 The execution workflow:
 1. You make decisions on the product questions tracked in the Decision Register
 2. We break work into sub-tasks grouped by phase
-3. Each phase gets a feature branch off this audit branch
-4. Feature branches merge back to this branch, then to `main` when ready
+3. Each phase gets a feature branch off the current beta integration branch (`feature/path_to_beta`)
+4. Feature branches merge back to `feature/path_to_beta`, then to `main` when ready
 
 ---
 
