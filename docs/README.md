@@ -23,6 +23,16 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 - Plugin architecture and supported types: [../PLUGINS.md](../PLUGINS.md)
 - Requirements validation matrix: [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
 
+## Documentation changelog
+
+### 2026-03-31 — Spec / guide reality alignment (Phase 4)
+
+- Replaced root `git-.md` with **[GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)** as the implementation-aligned behavior spec (legacy aspirational content removed).
+- Documented actual CLI flags, env vars (including: no `GIT_FIRE_CONFIG`; use `--config`), config keys, registry and log paths, runtime modes, and explicit **deferred** items (`--backup-to`, webhook load, plugin auto-run on default CLI, etc.).
+- Added **D-05–D-35** coverage table mapping themes to spec sections.
+- Corrected historical errors in [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md) (quick scan paths, rate limiting, `--config`, plugin docs, env vars).
+- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md): noted `git-fire repos` subcommand.
+
 ## Active vs Historical Validation Docs
 
 - Current behavior/source-of-truth:
@@ -36,4 +46,3 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
   - [UAT_BUGS.md](UAT_BUGS.md)
   - [validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md](validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md)
 - Artifact retention policy: [validation-artifacts/README.md](validation-artifacts/README.md)
-

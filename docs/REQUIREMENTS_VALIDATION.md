@@ -49,7 +49,7 @@ Status guidance:
 | Repository scanning | ✅ Complete | `internal/git/scanner.go` | Tests pass, coverage 71.9% | ✓ None |
 | Parallel scanning | ✅ Complete | `scanner.go:37` | Goroutine pool implementation | ✓ None |
 | Scan excludes | ✅ Complete | `config/types.go:44` | `ScanExclude []string` | ✓ None |
-| Quick scan paths | ✅ Complete | `config/defaults.go:23` | Common dev paths defined | ✓ None |
+| Quick scan paths | 🔲 Not implemented | N/A | Legacy spec only; scanner walks `scan_path` + registry known paths | Historical matrix error (2026-03-29); see [GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md) |
 | Dry-run analysis | ✅ Complete | `executor/planner.go` | `GeneratePlan()` tested | ✓ None |
 | **Fire drill mode** | 🟡 Partial | `cmd/root.go:83` | `--dry-run` flag exists | Missing full UI report |
 | Execute mode | ✅ Complete | `executor/runner.go` | `ExecutePlan()` implemented | ✓ None |
@@ -112,7 +112,7 @@ Status guidance:
 |-------------|--------|----------|----------|---------------|
 | TOML config parsing | ✅ Complete | `config/loader.go` | Viper integration | ✓ Tested |
 | Config file locations | ✅ Complete | `loader.go:29` | `~/.config/git-fire/` | ✓ Tested |
-| Environment variable overrides | ✅ Complete | `loader.go:18` | `GIT_FIRE_CONFIG` | ✓ Tested |
+| Environment variable overrides | ✅ Complete | `loader.go` | Viper `GIT_FIRE_*` for nested keys; `GIT_FIRE_API_TOKEN`, `GIT_FIRE_SSH_PASSPHRASE` | No `GIT_FIRE_CONFIG` binding — use `--config` |
 | Zero-config defaults | ✅ Complete | `config/defaults.go` | Safe defaults | ✓ Tested |
 | Per-repo overrides | ✅ Complete | `config/types.go:86` | `[[repos]]` array | ✓ Tested |
 | Path matching | ✅ Complete | `loader.go:72` | Exact path match | ✓ Tested |
@@ -134,7 +134,7 @@ Status guidance:
 | Multi-key support | ✅ Complete | `ssh.go:28` | Scans common key types | Add tests |
 | Passphrase retry logic | 🟡 Needs tests | `ssh.go:102` | Implementation exists | Write failure scenarios |
 | SSH status display | 🟡 Partial | `cmd/root.go:119` | Basic status only | Missing interactive fix UI |
-| HTTPS token support | 🔲 Missing | N/A | No token handling | Add GIT_FIRE_GITHUB_TOKEN |
+| HTTPS token support | 🔲 Missing | N/A | No git HTTPS credential integration for push | `GIT_FIRE_API_TOKEN` only feeds `backup.api_token` (backup mode not active) |
 
 **Completion: 4/7 ✅ (57%)**
 
@@ -164,8 +164,8 @@ Status guidance:
 | Plugin execution order | ✅ Complete | `command.go:45` | Sequential execution | ✓ Tested |
 | Error handling | ✅ Complete | `command.go:67` | Continues on failure | ✓ Tested |
 | Go plugins (native) | 🔵 Phase 2 | N/A | Future enhancement | Post-1.0 |
-| Webhook plugins | 🔵 Phase 2 | N/A | Future enhancement | Post-1.0 |
-| **Plugin documentation** | 🔲 Missing | N/A | No guide exists | **Task 7**: Write PLUGIN_GUIDE.md |
+| Webhook plugins | 🔵 Deferred | `plugins/loader.go` | Config types exist; loader TODO | Not loaded in default path |
+| **Plugin documentation** | ✅ Complete | `PLUGINS.md` | Status + planned API | Optional deeper PLUGIN_GUIDE still open |
 
 **Completion: 6/9 ✅ (67%)**
 
@@ -211,10 +211,12 @@ Status guidance:
 | `--remote-name NAME` | ❌ No | N/A | Not implemented |
 | `--cleanup-after` | ❌ No | N/A | Not implemented |
 | `--no-auto-create` | ❌ No | N/A | Not implemented |
-| `-c, --config FILE` | ❌ No | N/A | Uses env var only |
+| `--config FILE` | ✅ Yes | `cmd/root.go` | Long form only (no `-c`) |
 | `--dry-run` | ✅ Yes | `cmd/root.go:50` | Working |
 | `--fire-drill` | ✅ Yes | `cmd/root.go:51` | Alias for --dry-run |
-| `--full-scan` | ❌ No | N/A | Always quick scan |
+| `--full-scan` | ❌ No | N/A | No flag; walk uses `scan_path` / `--path` and `scan_depth` |
+| `--no-scan` | ✅ Yes | `cmd/root.go` | Registry-only walk skip for this run |
+| `--force` | ✅ Yes | `cmd/root.go` | With `--init`, overwrite config |
 | `--reindex` | ❌ No | N/A | No cache impl |
 | `--init` | ✅ Yes | `cmd/root.go:55` | Working |
 | `--auth-check` | ❌ No | N/A | Not implemented |
@@ -226,7 +228,7 @@ Status guidance:
 | `--skip-auto-commit` | ✅ Yes | `cmd/root.go:54` | Working |
 | `--fire` | ✅ Yes | `cmd/root.go:52` | Fancy UI mode |
 
-**Flag Completion: 7/22 ✅ (32%)**
+**Flag Completion: 10/24 ✅ (42%)** (counts exclude obsolete `-c` short form)
 
 ---
 
@@ -236,7 +238,7 @@ Status guidance:
 |--------|--------|----------|----------|----------|
 | **Prompt screen** | 🔲 Missing | N/A | No implementation | **HIGH** - MVP blocker |
 | Countdown timer | 🔲 Missing | N/A | No timer logic | **HIGH** |
-| Fire animation | 🟡 Exists | `ui/fire_bg.go` | Not integrated | **MEDIUM** |
+| Fire animation | ✅ Partial | `ui/fire_bg.go` | Used in `--fire` TUI; not a separate “prompt” screen | **MEDIUM** |
 | SSH status display | 🟡 Partial | `cmd/root.go:119` | Text-only status | **MEDIUM** |
 | Interactive passphrase fix | 🔲 Missing | N/A | No UI | **LOW** |
 | **Scanning progress** | 🔲 Missing | N/A | Console output only | **MEDIUM** |
@@ -386,15 +388,15 @@ All backup mode requirements (GitHub/GitLab/Gitea API, manifest generation, auto
 ### Functional Requirements
 
 - ✅ Core operations work (scan, commit, detect conflicts, push)
-- 🔲 Interactive prompt with countdown (BLOCKER)
+- 🔲 Interactive prompt with countdown (deferred — not in current CLI; see spec)
 - 🔲 Fire drill mode shows detailed report (BLOCKER)
 - 🔲 Completion report displays stats (BLOCKER)
 - ✅ Dual-branch strategy (staged/unstaged)
-- ✅ Plugin system functional
+- 🟡 Plugin system (internals + docs; default CLI auto-load deferred per PLUGINS.md)
 - ✅ Config system with overrides
 - 🟡 SSH auth with passphrase support (needs UI polish)
 - ✅ Secret detection and warnings
-- 🔴 Per-host rate limiting (NEW REQUIREMENT)
+- ✅ Per-host rate limiting (`internal/executor/ratelimit.go`)
 - 🔴 Worktree parallelization (PARTIAL)
 
 ### Testing Requirements
@@ -425,7 +427,7 @@ All backup mode requirements (GitHub/GitLab/Gitea API, manifest generation, auto
 - ✅ Safe defaults (works without config)
 - ✅ No force-push behavior
 - ✅ Proper error handling
-- 🔴 Rate limiting prevents API abuse
+- ✅ Rate limiting for concurrent pushes (host + global)
 - 🔲 Git-fire successfully backs up itself
 - 🔲 Multi-repo (10+) stress test passes
 
