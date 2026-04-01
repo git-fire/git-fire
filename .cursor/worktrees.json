@@ -1,5 +1,5 @@
 {
   "setup-worktree": [
-    "npm install"
+    "go mod download"
   ]
 }
