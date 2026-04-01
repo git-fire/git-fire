@@ -88,9 +88,9 @@ See [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md).
 
 ### 9) Extensibility and Plugins
 
-- Plugin system supports command and webhook integrations; default CLI auto-loading is not yet wired.
-- Plugin execution is non-fatal (errors are logged and run continues).
-- Typical use cases: object storage sync, notifications, archive steps.
+- Command-oriented plugin building blocks exist in `internal/plugins`, but **default CLI auto-loading and execution from config are not wired yet** (`v0.2` target). **Webhook-style plugins (`[[plugins.webhook]]`) are planned; loading and runtime execution are not implemented.**
+- When plugin execution is enabled in a future release, failures are intended to be non-fatal (errors logged; run continues).
+- Typical use cases (once wired): object storage sync, notifications, archive steps; today, compose with **`git-fire && follow-up script`** as needed.
 
 See [../PLUGINS.md](../PLUGINS.md).
 

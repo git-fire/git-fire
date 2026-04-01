@@ -47,7 +47,7 @@ Detailed product, architecture, safety, testing, and roadmap notes are in [docs/
 
 ### One-line emergency mode
 
-> **Coming soon:** This emergency bootstrap URL is not live yet. Keep this command ready for the upcoming release.
+Optional bootstrap from the repository’s `scripts/emergency.sh` on the default branch. Treat any `curl | bash` flow like any other remote script: review the source (or pin a commit/tag) before you run it, and prefer a documented install path when that fits your environment.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
@@ -235,9 +235,9 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 
 ## Extensible via Plugins (`v0.2`)
 
-Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
+Plugin support is in active development. Command plugin internals exist in the codebase, but **the default CLI does not load or run plugins from config yet**—that wiring is a `v0.2` target.
 
-Practical workaround today: `git-fire && your-script`
+Practical pattern today: run `git-fire`, then a follow-up script or wrapper (`git-fire && your-script`) for extra steps (notifications, uploads, archives).
 
 ## Release Roadmap
 
@@ -271,9 +271,9 @@ Custom hex palettes are planned but not enabled yet. A future release will allow
 
 ### Extensibility with plugins
 
-Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
+Planned config-driven command plugins would run extra backup or notification steps (for example S3 sync, `curl` to an HTTP endpoint, local archive scripts). First-party **`[[plugins.webhook]]` loading is not implemented yet**; until the default CLI executes plugins from TOML, use **`git-fire && your-script`** (or a wrapper) for the same outcomes.
 
-See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
+See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md) for the target shape and examples.
 
 ## Documentation
 
