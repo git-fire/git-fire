@@ -122,6 +122,7 @@ func setDefaults(v *viper.Viper) {
 
 	// UI defaults
 	v.SetDefault("ui.show_fire_animation", defaults.UI.ShowFireAnimation)
+	v.SetDefault("ui.fire_tick_ms", defaults.UI.FireTickMS)
 	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
 }
 
@@ -166,6 +167,19 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+
+	// ui.fire_tick_ms: normalize and clamp before any time.Duration conversion.
+	// Callers (cmd + TUI) use this as the scheduler period; reject absurd inputs here
+	// so we never pass a sub-millisecond busy loop or multi-minute stall to tea.Tick.
+	if c.UI.FireTickMS <= 0 {
+		c.UI.FireTickMS = DefaultUIFireTickMS
+	} else {
+		if c.UI.FireTickMS < MinUIFireTickMS {
+			c.UI.FireTickMS = MinUIFireTickMS
+		} else if c.UI.FireTickMS > MaxUIFireTickMS {
+			c.UI.FireTickMS = MaxUIFireTickMS
+		}
 	}
 
 	if c.Global.PushWorkers <= 0 {
