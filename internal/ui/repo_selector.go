@@ -72,6 +72,10 @@ var fireFrames = []string{
 
 type tickMsg time.Time
 
+// pathScrollMsg drives path-marquee advancement at a fixed cadence that is
+// independent of the fire animation speed.
+type pathScrollMsg time.Time
+
 // repoDiscoveredMsg is sent when a new repo arrives via the scan channel.
 type repoDiscoveredMsg git.Repository
 
@@ -95,6 +99,16 @@ const (
 func tickCmd(interval time.Duration) tea.Cmd {
 	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// pathScrollCmd schedules the next path-marquee advancement tick.
+// 150 ms gives a smooth ~6-7 rune/s scroll regardless of fire speed.
+const pathScrollInterval = 150 * time.Millisecond
+
+func pathScrollCmd() tea.Cmd {
+	return tea.Tick(pathScrollInterval, func(t time.Time) tea.Msg {
+		return pathScrollMsg(t)
 	})
 }
 
@@ -145,8 +159,7 @@ type RepoSelectorModel struct {
 	// Path scrolling state for the focused repo row
 	pathScrollOffset int // current rune offset into the parent-dir path
 	pathScrollDir    int // +1 = scrolling right, -1 = scrolling left
-	pathScrollPause  int // ticks remaining to pause at each end
-	pathScrollTick   int // tick counter; advances scroll every N ticks
+	pathScrollPause  int // path-scroll ticks remaining to pause at each end
 
 	// Streaming scan state (nil channels = batch/static mode)
 	scanChan            <-chan git.Repository
@@ -260,7 +273,7 @@ func NewRepoSelectorModelStream(
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
-	cmds := []tea.Cmd{tickCmd(m.fireTick), m.spinner.Tick}
+	cmds := []tea.Cmd{tickCmd(m.fireTick), pathScrollCmd(), m.spinner.Tick}
 	if m.scanChan != nil && !m.scanDone {
 		cmds = append(cmds, waitForRepo(m.scanChan))
 	}
@@ -314,35 +327,11 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.fireVisible() {
 			m.fireBg.Update()
 		}
-		// Auto-scroll the path of the focused repo (every 2 ticks ≈ 600 ms)
-		m.pathScrollTick++
-		if m.pathScrollTick >= m.pathScrollEveryTicks() && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
-			m.pathScrollTick = 0
-			repo := m.repos[m.cursor]
-			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
-			pathLen := len([]rune(parentPath))
-			pWidth := PathWidthFor(m.windowWidth, repo)
-			if pathLen > pWidth {
-				maxOffset := pathLen - pWidth
-				if m.pathScrollPause > 0 {
-					m.pathScrollPause--
-				} else {
-					m.pathScrollOffset += m.pathScrollDir
-					if m.pathScrollOffset >= maxOffset {
-						m.pathScrollOffset = maxOffset
-						m.pathScrollDir = -1
-						m.pathScrollPause = 5
-					} else if m.pathScrollOffset <= 0 {
-						m.pathScrollOffset = 0
-						m.pathScrollDir = 1
-						m.pathScrollPause = 5
-					}
-				}
-			} else {
-				m.pathScrollOffset = 0
-			}
-		}
 		return m, tickCmd(m.fireTick)
+
+	case pathScrollMsg:
+		m = m.advancePathScroll()
+		return m, pathScrollCmd()
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -543,18 +532,37 @@ func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
 }
 
-// pathScrollEveryTicks keeps path auto-scroll cadence roughly constant (~600ms)
-// even when users change fire tick speed.
-func (m RepoSelectorModel) pathScrollEveryTicks() int {
-	if m.fireTick <= 0 {
-		return 1
+// advancePathScroll steps the path marquee for the currently focused repo.
+// Called from pathScrollMsg which fires at a fixed interval (pathScrollInterval),
+// so cadence and edge pauses are measured in real time, not fire-tick time.
+func (m RepoSelectorModel) advancePathScroll() RepoSelectorModel {
+	if m.view != repoViewMain || len(m.repos) == 0 || m.cursor >= len(m.repos) {
+		return m
 	}
-	const target = 600 * time.Millisecond
-	ticks := int((target + m.fireTick - 1) / m.fireTick) // ceil(target / tick)
-	if ticks < 1 {
-		return 1
+	repo := m.repos[m.cursor]
+	parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+	pathLen := len([]rune(parentPath))
+	pWidth := PathWidthFor(m.windowWidth, repo)
+	if pathLen <= pWidth {
+		m.pathScrollOffset = 0
+		return m
 	}
-	return ticks
+	maxOffset := pathLen - pWidth
+	if m.pathScrollPause > 0 {
+		m.pathScrollPause--
+		return m
+	}
+	m.pathScrollOffset += m.pathScrollDir
+	if m.pathScrollOffset >= maxOffset {
+		m.pathScrollOffset = maxOffset
+		m.pathScrollDir = -1
+		m.pathScrollPause = 5
+	} else if m.pathScrollOffset <= 0 {
+		m.pathScrollOffset = 0
+		m.pathScrollDir = 1
+		m.pathScrollPause = 5
+	}
+	return m
 }
 
 // withResetPathScroll returns m with path-scroll state zeroed.
@@ -563,7 +571,6 @@ func (m RepoSelectorModel) withResetPathScroll() RepoSelectorModel {
 	m.pathScrollOffset = 0
 	m.pathScrollDir = 1
 	m.pathScrollPause = 0
-	m.pathScrollTick = 0
 	return m
 }
 
