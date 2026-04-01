@@ -450,7 +450,10 @@ func TestBuildPlan_DryRunSkipsConflictDetection(t *testing.T) {
 	if plan.Conflicts > 0 {
 		t.Errorf("dry-run plan should not run conflict detection (no fetch); Conflicts=%d", plan.Conflicts)
 	}
-	if len(plan.Repos) != 1 || plan.Repos[0].HasConflict {
+	if len(plan.Repos) != 1 {
+		t.Fatalf("expected 1 repo plan, got %d: %+v", len(plan.Repos), plan)
+	}
+	if plan.Repos[0].HasConflict {
 		t.Errorf("unexpected conflict in dry-run plan: %+v", plan.Repos[0])
 	}
 }
@@ -501,6 +504,12 @@ func TestBuildPlan_RepoOverrideSkipAutoCommit(t *testing.T) {
 	}}, false)
 	if err != nil {
 		t.Fatalf("BuildPlan: %v", err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("expected 1 repo plan, got %d", len(plan.Repos))
+	}
+	if plan.Repos[0].Skip {
+		t.Fatalf("repo should not be skipped in this test; reason=%q", plan.Repos[0].SkipReason)
 	}
 	for _, a := range plan.Repos[0].Actions {
 		if a.Type == ActionAutoCommit {
