@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
+  <a href="https://discord.gg/pjkVMSpT7j"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 > In case of fire:
