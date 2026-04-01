@@ -619,6 +619,29 @@ func TestRepoSelectorModel_FireVisibleThreshold(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_IgnoredListVisibleCount_FireOverhead(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.windowHeight = 25
+	m.fireBg = NewFireBackground(70, 5)
+	fireLines := 5 + 2
+
+	m.showFire = true
+	if got, want := m.ignoredListVisibleCount(), m.windowHeight-(11+fireLines); got != want {
+		t.Errorf("fire on: ignoredListVisibleCount() = %d, want %d", got, want)
+	}
+
+	m.showFire = false
+	if got, want := m.ignoredListVisibleCount(), m.windowHeight-11; got != want {
+		t.Errorf("fire off: ignoredListVisibleCount() = %d, want %d (must not reserve fire lines)", got, want)
+	}
+
+	m.showFire = true
+	m.windowHeight = fireHeightThreshold // fire suppressed by short terminal
+	if got, want := m.ignoredListVisibleCount(), m.windowHeight-11; got != want {
+		t.Errorf("short terminal: ignoredListVisibleCount() = %d, want %d (fire block not shown)", got, want)
+	}
+}
+
 func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowFireAnimation = true

@@ -652,13 +652,11 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 }
 
 // ignoredListVisibleCount mirrors repoListVisibleCount for the ignored view.
-// Overhead:
-//
-//	fire block (5 + 2) + title (1) + blank×2 (2) + help marginTop (1) + help body (3)
-//	+ box border+padding (4) = 18
+// baseOverhead is title, help, and box chrome (everything except the optional fire
+// block). Fire lines match viewIgnoredMain via fireSectionReserveLines().
 func (m RepoSelectorModel) ignoredListVisibleCount() int {
-	const overhead = 18
-	n := m.windowHeight - overhead
+	const baseOverhead = 11
+	n := m.windowHeight - (baseOverhead + m.fireSectionReserveLines())
 	if n < 1 {
 		n = 1
 	}
