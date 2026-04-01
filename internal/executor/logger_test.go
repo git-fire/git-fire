@@ -269,6 +269,17 @@ func TestDefaultLogDir(t *testing.T) {
 	}
 }
 
+func TestDefaultLogDir_UsesUserCacheDir(t *testing.T) {
+	xdgCache := filepath.Join(t.TempDir(), "xdg-cache")
+	t.Setenv("XDG_CACHE_HOME", xdgCache)
+
+	dir := DefaultLogDir()
+	want := filepath.Join(xdgCache, "git-fire", "logs")
+	if dir != want {
+		t.Fatalf("expected log dir %q, got %q", want, dir)
+	}
+}
+
 // testError is a minimal error implementation for test use.
 type testError struct{ msg string }
 

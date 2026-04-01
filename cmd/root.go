@@ -75,7 +75,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
-	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: ~/.config/git-fire/config.toml)")
+	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
 

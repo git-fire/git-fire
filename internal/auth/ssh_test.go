@@ -167,7 +167,7 @@ MIIBpjBABgkqhkiG9w0BBQ0wMzAbBgkqhkiG9w
 			t.Skip("ssh-keygen not available")
 		}
 
-		// writeAskpassScript writes to ~/.cache/git-fire/; point HOME at
+		// writeAskpassScript writes under the user cache dir; point HOME at
 		// tmpDir so the test is fully self-contained and works in sandboxes.
 		origHome := os.Getenv("HOME")
 		os.Setenv("HOME", tmpDir)
@@ -269,7 +269,7 @@ func TestTestPassphrase(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	// writeAskpassScript writes to ~/.cache/git-fire/; point HOME at
+	// writeAskpassScript writes under the user cache dir; point HOME at
 	// tmpDir so the test is fully self-contained and works in sandboxes.
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
@@ -296,6 +296,24 @@ func TestTestPassphrase(t *testing.T) {
 			t.Error("Expected incorrect passphrase to fail")
 		}
 	})
+}
+
+func TestWriteAskpassScript_UsesUserCacheDir(t *testing.T) {
+	xdgCache := filepath.Join(t.TempDir(), "xdg-cache")
+	t.Setenv("XDG_CACHE_HOME", xdgCache)
+
+	scriptPath, cleanup, err := writeAskpassScript("secret")
+	if err != nil {
+		t.Fatalf("writeAskpassScript() error = %v", err)
+	}
+	defer cleanup()
+
+	if filepath.Dir(scriptPath) != filepath.Join(xdgCache, "git-fire") {
+		t.Fatalf("expected script dir under %q, got %q", filepath.Join(xdgCache, "git-fire"), filepath.Dir(scriptPath))
+	}
+	if _, err := os.Stat(scriptPath); err != nil {
+		t.Fatalf("expected script to exist: %v", err)
+	}
 }
 
 // Helper function
