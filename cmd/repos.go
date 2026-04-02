@@ -17,8 +17,8 @@ import (
 var reposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Manage the persistent repository registry",
-	Long: `Manage the persistent repository registry stored at ~/.config/git-fire/repos.toml
-(same directory as config.toml).
+	Long: `Manage the persistent repository registry stored in your user config
+directory (git-fire/repos.toml, same directory as config.toml).
 
 The registry tracks all git repositories that git-fire has discovered, so that
 future runs load them instantly without re-scanning the filesystem.`,

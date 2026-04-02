@@ -47,7 +47,7 @@ Detailed product, architecture, safety, testing, and roadmap notes are in [docs/
 
 ### One-line emergency mode
 
-> **Coming soon:** This emergency bootstrap URL is not live yet. Keep this command ready for the upcoming release.
+> Emergency bootstrap script path is established; package-manager installs are still coming soon.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
@@ -271,7 +271,7 @@ Custom hex palettes are planned but not enabled yet. A future release will allow
 
 ### Extensibility with plugins
 
-Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
+Plugin execution from default CLI config is not wired yet. Current practical pattern: run `git-fire` first, then follow-up automation (for example S3 sync, webhook calls via curl, local archive scripts).
 
 See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 

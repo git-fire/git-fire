@@ -76,7 +76,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
-	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: ~/.config/git-fire/config.toml)")
+	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
 
@@ -390,8 +390,14 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	// Drain both channels BEFORE cancelling so neither the upsert goroutine
 	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block
 	// on a send after the TUI exits. Only then cancel the scan and wait.
-	go func() { for range tuiRepoChan {} }()
-	go func() { for range folderProgress {} }()
+	go func() {
+		for range tuiRepoChan {
+		}
+	}()
+	go func() {
+		for range folderProgress {
+		}
+	}()
 	cancelScan()
 	<-scanDone
 
