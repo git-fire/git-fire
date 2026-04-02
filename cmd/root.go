@@ -91,20 +91,30 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+	failRun := func(err error) error {
+		if err != nil {
+			printFailedRunEmberMessage()
+		}
+		return err
+	}
+
+	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+	printStartupFireQuote()
+
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
-		return fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)")
+		return failRun(fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)"))
 	}
 
 	// Verify git is available before doing anything else
 	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("git not found in PATH: please install git before using git-fire")
+		return failRun(fmt.Errorf("git not found in PATH: please install git before using git-fire"))
 	}
 
 	// Load configuration
 	cfg, cfgErr := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
 	if cfgErr != nil {
-		return fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error()))
+		return failRun(fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error())))
 	}
 
 	// Override config with flags
@@ -168,8 +178,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts.KnownPaths = knownPaths
 	opts.DisableScan = cfg.Global.DisableScan
 
-	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
-	printStartupFireQuote()
 	if cfg.Global.DisableScan {
 		if noScan {
 			fmt.Println("⚠️  Scanning Disabled (this run only)")
