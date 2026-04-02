@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 
 	"github.com/git-fire/git-fire/internal/auth"
@@ -742,7 +743,7 @@ func scanProgressPathMaxLen(prefix string) int {
 	if err != nil || cols <= 0 {
 		return fallback
 	}
-	dynamic := cols - len(prefix)
+	dynamic := cols - runewidth.StringWidth(prefix)
 	if dynamic < minLen {
 		return minLen
 	}

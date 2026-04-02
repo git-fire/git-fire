@@ -162,7 +162,10 @@ func (l *Logger) LogPath() string {
 func DefaultLogDir() string {
 	base, err := os.UserCacheDir()
 	if err != nil {
-		home, _ := os.UserHomeDir()
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil || home == "" {
+			return filepath.Join(os.TempDir(), "git-fire", "logs")
+		}
 		return filepath.Join(home, ".cache", "git-fire", "logs")
 	}
 	return filepath.Join(base, "git-fire", "logs")

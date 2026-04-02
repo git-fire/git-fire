@@ -436,7 +436,11 @@ func TestDefaultConfigPath_UsesUserConfigDir(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdgHome)
 
 	path := DefaultConfigPath()
-	want := filepath.Join(xdgHome, "git-fire", "config.toml")
+	base, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("UserConfigDir: %v", err)
+	}
+	want := filepath.Join(base, "git-fire", "config.toml")
 	if path != want {
 		t.Fatalf("expected path %q, got %q", want, path)
 	}
@@ -476,6 +480,12 @@ func saveConfigAndReload(t *testing.T, cfg *Config) Config {
 		t.Fatalf("toml.Unmarshal after SaveConfig: %v", err)
 	}
 	return loaded
+}
+
+func TestSaveConfig_NilConfig(t *testing.T) {
+	if err := SaveConfig(nil, filepath.Join(t.TempDir(), "config.toml")); err == nil {
+		t.Fatal("SaveConfig(nil) should error")
+	}
 }
 
 func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
