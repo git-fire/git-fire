@@ -398,6 +398,46 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	}
 }
 
+func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict to be detected")
+	}
+	if plan.Skip {
+		t.Fatal("abort strategy should not mark whole repo skipped when only the diverged remote is skipped")
+	}
+	var sawSkip bool
+	for _, a := range plan.Actions {
+		if a.Type == ActionSkip {
+			sawSkip = true
+			break
+		}
+	}
+	if !sawSkip {
+		t.Fatalf("expected a skip action for diverged remote, got %#v", plan.Actions)
+	}
+	for _, a := range plan.Actions {
+		if a.Type == ActionCreateFireBranch {
+			t.Fatalf("abort strategy should not create fire branch, got %#v", plan.Actions)
+		}
+	}
+}
+
 func TestBuildRepoPlan_SkipConflictDetection_NoFetch(t *testing.T) {
 	_, repo, remote := testutil.CreateConflictScenario(t)
 

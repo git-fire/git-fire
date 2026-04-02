@@ -188,13 +188,21 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 			})
 
 		case git.ModePushCurrentBranch:
-			if opts.DetectConflicts && p.config.Global.ConflictStrategy == "new-branch" {
+			strategy := p.config.Global.ConflictStrategy
+			if opts.DetectConflicts && (strategy == "new-branch" || strategy == "abort") {
 				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
 					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
 				}
 				if hasConflict {
 					repoPlan.HasConflict = true
+					if strategy == "abort" {
+						repoPlan.Actions = append(repoPlan.Actions, Action{
+							Type:        ActionSkip,
+							Description: fmt.Sprintf("Skip push to %s: branch %s diverged from remote (conflict_strategy=abort)", remote.Name, currentBranch),
+						})
+						continue
+					}
 					if !repoPlanHasFireCreateAction(repoPlan.Actions) {
 						repoPlan.Actions = append(repoPlan.Actions, Action{
 							Type:        ActionCreateFireBranch,
