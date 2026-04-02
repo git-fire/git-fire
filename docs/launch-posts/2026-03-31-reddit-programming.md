@@ -1,36 +1,38 @@
 # r/programming launch post
 
 ## Title
-`git-fire`: checkpoint all your repos fast when your day goes sideways
+`git-fire`: one-command multi-repo Git checkpointing (alpha, OSS)
 
 ## Body (<300 words)
-I kept hitting the same problem: too many local repos, too many in-progress changes, and no low-friction way to checkpoint everything quickly.
+I kept hitting the same problem: too many local repos, too many in-progress changes, and no low-friction way to checkpoint everything safely.
 
-So I built `git-fire` (open source, Go):
+So I built `git-fire` (open-source Go CLI):
 https://github.com/git-fire/git-fire
 
 Tagline is intentionally blunt:
 "In case of fire: 1) `git-fire` 2) leave building."
 
-It's a spiritual successor to the old `qw3rtman/git-fire`, rebuilt for current workflows.
+It's a spiritual successor to `qw3rtman/git-fire`, rebuilt for current workflows.
 
 What makes it useful:
 
-- handles large repo sets with parallel execution + bounded workers
-- persistent repo registry (set once, reuse forever)
-- repeatable end-of-session checkpoint pattern
-- dry-run support to verify first
-- `--status` gives a quick per-repo glance in one screen
-- extensible via plugins (v0.2)
-- secret detection warnings before push
+- streamed scan -> backup pipeline (doesn't wait for full discovery)
+- bounded parallel execution for larger repo sets
+- persistent repo registry (set once, reuse)
+- dry-run planning + one-screen `--status`
+- secret detection guardrails before push
+- structured JSON logs for audit/automation
+- 250+ tests on core packages
 
 It's also handy for AI coding sessions: one command to checkpoint everything your agent touched across multiple repos.
 
 If your build is literally on fire, this is your hail mary - checkpoint everything and get out.
 
-Status is alpha/MVP. Useful now, not pretending to be finished.
+Status is alpha/MVP: useful now, still hardening.
 
-Install via Homebrew, Scoop, or `go install`. MIT licensed.
+No tagged release yet (first release coming soon), so install via:
+`go install github.com/git-fire/git-fire@main`
+MIT licensed.
 
 Recommended post time (ET): Monday, 9:30 AM ET
 
