@@ -49,12 +49,6 @@ Detailed product, architecture, safety, testing, and roadmap notes are in [docs/
 
 > Emergency bootstrap script path is established; package-manager installs are still coming soon.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/emergency.sh | bash
-```
-
-### Install
-
 Use this for urgent situations only. `curl | bash` executes remote code directly.
 Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
 
@@ -301,43 +295,15 @@ Custom hex palettes are planned but not enabled yet. A future release will allow
 
 ### Extensibility with plugins
 
-Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
+Plugin execution from default CLI config is not wired yet. Current practical pattern: run `git-fire` first, then follow-up automation (for example S3 sync, webhook calls via curl, local archive scripts).
+
+See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
 ## Release Roadmap
 
 - **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
 - **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
 - **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
-
-### TUI color profiles
-
-You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
-
-| Profile | Style |
-|---------|-------|
-| `classic` | Original orange/yellow fire |
-| `synthwave` | 80s neon purple/pink/cyan |
-| `forest` | Green ember palette |
-| `arctic` | Cool cyan/ice palette |
-
-| Method | How |
-|--------|-----|
-| In-TUI settings | Press **`c`** → **Color profile** → `space` / `←` / `→` |
-| Config file | Set `color_profile` under `[ui]` |
-
-```toml
-[ui]
-show_fire_animation = true
-color_profile = "synthwave"
-```
-
-Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
-
-### Extensibility with plugins
-
-Plugin execution from default CLI config is not wired yet. Current practical pattern: run `git-fire` first, then follow-up automation (for example S3 sync, webhook calls via curl, local archive scripts).
-
-See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
 ## Documentation
 
