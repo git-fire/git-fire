@@ -120,6 +120,7 @@ func reposList(_ *cobra.Command, _ []string) error {
 
 func reposScan(_ *cobra.Command, args []string) error {
 	cfg := config.LoadOrDefault()
+	defaultMode := git.ParseMode(cfg.Global.DefaultMode).String()
 
 	scanRoot := cfg.Global.ScanPath
 	if len(args) > 0 {
@@ -141,6 +142,7 @@ func reposScan(_ *cobra.Command, args []string) error {
 	opts := git.DefaultScanOptions()
 	opts.RootPath = absRoot
 	opts.Exclude = cfg.Global.ScanExclude
+	opts.MaxDepth = cfg.Global.ScanDepth
 	opts.Workers = cfg.Global.ScanWorkers
 	// Pass known paths so the scanner skips re-walking them
 	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
@@ -163,7 +165,7 @@ func reposScan(_ *cobra.Command, args []string) error {
 				entry.Name = repo.Name
 				entry.LastSeen = now
 				if entry.Mode == "" {
-					entry.Mode = repo.Mode.String()
+					entry.Mode = defaultMode
 				}
 			}
 		} else {
@@ -171,7 +173,7 @@ func reposScan(_ *cobra.Command, args []string) error {
 				Path:     absPath,
 				Name:     repo.Name,
 				Status:   registry.StatusActive,
-				Mode:     repo.Mode.String(),
+				Mode:     defaultMode,
 				AddedAt:  now,
 				LastSeen: now,
 			})
