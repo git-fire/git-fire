@@ -19,7 +19,7 @@ reviews:
   collapse_walkthrough: true
 
   auto_review:
-    enabled: true
+    enabled: false
     drafts: false
 
   # Go idiom: godoc on exported symbols and non-obvious internals — not every
