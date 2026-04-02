@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -315,6 +317,13 @@ func TestWriteAskpassScript_UsesUserCacheDir(t *testing.T) {
 	want := filepath.Join(cacheDir, "git-fire")
 	if filepath.Dir(scriptPath) != want {
 		t.Fatalf("expected script dir under %q, got %q", want, filepath.Dir(scriptPath))
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.HasSuffix(strings.ToLower(scriptPath), ".cmd") {
+			t.Fatalf("expected windows askpass helper to end with .cmd, got %q", scriptPath)
+		}
+	} else if !strings.HasSuffix(scriptPath, ".sh") {
+		t.Fatalf("expected unix askpass helper to end with .sh, got %q", scriptPath)
 	}
 	if _, err := os.Stat(scriptPath); err != nil {
 		t.Fatalf("expected script to exist: %v", err)

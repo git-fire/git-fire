@@ -37,14 +37,11 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 
-	// Add config paths
-	if userCfgDir, err := userConfigDir(); err == nil {
-		v.AddConfigPath(userCfgDir) // User config
-	} else if fallbackDir, fbErr := fallbackUserConfigDir(); fbErr == nil {
-		v.AddConfigPath(fallbackDir)
-		fmt.Fprintf(os.Stderr, "warning: using fallback user config directory %q: %v\n", fallbackDir, err)
-	} else {
-		fmt.Fprintf(os.Stderr, "warning: could not determine user config directory: %v (fallback failed: %v)\n", err, fbErr)
+	// Add user config path via a shared resolver so read/write behavior stays aligned.
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	v.AddConfigPath(userCfgDir)
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
 	}
 	v.AddConfigPath("/etc/git-fire")          // System config
 	if opts.ConfigFile != "" {
@@ -237,18 +234,9 @@ func WriteExampleConfig(path string) error {
 
 // DefaultConfigPath returns the default user config file path.
 func DefaultConfigPath() string {
-	userCfgDir, err := userConfigDir()
-	if err != nil {
-		if fallbackDir, fbErr := fallbackUserConfigDir(); fbErr == nil {
-			return filepath.Join(fallbackDir, "config.toml")
-		}
-		tempBase := os.TempDir()
-		if !filepath.IsAbs(tempBase) {
-			if abs, absErr := filepath.Abs(tempBase); absErr == nil {
-				tempBase = abs
-			}
-		}
-		return filepath.Join(tempBase, "git-fire", "config.toml")
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
 	}
 	return filepath.Join(userCfgDir, "config.toml")
 }
@@ -274,6 +262,34 @@ func fallbackUserConfigDir() (string, error) {
 		home = abs
 	}
 	return filepath.Join(home, ".config", "git-fire"), nil
+}
+
+func resolvedUserConfigDir() (string, string) {
+	if dir, err := userConfigDir(); err == nil {
+		return dir, ""
+	}
+	if dir, err := fallbackUserConfigDir(); err == nil {
+		return dir, fmt.Sprintf("using fallback user config directory %q", dir)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if !filepath.IsAbs(wd) {
+			if abs, absErr := filepath.Abs(wd); absErr == nil {
+				wd = abs
+			}
+		}
+		if filepath.IsAbs(wd) {
+			dir := filepath.Join(wd, "git-fire")
+			return dir, fmt.Sprintf("using working-directory config fallback %q", dir)
+		}
+	}
+	tempBase := os.TempDir()
+	if !filepath.IsAbs(tempBase) {
+		if abs, absErr := filepath.Abs(tempBase); absErr == nil {
+			tempBase = abs
+		}
+	}
+	dir := filepath.Join(tempBase, "git-fire")
+	return dir, fmt.Sprintf("using temporary config fallback %q; this path may not persist across reboots", dir)
 }
 
 // ParseDuration parses duration strings (supports Viper's format)

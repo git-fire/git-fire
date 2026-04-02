@@ -489,9 +489,12 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 func TestReposRemove_UsesXDGRegistryPath(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpHome, ".xdg_config"))
+	cfgRoot := filepath.Join(tmpHome, ".xdg_config")
+	t.Setenv("XDG_CONFIG_HOME", cfgRoot)
+	t.Setenv("APPDATA", cfgRoot)
+	t.Setenv("LOCALAPPDATA", cfgRoot)
 
-	regPath := filepath.Join(tmpHome, ".xdg_config", "git-fire", "repos.toml")
+	regPath := filepath.Join(cfgRoot, "git-fire", "repos.toml")
 	reg := &registry.Registry{}
 	abs, _ := filepath.Abs("/xdg/repo")
 	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "xdg", Status: registry.StatusActive})
@@ -502,7 +505,10 @@ func TestReposRemove_UsesXDGRegistryPath(t *testing.T) {
 	if err := reposRemove(reposRemoveCmd, []string{abs}); err != nil {
 		t.Fatalf("reposRemove() error = %v", err)
 	}
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if loaded.FindByPath(abs) != nil {
 		t.Fatal("entry should be removed when using XDG config path")
 	}
