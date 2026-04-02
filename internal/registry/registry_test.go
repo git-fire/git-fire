@@ -341,7 +341,11 @@ func TestDefaultRegistryPath_UsesUserConfigDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultRegistryPath() error: %v", err)
 	}
-	want := filepath.Join(xdgHome, "git-fire", "repos.toml")
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("os.UserConfigDir() error: %v", err)
+	}
+	want := filepath.Join(cfgDir, "git-fire", "repos.toml")
 	if path != want {
 		t.Fatalf("expected path %q, got %q", want, path)
 	}

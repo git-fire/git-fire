@@ -40,6 +40,11 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	// Add config paths
 	if userCfgDir, err := userConfigDir(); err == nil {
 		v.AddConfigPath(userCfgDir) // User config
+	} else if fallbackDir, fbErr := fallbackUserConfigDir(); fbErr == nil {
+		v.AddConfigPath(fallbackDir)
+		fmt.Fprintf(os.Stderr, "warning: using fallback user config directory %q: %v\n", fallbackDir, err)
+	} else {
+		fmt.Fprintf(os.Stderr, "warning: could not determine user config directory: %v (fallback failed: %v)\n", err, fbErr)
 	}
 	v.AddConfigPath("/etc/git-fire")          // System config
 	if opts.ConfigFile != "" {
@@ -234,8 +239,16 @@ func WriteExampleConfig(path string) error {
 func DefaultConfigPath() string {
 	userCfgDir, err := userConfigDir()
 	if err != nil {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".config", "git-fire", "config.toml")
+		if fallbackDir, fbErr := fallbackUserConfigDir(); fbErr == nil {
+			return filepath.Join(fallbackDir, "config.toml")
+		}
+		tempBase := os.TempDir()
+		if !filepath.IsAbs(tempBase) {
+			if abs, absErr := filepath.Abs(tempBase); absErr == nil {
+				tempBase = abs
+			}
+		}
+		return filepath.Join(tempBase, "git-fire", "config.toml")
 	}
 	return filepath.Join(userCfgDir, "config.toml")
 }
@@ -246,6 +259,21 @@ func userConfigDir() (string, error) {
 		return "", fmt.Errorf("could not determine user config directory: %w", err)
 	}
 	return filepath.Join(base, "git-fire"), nil
+}
+
+func fallbackUserConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine home directory for fallback: %w", err)
+	}
+	if !filepath.IsAbs(home) {
+		abs, absErr := filepath.Abs(home)
+		if absErr != nil {
+			return "", fmt.Errorf("fallback home directory is not absolute (%q): %w", home, absErr)
+		}
+		home = abs
+	}
+	return filepath.Join(home, ".config", "git-fire"), nil
 }
 
 // ParseDuration parses duration strings (supports Viper's format)

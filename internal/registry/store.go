@@ -14,7 +14,22 @@ import (
 func DefaultRegistryPath() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("could not determine user config directory: %w", err)
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			base = os.TempDir()
+			if !filepath.IsAbs(base) {
+				if abs, absErr := filepath.Abs(base); absErr == nil {
+					base = abs
+				}
+			}
+			return filepath.Join(base, "git-fire", "repos.toml"), nil
+		}
+		if !filepath.IsAbs(home) {
+			if abs, absErr := filepath.Abs(home); absErr == nil {
+				home = abs
+			}
+		}
+		base = filepath.Join(home, ".config")
 	}
 	return filepath.Join(base, "git-fire", "repos.toml"), nil
 }

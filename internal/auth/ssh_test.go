@@ -308,8 +308,13 @@ func TestWriteAskpassScript_UsesUserCacheDir(t *testing.T) {
 	}
 	defer cleanup()
 
-	if filepath.Dir(scriptPath) != filepath.Join(xdgCache, "git-fire") {
-		t.Fatalf("expected script dir under %q, got %q", filepath.Join(xdgCache, "git-fire"), filepath.Dir(scriptPath))
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatalf("os.UserCacheDir() error = %v", err)
+	}
+	want := filepath.Join(cacheDir, "git-fire")
+	if filepath.Dir(scriptPath) != want {
+		t.Fatalf("expected script dir under %q, got %q", want, filepath.Dir(scriptPath))
 	}
 	if _, err := os.Stat(scriptPath); err != nil {
 		t.Fatalf("expected script to exist: %v", err)

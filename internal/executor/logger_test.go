@@ -274,7 +274,11 @@ func TestDefaultLogDir_UsesUserCacheDir(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", xdgCache)
 
 	dir := DefaultLogDir()
-	want := filepath.Join(xdgCache, "git-fire", "logs")
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatalf("os.UserCacheDir() error = %v", err)
+	}
+	want := filepath.Join(cacheDir, "git-fire", "logs")
 	if dir != want {
 		t.Fatalf("expected log dir %q, got %q", want, dir)
 	}

@@ -324,18 +324,11 @@ func isolateHome(t *testing.T) string {
 // depend on UserConfigDir/UserCacheDir path resolution.
 func setTestUserDirs(t *testing.T, home string) {
 	t.Helper()
-	origHome := os.Getenv("HOME")
-	origXDGConfig := os.Getenv("XDG_CONFIG_HOME")
-	origXDGCache := os.Getenv("XDG_CACHE_HOME")
-	t.Cleanup(func() {
-		_ = os.Setenv("HOME", origHome)
-		_ = os.Setenv("XDG_CONFIG_HOME", origXDGConfig)
-		_ = os.Setenv("XDG_CACHE_HOME", origXDGCache)
-	})
-
-	_ = os.Setenv("HOME", home)
-	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 }
 
 func TestLoadRegistry(t *testing.T) {
@@ -496,8 +489,9 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 func TestReposRemove_UsesXDGRegistryPath(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpHome, ".xdg_config"))
 
-	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	regPath := filepath.Join(tmpHome, ".xdg_config", "git-fire", "repos.toml")
 	reg := &registry.Registry{}
 	abs, _ := filepath.Abs("/xdg/repo")
 	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "xdg", Status: registry.StatusActive})
