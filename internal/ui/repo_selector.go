@@ -71,6 +71,7 @@ var fireFrames = []string{
 }
 
 type tickMsg time.Time
+type quoteTickMsg time.Time
 
 // pathScrollMsg drives path-marquee advancement at a fixed cadence that is
 // independent of the fire animation speed.
@@ -99,6 +100,12 @@ const (
 func tickCmd(interval time.Duration) tea.Cmd {
 	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+func quoteTickCmd(interval time.Duration) tea.Cmd {
+	return tea.Tick(interval, func(t time.Time) tea.Msg {
+		return quoteTickMsg(t)
 	})
 }
 
@@ -175,6 +182,13 @@ type RepoSelectorModel struct {
 	showFire bool
 	fireTick time.Duration
 
+	// Startup quote banner in TUI.
+	showStartupQuote     bool
+	startupQuoteBehavior string
+	startupQuoteInterval time.Duration
+	currentStartupQuote  string
+	startupQuoteVisible  bool
+
 	// Config menu state
 	cfg           *config.Config
 	cfgPath       string
@@ -200,18 +214,23 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	fireBg := NewFireBackground(70, 5)
 
 	return RepoSelectorModel{
-		repos:         repos,
-		cursor:        0,
-		selected:      selected,
-		fireBg:        fireBg,
-		spinner:       s,
-		windowWidth:   80,
-		windowHeight:  40,
-		reg:           reg,
-		regPath:       regPath,
-		pathScrollDir: 1,
-		showFire:      true,
-		fireTick:      time.Duration(config.DefaultUIFireTickMS) * time.Millisecond,
+		repos:                repos,
+		cursor:               0,
+		selected:             selected,
+		fireBg:               fireBg,
+		spinner:              s,
+		windowWidth:          80,
+		windowHeight:         40,
+		reg:                  reg,
+		regPath:              regPath,
+		pathScrollDir:        1,
+		showFire:             true,
+		fireTick:             time.Duration(config.DefaultUIFireTickMS) * time.Millisecond,
+		showStartupQuote:     true,
+		startupQuoteBehavior: config.UIQuoteBehaviorRefresh,
+		startupQuoteInterval: time.Duration(config.DefaultUIStartupQuoteIntervalSec) * time.Second,
+		currentStartupQuote:  randomStartupFireQuote(),
+		startupQuoteVisible:  true,
 	}
 }
 
@@ -242,38 +261,56 @@ func NewRepoSelectorModelStream(
 
 	showFire := true
 	fireTickMS := config.DefaultUIFireTickMS
+	showStartupQuote := true
+	startupQuoteBehavior := config.UIQuoteBehaviorRefresh
+	startupQuoteIntervalSec := config.DefaultUIStartupQuoteIntervalSec
 	if cfg != nil {
 		showFire = cfg.UI.ShowFireAnimation
 		if cfg.UI.FireTickMS > 0 {
 			fireTickMS = cfg.UI.FireTickMS
 		}
+		showStartupQuote = cfg.UI.ShowStartupQuote
+		if cfg.UI.StartupQuoteBehavior != "" {
+			startupQuoteBehavior = cfg.UI.StartupQuoteBehavior
+		}
+		if cfg.UI.StartupQuoteIntervalSec > 0 {
+			startupQuoteIntervalSec = cfg.UI.StartupQuoteIntervalSec
+		}
 	}
 
 	return RepoSelectorModel{
-		repos:               nil,
-		cursor:              0,
-		selected:            make(map[int]bool),
-		fireBg:              fireBg,
-		spinner:             s,
-		windowWidth:         80,
-		windowHeight:        40,
-		reg:                 reg,
-		regPath:             regPath,
-		scanChan:            scanChan,
-		progressChan:        progressChan,
-		scanDone:            scanDisabled, // if scan is disabled there's nothing to wait for
-		progDone:            scanDisabled,
-		scanDisabled:        scanDisabled,
-		scanDisabledRunOnly: scanDisabledRunOnly,
-		cfg:                 cfg,
-		cfgPath:             cfgPath,
-		showFire:            showFire,
-		fireTick:            time.Duration(fireTickMS) * time.Millisecond,
+		repos:                nil,
+		cursor:               0,
+		selected:             make(map[int]bool),
+		fireBg:               fireBg,
+		spinner:              s,
+		windowWidth:          80,
+		windowHeight:         40,
+		reg:                  reg,
+		regPath:              regPath,
+		scanChan:             scanChan,
+		progressChan:         progressChan,
+		scanDone:             scanDisabled, // if scan is disabled there's nothing to wait for
+		progDone:             scanDisabled,
+		scanDisabled:         scanDisabled,
+		scanDisabledRunOnly:  scanDisabledRunOnly,
+		cfg:                  cfg,
+		cfgPath:              cfgPath,
+		showFire:             showFire,
+		fireTick:             time.Duration(fireTickMS) * time.Millisecond,
+		showStartupQuote:     showStartupQuote,
+		startupQuoteBehavior: startupQuoteBehavior,
+		startupQuoteInterval: time.Duration(startupQuoteIntervalSec) * time.Second,
+		currentStartupQuote:  randomStartupFireQuote(),
+		startupQuoteVisible:  showStartupQuote,
 	}
 }
 
 func (m RepoSelectorModel) Init() tea.Cmd {
 	cmds := []tea.Cmd{tickCmd(m.fireTick), pathScrollCmd(), m.spinner.Tick}
+	if m.showStartupQuote && m.startupQuoteInterval > 0 {
+		cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+	}
 	if m.scanChan != nil && !m.scanDone {
 		cmds = append(cmds, waitForRepo(m.scanChan))
 	}
@@ -328,6 +365,20 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fireBg.Update()
 		}
 		return m, tickCmd(m.fireTick)
+
+	case quoteTickMsg:
+		if m.showStartupQuote {
+			switch m.startupQuoteBehavior {
+			case config.UIQuoteBehaviorHide:
+				m.startupQuoteVisible = false
+			default:
+				m.currentStartupQuote = randomStartupFireQuote()
+				m.startupQuoteVisible = true
+			}
+			if m.startupQuoteInterval > 0 {
+				cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+			}
+		}
 
 	case pathScrollMsg:
 		m = m.advancePathScroll()
@@ -527,6 +578,10 @@ func (m RepoSelectorModel) fireSectionReserveLines() int {
 	return m.fireBg.Height + 2
 }
 
+func (m RepoSelectorModel) quoteVisible() bool {
+	return m.showStartupQuote && m.startupQuoteVisible && m.currentStartupQuote != ""
+}
+
 // fireVisible reports whether the fire animation section should be rendered.
 func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
@@ -629,6 +684,9 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 			buf.WriteString("\n")
 		}
 	}
+	if m.quoteVisible() {
+		buf.WriteString("quote\n\n")
+	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(activeProfile().titleFg).
 		Background(activeProfile().titleBg).
@@ -695,6 +753,9 @@ func (m RepoSelectorModel) ignoredViewNonListHeight() int {
 		for i := 0; i < lines; i++ {
 			buf.WriteString("\n")
 		}
+	}
+	if m.quoteVisible() {
+		buf.WriteString("quote\n\n")
 	}
 	buf.WriteString(m.renderIgnoredViewTitle())
 	buf.WriteString("\n\n")
@@ -855,6 +916,13 @@ func (m RepoSelectorModel) View() string {
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
+	if m.quoteVisible() {
+		quoteStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFD166")).
+			Italic(true)
+		s.WriteString(quoteStyle.Render("🔥 \"" + m.currentStartupQuote + "\""))
+		s.WriteString("\n\n")
+	}
 
 	// Repository list — flex element, scrollable
 	if len(m.repos) == 0 && !m.scanDone {
@@ -1067,6 +1135,13 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 
 	s.WriteString(m.renderIgnoredViewTitle())
 	s.WriteString("\n\n")
+	if m.quoteVisible() {
+		quoteStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFD166")).
+			Italic(true)
+		s.WriteString(quoteStyle.Render("🔥 \"" + m.currentStartupQuote + "\""))
+		s.WriteString("\n\n")
+	}
 
 	if len(m.ignoredEntries) == 0 {
 		s.WriteString(unselectedStyle.Render("No ignored repositories."))

@@ -97,6 +97,18 @@ type UIConfig struct {
 	// Automatically suppressed when the terminal is too short.
 	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
 
+	// Show startup flavor quotes in the TUI.
+	// Toggle in the settings menu.
+	ShowStartupQuote bool `mapstructure:"show_startup_quote" toml:"show_startup_quote"`
+
+	// Startup quote behavior after interval elapses.
+	// Options: "refresh", "hide".
+	StartupQuoteBehavior string `mapstructure:"startup_quote_behavior" toml:"startup_quote_behavior"`
+
+	// Interval in seconds for startup quote behavior.
+	// Used for either refreshing or hiding the quote.
+	StartupQuoteIntervalSec int `mapstructure:"startup_quote_interval_sec" toml:"startup_quote_interval_sec"`
+
 	// Fire animation tick interval in milliseconds.
 	// Lower values animate faster but can increase terminal CPU usage.
 	FireTickMS int `mapstructure:"fire_tick_ms" toml:"fire_tick_ms"`
@@ -111,6 +123,9 @@ const (
 	UIColorProfileSynthwave = "synthwave"
 	UIColorProfileForest    = "forest"
 	UIColorProfileArctic    = "arctic"
+
+	UIQuoteBehaviorRefresh = "refresh"
+	UIQuoteBehaviorHide    = "hide"
 )
 
 // UIColorProfiles returns valid built-in UI color profile names.

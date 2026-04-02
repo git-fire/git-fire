@@ -47,6 +47,17 @@ var configRows = []configRow{
 		"16",
 	}},
 	{label: "Show fire animation", kind: configRowBool},
+	{label: "Show startup quote", kind: configRowBool},
+	{label: "Startup quote behavior", kind: configRowEnum, options: []string{
+		config.UIQuoteBehaviorRefresh,
+		config.UIQuoteBehaviorHide,
+	}},
+	{label: "Startup quote interval (s)", kind: configRowEnum, options: []string{
+		"5",
+		"10",
+		"15",
+		"30",
+	}},
 	{label: "Fire speed (ms)", kind: configRowEnum, options: []string{
 		"120",
 		"150",
@@ -87,13 +98,22 @@ func configRowValue(i int, cfg *config.Config) string {
 		}
 		return "false"
 	case 6:
+		if cfg.UI.ShowStartupQuote {
+			return "true"
+		}
+		return "false"
+	case 7:
+		return cfg.UI.StartupQuoteBehavior
+	case 8:
+		return strconv.Itoa(cfg.UI.StartupQuoteIntervalSec)
+	case 9:
 		if cfg.UI.FireTickMS <= 0 {
 			return strconv.Itoa(config.DefaultUIFireTickMS)
 		}
 		return strconv.Itoa(cfg.UI.FireTickMS)
-	case 7:
+	case 10:
 		return cfg.UI.ColorProfile
-	case 8:
+	case 11:
 		return palettePreviewString(activeFireColors)
 	}
 	return ""
@@ -115,6 +135,8 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			cfg.Global.DisableScan = !cfg.Global.DisableScan
 		case 5:
 			cfg.UI.ShowFireAnimation = !cfg.UI.ShowFireAnimation
+		case 6:
+			cfg.UI.ShowStartupQuote = !cfg.UI.ShowStartupQuote
 		}
 	case configRowEnum:
 		opts := row.options
@@ -137,10 +159,19 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			if err == nil && workers > 0 {
 				cfg.Global.PushWorkers = workers
 			}
-		case 6:
-			applyFireTickChange(cfg, opts, dir)
 		case 7:
+			cfg.UI.StartupQuoteBehavior = opts[idx]
+		case 8:
+			sec, err := strconv.Atoi(opts[idx])
+			if err == nil && sec > 0 {
+				cfg.UI.StartupQuoteIntervalSec = sec
+			}
+		case 9:
+			applyFireTickChange(cfg, opts, dir)
+		case 10:
 			cfg.UI.ColorProfile = opts[idx]
+		case 11:
+			// Reserved for future custom hex palette editing.
 		}
 	case configRowComingSoon:
 		// Reserved for future custom hex palette editing.
@@ -185,10 +216,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 			applyColorProfile(m.cfg.UI.ColorProfile)
 		}
 		m = m.saveConfig()
-		if m.cfg != nil {
-			m.showFire = m.cfg.UI.ShowFireAnimation
-			m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
-		}
+		m, cmds = m.syncRuntimeFromConfig(cmds)
 
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
@@ -196,10 +224,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 			applyColorProfile(m.cfg.UI.ColorProfile)
 		}
 		m = m.saveConfig()
-		if m.cfg != nil {
-			m.showFire = m.cfg.UI.ShowFireAnimation
-			m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
-		}
+		m, cmds = m.syncRuntimeFromConfig(cmds)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -335,4 +360,27 @@ func applyFireTickChange(cfg *config.Config, options []string, dir int) {
 	if v, err := strconv.Atoi(options[len(options)-1]); err == nil {
 		cfg.UI.FireTickMS = v
 	}
+}
+
+func (m RepoSelectorModel) syncRuntimeFromConfig(cmds []tea.Cmd) (RepoSelectorModel, []tea.Cmd) {
+	if m.cfg == nil {
+		return m, cmds
+	}
+	m.showFire = m.cfg.UI.ShowFireAnimation
+	m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
+	m.showStartupQuote = m.cfg.UI.ShowStartupQuote
+	m.startupQuoteBehavior = m.cfg.UI.StartupQuoteBehavior
+	m.startupQuoteInterval = time.Duration(m.cfg.UI.StartupQuoteIntervalSec) * time.Second
+	if m.showStartupQuote {
+		if m.currentStartupQuote == "" {
+			m.currentStartupQuote = randomStartupFireQuote()
+		}
+		m.startupQuoteVisible = true
+		if m.startupQuoteInterval > 0 {
+			cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+		}
+	} else {
+		m.startupQuoteVisible = false
+	}
+	return m, cmds
 }
