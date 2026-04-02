@@ -1,0 +1,16 @@
+# Git-Fire - Cursor Rules
+
+## Local Sandbox + High Throughput Defaults
+
+When operating on this machine, apply these local defaults unless the task explicitly requires otherwise:
+
+- **Primary workspace**: Start autonomous work from `/home/ben/sandbox` and branch to this repo intentionally.
+- **Filesystem performance**: Keep active clones/build caches in Linux filesystem (`/home/...`), not `/mnt/c/...`.
+- **Safety boundary**: Treat paths outside `/home/ben/sandbox` as higher risk; avoid destructive commands outside sandbox without explicit user intent.
+- **Recovery-first workflow**: Before broad automation/refactors, run `/home/ben/sandbox/snapshot.sh`.
+- **Secret hygiene**: Never commit `.env`, private keys, or token-like strings; prefer local secret files excluded from git.
+- **Throughput tuning**: Prefer bounded, targeted parallelism (focused test subsets, incremental builds) over unbounded fan-out.
+
+Reference guide for local environment details:
+
+- `/home/ben/sandbox/SANDBOX_GUIDE.md`

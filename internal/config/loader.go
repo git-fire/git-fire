@@ -20,7 +20,7 @@ type LoadOptions struct {
 // Priority (highest to lowest):
 //  1. Environment variables (GIT_FIRE_*)
 //  2. Explicit --config file (optional)
-//  3. ~/.config/git-fire/config.toml (user config)
+//  3. user config dir/git-fire/config.toml (user config)
 //  4. Default config
 func Load() (*Config, error) {
 	return LoadWithOptions(LoadOptions{})
@@ -38,7 +38,9 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.SetConfigType("toml")
 
 	// Add config paths
-	v.AddConfigPath("$HOME/.config/git-fire") // User config
+	if userCfgDir, err := userConfigDir(); err == nil {
+		v.AddConfigPath(userCfgDir) // User config
+	}
 	v.AddConfigPath("/etc/git-fire")          // System config
 	if opts.ConfigFile != "" {
 		v.SetConfigFile(opts.ConfigFile)
@@ -228,10 +230,22 @@ func WriteExampleConfig(path string) error {
 	return nil
 }
 
-// DefaultConfigPath returns the default user config path
+// DefaultConfigPath returns the default user config file path.
 func DefaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "git-fire", "config.toml")
+	userCfgDir, err := userConfigDir()
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, ".config", "git-fire", "config.toml")
+	}
+	return filepath.Join(userCfgDir, "config.toml")
+}
+
+func userConfigDir() (string, error) {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine user config directory: %w", err)
+	}
+	return filepath.Join(base, "git-fire"), nil
 }
 
 // ParseDuration parses duration strings (supports Viper's format)

@@ -186,16 +186,21 @@ func addKeyWithPassphrase(keyPath, passphrase string) error {
 	return nil
 }
 
-// writeAskpassScript creates a temporary SSH_ASKPASS helper script in
-// ~/.cache/git-fire/ that outputs passphrase when invoked by ssh-keygen.
+// writeAskpassScript creates a temporary SSH_ASKPASS helper script in the
+// user cache dir (git-fire subdirectory) that outputs passphrase when invoked
+// by ssh-keygen.
 // Using an app-owned directory avoids noexec tmpfs mounts on hardened hosts.
 // The caller must invoke the returned cleanup function when done.
 func writeAskpassScript(passphrase string) (name string, cleanup func(), err error) {
-	home, err := os.UserHomeDir()
+	base, err := os.UserCacheDir()
 	if err != nil {
-		return "", func() {}, err
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", func() {}, err
+		}
+		base = filepath.Join(home, ".cache")
 	}
-	dir := filepath.Join(home, ".cache", "git-fire")
+	dir := filepath.Join(base, "git-fire")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", func() {}, err
 	}
