@@ -161,6 +161,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
 	opts.Exclude = cfg.Global.ScanExclude
+	opts.MaxDepth = cfg.Global.ScanDepth
 	opts.Workers = cfg.Global.ScanWorkers
 	opts.KnownPaths = knownPaths
 	opts.DisableScan = cfg.Global.DisableScan
@@ -764,6 +765,7 @@ func handleStatus() error {
 
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
+	opts.MaxDepth = cfg.Global.ScanDepth
 	opts.DisableScan = cfg.Global.DisableScan
 
 	reg := &registry.Registry{}
