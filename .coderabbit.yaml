@@ -15,7 +15,7 @@ reviews:
   request_changes_workflow: true
   high_level_summary: true
   poem: true
-  review_status: true
+  review_status: false # hide CodeRabbit review status message on PRs
   collapse_walkthrough: true
 
   auto_review:
