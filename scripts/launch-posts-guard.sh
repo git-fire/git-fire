@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$ROOT_DIR/docs/launch-posts"
-BACKUP_DIR="${HOME}/.local/share/git-fire/launch-posts"
+BACKUP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/git-fire/launch-posts"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -22,19 +22,33 @@ copy_if_exists() {
 case "${1:-}" in
   backup)
     mkdir -p "$BACKUP_DIR"
-    copy_if_exists "$SOURCE_DIR/2026-03-31-show-hn.md" "$BACKUP_DIR/2026-03-31-show-hn.md"
-    copy_if_exists "$SOURCE_DIR/2026-03-31-reddit-golang.md" "$BACKUP_DIR/2026-03-31-reddit-golang.md"
-    copy_if_exists "$SOURCE_DIR/2026-03-31-reddit-programming.md" "$BACKUP_DIR/2026-03-31-reddit-programming.md"
-    copy_if_exists "$SOURCE_DIR/2026-03-31-reddit-devops.md" "$BACKUP_DIR/2026-03-31-reddit-devops.md"
-    echo "Backed up launch posts to: $BACKUP_DIR"
+    backed=0
+    for f in 2026-03-31-show-hn.md 2026-03-31-reddit-golang.md 2026-03-31-reddit-programming.md 2026-03-31-reddit-devops.md; do
+      if [[ -f "$SOURCE_DIR/$f" ]]; then
+        cp "$SOURCE_DIR/$f" "$BACKUP_DIR/$f"
+        ((backed++)) || true
+      fi
+    done
+    if [[ $backed -eq 0 ]]; then
+      echo "Warning: No launch post files found in $SOURCE_DIR"
+    else
+      echo "Backed up $backed file(s) to: $BACKUP_DIR"
+    fi
     ;;
   restore)
     mkdir -p "$SOURCE_DIR"
-    copy_if_exists "$BACKUP_DIR/2026-03-31-show-hn.md" "$SOURCE_DIR/2026-03-31-show-hn.md"
-    copy_if_exists "$BACKUP_DIR/2026-03-31-reddit-golang.md" "$SOURCE_DIR/2026-03-31-reddit-golang.md"
-    copy_if_exists "$BACKUP_DIR/2026-03-31-reddit-programming.md" "$SOURCE_DIR/2026-03-31-reddit-programming.md"
-    copy_if_exists "$BACKUP_DIR/2026-03-31-reddit-devops.md" "$SOURCE_DIR/2026-03-31-reddit-devops.md"
-    echo "Restored launch posts from: $BACKUP_DIR"
+    restored=0
+    for f in 2026-03-31-show-hn.md 2026-03-31-reddit-golang.md 2026-03-31-reddit-programming.md 2026-03-31-reddit-devops.md; do
+      if [[ -f "$BACKUP_DIR/$f" ]]; then
+        cp "$BACKUP_DIR/$f" "$SOURCE_DIR/$f"
+        ((restored++)) || true
+      fi
+    done
+    if [[ $restored -eq 0 ]]; then
+      echo "Warning: No backup files found in $BACKUP_DIR"
+    else
+      echo "Restored $restored file(s) from: $BACKUP_DIR"
+    fi
     ;;
   status)
     echo "Source: $SOURCE_DIR"

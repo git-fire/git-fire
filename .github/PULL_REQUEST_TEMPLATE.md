@@ -21,7 +21,7 @@ Explain why this change is needed.
 - [ ] I ran `go test -race -count=1 ./...`.
 - [ ] I ran `go vet ./...`.
 
-## Beta Traceability (required for PRs targeting `feature/path_to_beta`)
+## Beta Traceability (required for PRs targeting `path_to_beta`)
 
 - [ ] I listed the finding/task IDs addressed by this PR.
 - [ ] I updated source tracking docs and struck through completed/replaced items.

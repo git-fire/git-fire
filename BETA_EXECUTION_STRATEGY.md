@@ -21,13 +21,13 @@ It translates findings into lanes, gates, ownership, and escalation rules that c
 
 ### Primary Beta Integration Branch
 
-- **Primary branch for beta work:** `feature/path_to_beta`
+- **Primary branch for beta work:** `path_to_beta`
 - All beta-critical merges land here first.
 - Merge to `main` only after beta exit criteria pass.
 
 ### Supporting Branches
 
-- Use short-lived scoped branches off `feature/path_to_beta` for each workstream slice.
+- Use short-lived scoped branches off `path_to_beta` for each workstream slice.
 - Use disposable experiment branches for risky architecture alternatives.
 - Keep branch naming explicit by stream:
   - `fix/beta-p0-*`
@@ -39,7 +39,7 @@ It translates findings into lanes, gates, ownership, and escalation rules that c
 ### PR Rules
 
 - One PR should close one coherent risk slice.
-- Every agent branch opens a PR back into `feature/path_to_beta` (never directly to `main`).
+- Every agent branch opens a PR back into `path_to_beta` (never directly to `main`).
 - Each PR is reviewed independently and merged independently.
 - PR must update source tracking docs by striking through completed or replaced items and linking the implementing PR.
 - PR description must include:
@@ -58,7 +58,7 @@ Beta is ready only when all conditions hold:
 2. CRITICAL doc mismatches are resolved and validated against current CLI/config behavior.
 3. Decision outcomes are implemented or explicitly deferred with rationale in `ROADMAP.md`.
 4. No active blocker in any lane is marked unknown/untested.
-5. `feature/path_to_beta` is stable and reproducible under verification commands.
+5. `path_to_beta` is stable and reproducible under verification commands.
 
 ## Execution System (Lanes)
 
@@ -87,10 +87,10 @@ Use one agent per coherent change bundle so each agent can run independently wit
 
 ### Agent Branch Protocol
 
-- Branch naming: `agent/<bundle>-<topic>` off `feature/path_to_beta`.
+- Branch naming: `agent/<bundle>-<topic>` off `path_to_beta`.
 - One bundle per agent branch; no cross-bundle mixed PRs.
-- Rebase or merge from `feature/path_to_beta` at least once daily for long-running bundles.
-- Agent PR target branch must be `feature/path_to_beta`.
+- Rebase or merge from `path_to_beta` at least once daily for long-running bundles.
+- Agent PR target branch must be `path_to_beta`.
 - Agent PR must include finding IDs, validation commands, and rollback notes where applicable.
 
 ### Agent Handoff Contract
@@ -156,7 +156,7 @@ Rules:
 
 **Entry**
 - P0 and CRITICAL items are enumerated and assigned.
-- Branches created from `feature/path_to_beta`.
+- Branches created from `path_to_beta`.
 
 **Execution**
 - Resolve P0-1, P0-2, P0-3 class defects first.
@@ -250,7 +250,7 @@ Status outputs should always include:
 
 ## Review Enforcement Checklist
 
-For any PR targeting `feature/path_to_beta`, reviewers must block merge unless all are true:
+For any PR targeting `path_to_beta`, reviewers must block merge unless all are true:
 
 - Finding IDs in PR body map to active items in blockers/readiness docs.
 - Completed or replaced items are struck through in source tracking docs and linked back to the PR.
@@ -303,7 +303,7 @@ If an item is not in active beta scope, it must move to `ROADMAP.md` with explic
 ## Immediate Next Actions
 
 1. Assign named owners to Agent A/B/C/D/E/V/X bundles.
-2. Create first `agent/*` branches from `feature/path_to_beta` with finding-ID scoped tasks.
-3. Require each agent branch to open an independent PR into `feature/path_to_beta`.
+2. Create first `agent/*` branches from `path_to_beta` with finding-ID scoped tasks.
+3. Require each agent branch to open an independent PR into `path_to_beta`.
 4. Start Agent A and Agent D immediately, then parallelize Agent B/C as file overlap allows.
-5. Run Agent V verification at each merge into `feature/path_to_beta`.
+5. Run Agent V verification at each merge into `path_to_beta`.

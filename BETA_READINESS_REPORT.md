@@ -61,11 +61,11 @@ Plugin code exists (`internal/plugins/`) but is never wired into the CLI. Docs p
 
 ### Decision 4: Push concurrency — doc fix or feature?
 
-README says "pushes in parallel." Code pushes sequentially (intentionally, per CLAUDE.md, to avoid SSH contention).
+**Update (post-audit):** Scanning uses a parallel worker pool; push execution uses `global.push_workers` (default 4) plus host/global rate limiting in the executor. README “parallel pushes” wording should match this model (see spec and `internal/executor/runner.go`).
 
-- **Option A:** Update docs to say "scans in parallel, pushes sequentially" (doc fix)
-- **Option B:** Implement parallel push workers with SSH contention handling (feature work)
-- **Chosen direction:** Run as isolated experiment branch; abandon if too risky and document as WIP until complete.
+- **Option A:** Update docs to describe scan parallelism + bounded push workers and per-host limits (doc fix)
+- **Option B:** Further experiments (e.g. higher fan-out) stay on isolated branches per original decision
+- **Chosen direction:** Document shipped behavior; optional higher-risk concurrency experiments remain non-blocking.
 
 ### Decision 5: UI prompt/report screens in beta scope?
 
@@ -146,7 +146,7 @@ These cause users to fail on first contact with the tool.
 
 | ID | What docs claim | What code does | Fix |
 |----|----------------|----------------|-----|
-| D-05 | "pushes in parallel" | Pushes sequentially | Decision 4 |
+| D-05 | "pushes in parallel" (historical README claim) | Scan parallel; pushes via worker pool + host/global limits | Align README/spec with `global.push_workers` + limiter (Decision 4) |
 | D-06 | Spec file tree lists `prompt.go`, `scanning.go`, etc. | UI files are `repo_selector.go`, `fire_bg.go`, etc. | Update spec tree |
 | D-07 | `internal/git/auth.go` for auth | Auth is in `internal/auth/` | Update spec |
 | D-08 | `conflict_strategy` accepts `"skip"` | Accepts `"abort"` | Update spec |
