@@ -44,6 +44,8 @@ var (
 	showStatus bool
 )
 
+var errRunAborted = errors.New("run aborted")
+
 var rootCmd = &cobra.Command{
 	Use:   "git-fire",
 	Short: "Emergency git backup tool",
@@ -167,6 +169,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts.DisableScan = cfg.Global.DisableScan
 
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+	printStartupFireQuote()
 	if cfg.Global.DisableScan {
 		if noScan {
 			fmt.Println("⚠️  Scanning Disabled (this run only)")
@@ -180,13 +183,26 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	//   --fire         → streaming TUI (repos appear as discovered)
 	//   --dry-run      → batch collect then plan summary (no changes made)
 	//   default        → streaming backup pipeline
+	var runErr error
 	if fireMode {
-		return runFireStream(cfg, reg, regPath, opts)
+		runErr = runFireStream(cfg, reg, regPath, opts)
+	} else if dryRun {
+		runErr = runBatch(cfg, reg, regPath, opts)
+	} else {
+		runErr = runStream(cfg, reg, regPath, opts)
 	}
-	if dryRun {
-		return runBatch(cfg, reg, regPath, opts)
+
+	if errors.Is(runErr, errRunAborted) {
+		printFailedRunEmberMessage()
+		return nil
 	}
-	return runStream(cfg, reg, regPath, opts)
+	if runErr != nil {
+		printFailedRunEmberMessage()
+		return runErr
+	}
+
+	printExtinguishWaterMessage()
+	return nil
 }
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
@@ -390,15 +406,21 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	// Drain both channels BEFORE cancelling so neither the upsert goroutine
 	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block
 	// on a send after the TUI exits. Only then cancel the scan and wait.
-	go func() { for range tuiRepoChan {} }()
-	go func() { for range folderProgress {} }()
+	go func() {
+		for range tuiRepoChan {
+		}
+	}()
+	go func() {
+		for range folderProgress {
+		}
+	}()
 	cancelScan()
 	<-scanDone
 
 	if err != nil {
 		if errors.Is(err, ui.ErrCancelled) {
 			fmt.Println("Aborted.")
-			return nil
+			return errRunAborted
 		}
 		return fmt.Errorf("repo selection failed: %w", err)
 	}
