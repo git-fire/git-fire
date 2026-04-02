@@ -3,15 +3,15 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"github.com/git-fire/git-fire/internal/executor"
+	"github.com/git-fire/git-fire/internal/registry"
+	testutil "github.com/git-fire/git-testkit"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-	"github.com/git-fire/git-fire/internal/executor"
-	"github.com/git-fire/git-fire/internal/registry"
-	testutil "github.com/git-fire/git-testkit"
 )
 
 // ---- buildKnownPaths ----
@@ -106,9 +106,7 @@ func TestStatusLabel_EmptyString(t *testing.T) {
 func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 	// Set HOME to a temp dir so registry.DefaultRegistryPath() points there
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create a real git repo to track
 	scenario := testutil.NewScenario(t)
@@ -139,9 +137,7 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 
 func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Write a corrupt registry file
 	regDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -170,9 +166,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 	}
 
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create a path inside an unreadable parent dir so os.Stat returns EACCES,
 	// not ENOENT. The parent has mode 0o000 so traversal is denied.
@@ -226,9 +220,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 
 func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Corrupt the registry file
 	regDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -273,9 +265,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create two repos
 	scenario := testutil.NewScenario(t)
@@ -322,13 +312,11 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 
 // ---- repos subcommand function coverage ----
 
-// isolateHome redirects HOME so loadRegistry() uses a temp registry.
+// isolateHome redirects HOME (and clears XDG_*) so loadRegistry() uses a temp registry.
 func isolateHome(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
-	orig := os.Getenv("HOME")
-	t.Cleanup(func() { os.Setenv("HOME", orig) })
-	os.Setenv("HOME", tmp)
+	setTestHome(t, tmp)
 	return tmp
 }
 
@@ -504,9 +492,7 @@ func TestStatusLabel_AllValues(t *testing.T) {
 
 func TestHandleInit_ForceFlag(t *testing.T) {
 	tmpHome := t.TempDir()
-	orig := os.Getenv("HOME")
-	defer os.Setenv("HOME", orig)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// First call creates the file
 	forceInit = false

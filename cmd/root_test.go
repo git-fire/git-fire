@@ -153,12 +153,7 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 func TestHandleInit(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Run handleInit
 	err := handleInit()
@@ -199,11 +194,7 @@ func TestHandleInit(t *testing.T) {
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create config directory and file
 	configDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -241,9 +232,7 @@ func TestHandleStatus(t *testing.T) {
 func TestRunGitFire_DryRun(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -275,9 +264,7 @@ func TestRunGitFire_DryRun(t *testing.T) {
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Create empty directory
 	emptyDir := t.TempDir()
@@ -300,9 +287,7 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 func TestRunGitFire_FireDrillFlag(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -331,9 +316,7 @@ func TestRunGitFire_FireDrillFlag(t *testing.T) {
 func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -360,9 +343,7 @@ func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 func TestRunGitFire_WithInit(t *testing.T) {
 	// Setup temp home
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestHome(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
