@@ -77,41 +77,42 @@ changelog:
     - title: Other
       order: 999
 
-brews:
-  - name: git-fire
-    repository:
-      owner: git-fire
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-      pull_request:
-        enabled: false
-    directory: Formula
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
-    homepage: "https://github.com/git-fire/git-fire"
-    description: "Emergency git backup — commit and push all repos when disaster strikes"
-    license: MIT
-    install: bin.install "git-fire"
-    test: system "#{bin}/git-fire", "--version"
+# Disabled for alpha release (v0.1.0-alpha): no package manager publishing.
+# brews:
+#   - name: git-fire
+#     repository:
+#       owner: git-fire
+#       name: homebrew-tap
+#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+#       pull_request:
+#         enabled: false
+#     directory: Formula
+#     commit_author:
+#       name: goreleaserbot
+#       email: bot@goreleaser.com
+#     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+#     homepage: "https://github.com/git-fire/git-fire"
+#     description: "Emergency git backup - commit and push all repos when disaster strikes"
+#     license: MIT
+#     install: bin.install "git-fire"
+#     test: system "#{bin}/git-fire", "--version"
 
-scoops:
-  - name: git-fire
-    repository:
-      owner: git-fire
-      name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
-      directory: bucket
-      pull_request:
-        enabled: false
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
-    homepage: "https://github.com/git-fire/git-fire"
-    description: "Emergency git backup — commit and push all repos when disaster strikes"
-    license: MIT
+# scoops:
+#   - name: git-fire
+#     repository:
+#       owner: git-fire
+#       name: scoop-bucket
+#       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+#       directory: bucket
+#       pull_request:
+#         enabled: false
+#     commit_author:
+#       name: goreleaserbot
+#       email: bot@goreleaser.com
+#     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+#     homepage: "https://github.com/git-fire/git-fire"
+#     description: "Emergency git backup - commit and push all repos when disaster strikes"
+#     license: MIT
 
 release:
   github:
@@ -119,32 +120,17 @@ release:
     name: git-fire
   draft: false
   prerelease: auto
+  make_latest: false
   name_template: "{{ .Tag }}"
   footer: |
     ## Install
 
-    **Homebrew (macOS / Linux, coming soon)**
-    ```sh
-    brew tap git-fire/homebrew-tap && brew install git-fire
-    ```
-
-    **Scoop (Windows, coming soon)**
-    ```powershell
-    scoop bucket add git-fire https://github.com/git-fire/scoop-bucket
-    scoop install git-fire
-    ```
-
-    **Binaries (coming soon)**
-    Download from [GitHub Releases](https://github.com/git-fire/git-fire/releases/latest)
-
     **Go**
     ```sh
-    go install github.com/git-fire/git-fire@latest
+    go install github.com/git-fire/git-fire@{{ .Tag }}
     ```
 
-    **curl (macOS / Linux)**
-    ```sh
-    curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
-    ```
+    **Binaries**
+    Download platform archives from this release's assets.
 
-    Full instructions: [README → Install](https://github.com/git-fire/git-fire#install)
+    Full instructions: [README -> Install](https://github.com/git-fire/git-fire/blob/{{ .Tag }}/README.md#install)
