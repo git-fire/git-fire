@@ -91,9 +91,17 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+
+	// Fire drill is same as dry run.
+	if fireDrill {
+		dryRun = true
+	}
+	if fireMode && dryRun {
+		return fmt.Errorf("--fire and --dry-run cannot be used together")
+	}
+
 	if backupTo != "" {
-		// TODO(v0.2): implement backup-to remote URL
-		return fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)")
+		return fmt.Errorf("--backup-to is not implemented yet; use configured remotes instead")
 	}
 
 	// Verify git is available before doing anything else
@@ -116,11 +124,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	if noScan {
 		cfg.Global.DisableScan = true
-	}
-
-	// Fire drill is same as dry run
-	if fireDrill {
-		dryRun = true
 	}
 
 	// Show security notice

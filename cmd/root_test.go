@@ -426,8 +426,36 @@ func TestBackupToExecuteError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected --backup-to execute path to return an error")
 	}
-	if !strings.Contains(err.Error(), "--backup-to is not yet implemented") {
+	if !strings.Contains(err.Error(), "--backup-to is not implemented yet") {
 		t.Fatalf("unexpected error for --backup-to: %v", err)
+	}
+}
+
+func TestRunGitFire_FireAndDryRunMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	dryRun = true
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --dry-run are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunGitFire_FireAndFireDrillMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	fireDrill = true // aliases to --dry-run in runGitFire
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --fire-drill are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
