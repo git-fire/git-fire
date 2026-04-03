@@ -530,13 +530,19 @@ func TestRepoSelectorModel_QuoteTick_HideBehavior(t *testing.T) {
 	m.currentStartupQuote = "Fire walk with me."
 	m.startupQuoteVisible = true
 
-	updated, _ := m.Update(quoteTickMsg(time.Now()))
+	updated, cmd := m.Update(quoteTickMsg(time.Now()))
 	got, ok := updated.(RepoSelectorModel)
 	if !ok {
 		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
 	}
 	if got.startupQuoteVisible {
 		t.Fatal("quote should be hidden after tick when behavior=hide")
+	}
+	if got.quoteTickActive {
+		t.Fatal("quote tick should stop after hide behavior hides the quote")
+	}
+	if cmd != nil {
+		t.Fatal("hide behavior should not schedule another quote tick")
 	}
 }
 

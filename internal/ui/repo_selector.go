@@ -375,13 +375,14 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.startupQuoteBehavior {
 			case config.UIQuoteBehaviorHide:
 				m.startupQuoteVisible = false
+				// Hide mode is one-shot: stop quote ticks after hiding.
 			default:
 				m.currentStartupQuote = randomStartupFireQuote()
 				m.startupQuoteVisible = true
-			}
-			if m.startupQuoteInterval > 0 {
-				cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
-				m.quoteTickActive = true
+				if m.startupQuoteInterval > 0 {
+					cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+					m.quoteTickActive = true
+				}
 			}
 		}
 

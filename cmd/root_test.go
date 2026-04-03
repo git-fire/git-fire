@@ -272,6 +272,43 @@ func TestRunGitFire_DryRun(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
+	// Isolate registry from the user's real one
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	// Create a test scenario with repos
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("test").
+		WithRemote("origin", remote).
+		AddFile("test.txt", "content\n").
+		Commit("Initial commit")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	resetFlags()
+	dryRun = true
+	scanPath = filepath.Dir(repo.Path())
+
+	var runErr error
+	output := captureStdoutFlavor(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() in dry-run mode error = %v", runErr)
+	}
+	if !strings.Contains(output, "No changes were made") {
+		t.Fatalf("expected dry-run completion message, got: %q", output)
+	}
+	if strings.Contains(output, "💧 ") {
+		t.Fatalf("did not expect water success message for dry-run output: %q", output)
+	}
+}
+
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
@@ -294,6 +331,35 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 	// Should not error when no repos found
 	if err != nil {
 		t.Errorf("runGitFire() with no repos error = %v", err)
+	}
+}
+
+func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
+	// Isolate registry from the user's real one
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	emptyDir := t.TempDir()
+
+	resetFlags()
+	scanPath = emptyDir
+	dryRun = true
+
+	var runErr error
+	output := captureStdoutFlavor(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() with no repos error = %v", runErr)
+	}
+	if !strings.Contains(output, "No git repositories found.") {
+		t.Fatalf("expected no-repos message, got: %q", output)
+	}
+	if strings.Contains(output, "💧 ") {
+		t.Fatalf("did not expect water success message when no repos were found: %q", output)
 	}
 }
 

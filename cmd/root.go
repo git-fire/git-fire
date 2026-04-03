@@ -45,6 +45,7 @@ var (
 )
 
 var errRunAborted = errors.New("run aborted")
+var errRunNoop = errors.New("run completed with no backup actions")
 
 var rootCmd = &cobra.Command{
 	Use:   "git-fire",
@@ -204,6 +205,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		printFailedRunEmberMessage()
 		return nil
 	}
+	if errors.Is(runErr, errRunNoop) {
+		return nil
+	}
 	if runErr != nil {
 		printFailedRunEmberMessage()
 		return runErr
@@ -284,7 +288,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if len(repos) == 0 {
 		fmt.Println("No git repositories found.")
-		return nil
+		return errRunNoop
 	}
 
 	// Repo selection: auto-select all (dry-run path only — fireMode uses streaming).
@@ -320,7 +324,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if dryRun {
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
-		return nil
+		return errRunNoop
 	}
 
 	// Setup logging
@@ -434,7 +438,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	}
 	if len(selected) == 0 {
 		fmt.Println("No repositories selected.")
-		return nil
+		return errRunNoop
 	}
 
 	if scanErr != nil {
