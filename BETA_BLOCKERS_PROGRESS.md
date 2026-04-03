@@ -1,10 +1,12 @@
 # Beta Blockers — Full Findings & Execution Plan
 
-**Branch (audit origin):** `beta-readiness-audit`
-**Branch (current beta integration):** `path_to_beta`
-**Source:** `main` @ `2c935f8`
-**Date:** 2026-03-31
+**Branch (audit origin):** `beta-readiness-audit`  
+**Branch (current beta integration):** `path_to_beta` @ **`bbb3837`** (2026-04-03)  
+**Source:** `main` @ `2c935f8`  
+**Date:** 2026-03-31  
 **Purpose:** Preserve all audit context, agent findings, and scan results so we can systematically action every blocker via feature branches.
+
+**Status refresh:** P0/P1 code items from the audit are **implemented on `path_to_beta`** (see `BETA_READINESS_REPORT.md` executive summary). **Part 1** below is the raw register — use **CRITICAL/HIGH** rows as a checklist against `GIT_FIRE_SPEC.md` (**#49** realigned many items). **D-04** runtime: `--backup-to` **errors** if set (`cmd/root.go`).
 
 ---
 
@@ -42,18 +44,18 @@ The execution workflow:
 - Impact: Users crafting config from spec find most fields silently ignored
 - Resolution: Rewrite spec config from `types.go` + `defaults.go`
 
-**D-04 | feature-availability | `--backup-to` described as full feature; is silent no-op**
+**D-04 | feature-availability | `--backup-to` described as full feature; was silent no-op**
 - Docs: `GIT_FIRE_SPEC.md` "Backup to New Remote Mode" describes full workflow
-- Reality: Flag registered at `cmd/root.go:76` but variable never read
-- Impact: User thinks backup went to safe remote; it didn't
-- Resolution: **NEEDS PRODUCT DECISION** — implement, remove, or error
+- Reality (2026-04): Flag still registered; **`runGitFire` returns error** if `--backup-to` is non-empty — not silent
+- Impact: Spec may still read like a working feature
+- Resolution: **Doc** — state explicitly “not implemented”; full feature remains deferred (Decision 1)
 
 ### HIGH (12 items)
 
-**D-05 | behavior-mismatch | "Pushes in parallel" claim; pushes are sequential**
-- Docs: README line 19, spec line 62
-- Reality: `executor/runner.go` Execute() iterates repos sequentially. CLAUDE.md correctly notes sequential push
-- Resolution: **NEEDS PRODUCT DECISION** — doc fix or implement parallel push
+**D-05 | behavior-mismatch | "Pushes in parallel" vs actual execution model**
+- Docs: README / spec may still simplify concurrency
+- Reality (2026-04): **Push worker pool** (`global.push_workers`) + **host/global rate limiting** in `internal/executor/runner.go` — not a single-threaded serial loop for all repos
+- Resolution: Align all docs with **Decision 4** / `BETA_READINESS_REPORT.md` (worker + limiter wording)
 
 **D-06 | architecture-claim | Spec file tree lists nonexistent UI files**
 - Docs: `GIT_FIRE_SPEC.md` lists `prompt.go`, `scanning.go`, `pushing.go`, `report.go`, `styles.go`, `models.go`

@@ -1,16 +1,22 @@
 # git-fire Beta Readiness Report
 
-**Branch:** `main` @ `2c935f8`
-**Date:** 2026-03-31
+**Audit origin:** `main` @ `2c935f8` · **Date:** 2026-03-31  
 **Auditor:** Automated (claude-4.6-opus) + CodeRabbit PR review data
+
+**Integration refresh:** `path_to_beta` @ **`bbb3837`** · **2026-04-03**  
+*(PR #47 merged into `path_to_beta`; beta docs below are annotated against this tip.)*
 
 ---
 
 ## Executive Summary
 
-**Verdict: NOT YET READY for beta — 3 P0 code issues + 4 CRITICAL doc mismatches must be resolved first.**
+**Verdict (2026-04-03):** **P0 code blockers called out in this report are addressed on `path_to_beta`** (`bbb3837`): auto-commit cleanup / original-HEAD restoration (PR #47), `conflict_strategy=abort` with conflict detection, and `--backup-to` rejecting with a clear error. **CI posture:** `go vet` + `go test -race` green on that tip.
 
-The codebase is structurally sound: all tests pass with `-race`, `go vet` is clean, and the core scan-commit-push pipeline works. However, this audit uncovered **3 must-fix code bugs** (data safety / silent no-ops), **4 critical documentation mismatches** that will mislead users on first contact, and **8 should-fix code issues** including a security concern (secrets leaking to disk) and a concurrency race.
+**Still before calling “beta shipped to `main`”:** merge **[PR #55](https://github.com/git-fire/git-fire/pull/55)** (`path_to_beta` → `main`), then run your release smoke (optional: E2E CLI test, GoReleaser dry-run, Windows spot-check — see [ROADMAP.md](ROADMAP.md)).
+
+**Doc/spec gap:** `GIT_FIRE_SPEC.md` was heavily realigned in **#49**; remaining **D-06–D-35** style items in `BETA_BLOCKERS_PROGRESS.md` are **backlog triage** (verify line-by-line vs spec), not automatic release blockers unless you tighten policy.
+
+The original audit below is **preserved** for traceability; treat **P0/P1 tables** as historical unless a row has a **Status** note.
 
 Merged PR feedback is in good shape: across 6 high-risk PRs with CodeRabbit reviews, **43 of 51 threads were proven addressed**, 4 were intentionally deferred with reviewer agreement, 3 were false positives/duplicates, and 1 partial fix remains (low risk). Two early PRs (#1, #2) had unreviewed bot feedback that warrants a quick follow-up.
 
@@ -89,6 +95,8 @@ This interaction required an explicit product call for implementation.
 
 ### P0-1: `AutoCommitDirtyWithStrategy` partial failure leaves orphan commits on user's branch
 
+**Status (2026-04-03):** **Addressed on `path_to_beta`** — original-HEAD capture, index-aware cleanup, partial metadata on failure; see **PR #47** / `internal/git/operations.go` + tests.
+
 **Risk:** DATA LOSS / REPO MUTATION
 **File:** `internal/git/operations.go`, `AutoCommitDirtyWithStrategy` (lines 417-584)
 
@@ -97,6 +105,8 @@ If any step between the first commit and the final `reset --soft HEAD~N` fails (
 **Fix direction:** Capture original HEAD SHA at function start. Use `git reset --soft <original-sha>` instead of `HEAD~N` in all cleanup paths. Add a `defer` cleanup that triggers on error after any commit is made.
 
 ### P0-2: `conflict_strategy = "abort"` is accepted but has no effect
+
+**Status (2026-04-03):** **Addressed on `path_to_beta`** — `DetectConflict` runs for `abort`; diverged remotes get **`ActionSkip`** per remote (multi-remote safe). `TestBuildRepoPlan_ConflictStrategyAbort` in `planner_expanded_test.go`.
 
 **Risk:** CORRECTNESS — user expects safety gate, gets raw push failure instead
 **File:** `internal/executor/planner.go:139` (only checks `"new-branch"`)
@@ -107,6 +117,8 @@ The planner falls through to regular `ActionPushBranch` when strategy is `"abort
 
 ### P0-3: `--backup-to` flag is a silent no-op
 
+**Status (2026-04-03):** **Addressed** — `runGitFire` returns an error if `--backup-to` is set (`cmd/root.go`); not silent.
+
 **Risk:** UX SAFETY — user believes backup went to safe location; it didn't
 **File:** `cmd/root.go:42,76`
 
@@ -116,33 +128,37 @@ See Decision 1 above. At minimum, the flag must either work or error clearly.
 
 ## CRITICAL Doc Mismatches
 
-These cause users to fail on first contact with the tool.
+These caused users to fail on first contact at audit time. **Re-check `GIT_FIRE_SPEC.md` after #49** — many rows may already match code; treat the table as a verification list.
 
-| ID | What docs claim | What code does | Files | Resolution |
-|----|----------------|----------------|-------|------------|
-| D-01 | Spec lists 18+ CLI flags (`--token`, `--platform`, `--prefix`, etc.) | Only 10 flags exist | `GIT_FIRE_SPEC.md` vs `cmd/root.go` init() | Rewrite spec CLI section |
-| D-02 | Spec describes fire confirmation prompt with countdown | No prompt exists; immediate execution | `GIT_FIRE_SPEC.md` vs `cmd/root.go` runGitFire | Decision 2 |
-| D-03 | Spec config schema has 30+ fields across `[backup]`, `[auth]`, `[logging]` | Actual schema is ~15 fields, no `[logging]` section | `GIT_FIRE_SPEC.md` vs `internal/config/types.go` | Rewrite from actual types |
-| D-04 | `--backup-to` described as full feature | Flag exists but is never read | `GIT_FIRE_SPEC.md` + `cmd/root.go` | Decision 1 |
+| ID | What docs claimed | Status (2026-04-03) | Notes |
+|----|-------------------|----------------------|-------|
+| D-01 | Spec lists fictitious CLI flags | **Verify** | #49 realigned spec to shipped flags — spot-check vs `cmd/root.go` |
+| D-02 | Fire confirmation prompt in spec | **Open / doc** | Decision 2: align spec with immediate execution |
+| D-03 | Spec config wider than `types.go` | **Verify** | #49 — confirm remaining drift vs `internal/config/types.go` |
+| D-04 | `--backup-to` as full feature | **Code OK** | Runtime errors if flag set; spec should say “not implemented” explicitly |
 
 ---
 
 ## P1 — Should Fix Before Beta
 
-| ID | Category | Title | File | Fix Direction |
-|----|----------|-------|------|---------------|
-| P1-1 | concurrency | `FindByPath` returns pointer, caller mutates without lock | `internal/ui/selector_helpers.go:21-23` | Use `UpdateByPath` with callback instead |
-| P1-2 | ux | `--fire --dry-run` silently ignores dry-run, executes real pushes | `cmd/root.go:173-179` | Make flags mutually exclusive or honor both |
-| P1-3 | security | `SaveConfig` from TUI writes env-var secrets to disk in plaintext | `internal/config/loader.go:206-226` | Zero out secrets before marshal or use `toml:"-"` |
-| P1-4 | correctness | `DetectConflict` runs `git fetch` during dry-run (network side effect) | `internal/executor/planner.go:140-141` | Skip fetch in dry-run mode |
-| P1-5 | ux | `ModePushCurrentBranch` not in TUI mode cycling — 'm' key is no-op | `internal/ui/repo_selector.go:431-438` | Add to cycle |
-| P1-6 | correctness | Per-repo config overrides (`[[repos]]`) are never applied | `internal/config/loader.go:149` (defined, never called) | Wire into planner |
-| P1-7 | security | `safety.GetUncommittedFiles` stub always returns empty — maintenance trap | `internal/safety/secrets.go:273-277` | Delete the stub |
-| P1-8 | data-safety | `reset --soft HEAD~N` fails on repos with <N commits | `internal/git/operations.go:576-582` | Use original SHA instead of `HEAD~N` |
+| ID | Category | Title | Status (path_to_beta) |
+|----|----------|-------|------------------------|
+| P1-1 | concurrency | `FindByPath` mutation without lock | **Done (#48)** — registry `UpdateByPath` |
+| P1-2 | ux | `--fire --dry-run` | **Done** — mutually exclusive; `TestRunGitFire_FireAndDryRunMutuallyExclusive` |
+| P1-3 | security | `SaveConfig` + env secrets | **Done (#48)** — `sanitizeSecretsForSave` |
+| P1-4 | correctness | `DetectConflict` in dry-run | **Done (#48)** — `BuildPlan` passes `DetectConflicts: !dryRun` |
+| P1-5 | ux | TUI `push-current-branch` in cycle | **Done (#48)** |
+| P1-6 | correctness | Per-repo overrides in planner | **Done (#48)** — `resolveRepoMode` / `effectiveAutoCommitDirty` |
+| P1-7 | security | `GetUncommittedFiles` stub | **Done (#48)** — removed |
+| P1-8 | data-safety | `HEAD~N` reset | **Done** — same line as P0-1 / PR #47 |
+
+*Original file/line references in the audit snapshot may be stale after refactors.*
 
 ---
 
 ## HIGH Doc Mismatches
+
+**D-05 note:** `BETA_BLOCKERS_PROGRESS.md` Part 1 still describes “sequential push”; executor uses **worker pool + host limiter** — reconcile that file when editing docs.
 
 | ID | What docs claim | What code does | Fix |
 |----|----------------|----------------|-----|
@@ -162,17 +178,17 @@ These cause users to fail on first contact with the tool.
 
 ## P2/P3 — Fix After Beta Launch
 
-| ID | Sev | Title |
-|----|-----|-------|
-| P2-1 | P2 | Repos that fail `analyzeRepository` are silently dropped from backup |
-| P2-2 | P2 | `reset --soft` destroys user's original staged/unstaged distinction |
-| P2-3 | P2 | Progress channel can silently drop events |
-| P2-4 | P2 | No tests for auto-commit partial failure cleanup |
-| P2-5 | P2 | No tests for `conflict_strategy = "abort"` |
-| P2-6 | P2 | No test for `--fire --dry-run` interaction |
-| P2-7 | P2 | Plugin `expandVars` substitutes untrusted repo names into shell args |
-| P2-8 | P3 | `SaveConfig` bloats config file with all defaults |
-| P2-9 | P3 | Rate limiter bypassed for unknown remote names |
+| ID | Sev | Title | Notes (2026-04-03) |
+|----|-----|-------|---------------------|
+| P2-1 | P2 | Repos that fail `analyzeRepository` are silently dropped from backup | Open |
+| P2-2 | P2 | `reset --soft` destroys user's original staged/unstaged distinction | Open (dual-branch tradeoff) |
+| P2-3 | P2 | Progress channel can silently drop events | Open |
+| P2-4 | P2 | No tests for auto-commit partial failure cleanup | Improved — see `internal/git/operations_test.go` after PR #47 |
+| P2-5 | P2 | No tests for `conflict_strategy = "abort"` | Done — `TestBuildRepoPlan_ConflictStrategyAbort` |
+| P2-6 | P2 | No test for `--fire --dry-run` interaction | Done — `TestRunGitFire_FireAndDryRunMutuallyExclusive` |
+| P2-7 | P2 | Plugin `expandVars` substitutes untrusted repo names into shell args | Open |
+| P2-8 | P3 | `SaveConfig` bloats config file with all defaults | Open |
+| P2-9 | P3 | Rate limiter bypassed for unknown remote names | Open |
 
 ### MEDIUM/LOW Doc Items (15 total, all resolvable now)
 
@@ -221,36 +237,21 @@ These cause users to fail on first contact with the tool.
 
 ## Suggested Execution Order
 
-### Phase 1: Beta Blockers (estimate: 1 day)
+### Phase 1–2: Beta blockers + P1 *(completed on `path_to_beta` @ bbb3837)*
 
-1. **P0-1:** Fix auto-commit partial failure cleanup (use original SHA)
-2. **P0-3:** Remove/error `--backup-to` flag (per your decision)
-3. **P0-2:** Implement `conflict_strategy = "abort"` in planner
-4. **P1-2:** Fix `--fire --dry-run` interaction
-5. **P1-8:** Fix `HEAD~N` reset on shallow repos (same fix as P0-1)
-6. **P1-3:** Prevent secrets leaking to config file
+Items 1–11 from the original plan are **landed** via **#46–#49**, **PR #47**, and follow-up commits on `path_to_beta`. Use git history if you need exact PR ↔ finding mapping.
 
-### Phase 2: Safety & Correctness (estimate: 0.5 day)
+### Phase 3: Docs alignment *(ongoing / verify)*
 
-7. **P1-1:** Fix `FindByPath` race condition
-8. **P1-4:** Skip `git fetch` in dry-run mode
-9. **P1-5:** Add `ModePushCurrentBranch` to TUI mode cycle
-10. **P1-6:** Wire up `FindRepoOverride` in planner
-11. **P1-7:** Delete `safety.GetUncommittedFiles` stub
+1. Walk **D-06–D-35** in `BETA_BLOCKERS_PROGRESS.md` against current `GIT_FIRE_SPEC.md`, README, and CLAUDE — strike or update each row.
+2. Confirm **D-02** (prompt) and any remaining plugin copy match **Decisions 2–3**.
 
-### Phase 3: Docs Alignment (estimate: 0.5 day)
+### Phase 4: Ship + post-beta
 
-12. Rewrite `GIT_FIRE_SPEC.md` CLI flags section from actual code
-13. Rewrite spec config schema from `types.go` + `defaults.go`
-14. Update spec's primary flow to match 3 actual execution paths
-15. Fix all HIGH doc mismatches (D-05 through D-15)
-16. Fix all MEDIUM/LOW doc mismatches
-
-### Phase 4: Post-Beta (ongoing)
-
-17. All P2/P3 items
-18. Manual review of PR #1 and #2 bot feedback
-19. Implement features from decisions (if chosen)
+1. **Merge PR #55** to `main` when ready.
+2. Remaining **P2/P3** rows (analyze drop, plugin `expandVars`, etc.) — backlog.
+3. Manual review **PR #1 / #2** bot threads if still relevant.
+4. Optional: E2E smoke, GoReleaser dry-run, Windows pass (**ROADMAP.md**).
 
 ---
 

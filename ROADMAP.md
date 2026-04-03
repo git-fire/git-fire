@@ -2,6 +2,8 @@
 
 This roadmap section (above the archived legacy block) is the single source of truth for all future, deferred, and experimental items identified during beta readiness work on `beta-readiness-audit`.
 
+**Integration tip (2026-04-03):** `path_to_beta` @ `bbb3837` — several items below are **done** (e.g. **F-16** `abort` tests, **F-17** `--fire`/`--dry-run` test). Treat unchecked bullets as backlog until you edit this file.
+
 ## Scope Buckets
 
 - **Post-Beta (Committed):** Must remain tracked but intentionally out of beta release scope.
@@ -33,8 +35,8 @@ This roadmap section (above the archived legacy block) is the single source of t
 - **F-13 (P2):** `reset --soft` destroys staged/unstaged distinction.
 - **F-14 (P2):** Progress channel can silently drop events.
 - **F-15 (P2):** Missing tests for auto-commit partial failure cleanup.
-- **F-16 (P2):** Missing tests for `conflict_strategy = "abort"`.
-- **F-17 (P2):** Missing test for `--fire --dry-run` interaction.
+- **F-16 (P2):** ~~Missing tests for `conflict_strategy = "abort"`.~~ **Done** — `TestBuildRepoPlan_ConflictStrategyAbort` (`path_to_beta`).
+- **F-17 (P2):** ~~Missing test for `--fire --dry-run` interaction.~~ **Done** — `TestRunGitFire_FireAndDryRunMutuallyExclusive` (`path_to_beta`).
 - **F-18 (P2):** Plugin `expandVars` substitutes untrusted repo names into shell args.
 - **F-19 (P3):** `SaveConfig` writes noisy defaults (config bloat).
 - **F-20 (P3):** Rate limiter bypass for unknown remote names.
