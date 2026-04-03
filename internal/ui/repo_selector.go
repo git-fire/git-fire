@@ -188,6 +188,7 @@ type RepoSelectorModel struct {
 	startupQuoteInterval time.Duration
 	currentStartupQuote  string
 	startupQuoteVisible  bool
+	quoteTickActive      bool
 
 	// Config menu state
 	cfg           *config.Config
@@ -231,6 +232,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		startupQuoteInterval: time.Duration(config.DefaultUIStartupQuoteIntervalSec) * time.Second,
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  true,
+		quoteTickActive:      true,
 	}
 }
 
@@ -303,6 +305,7 @@ func NewRepoSelectorModelStream(
 		startupQuoteInterval: time.Duration(startupQuoteIntervalSec) * time.Second,
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  showStartupQuote,
+		quoteTickActive:      showStartupQuote && startupQuoteIntervalSec > 0,
 	}
 }
 
@@ -367,6 +370,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd(m.fireTick)
 
 	case quoteTickMsg:
+		m.quoteTickActive = false
 		if m.showStartupQuote {
 			switch m.startupQuoteBehavior {
 			case config.UIQuoteBehaviorHide:
@@ -377,6 +381,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.startupQuoteInterval > 0 {
 				cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+				m.quoteTickActive = true
 			}
 		}
 
@@ -582,6 +587,13 @@ func (m RepoSelectorModel) quoteVisible() bool {
 	return m.showStartupQuote && m.startupQuoteVisible && m.currentStartupQuote != ""
 }
 
+func (m RepoSelectorModel) renderStartupQuote() string {
+	quoteStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFD166")).
+		Italic(true)
+	return quoteStyle.Render("🔥 \"" + m.currentStartupQuote + "\"")
+}
+
 // fireVisible reports whether the fire animation section should be rendered.
 func (m RepoSelectorModel) fireVisible() bool {
 	return m.showFire && m.windowHeight > fireHeightThreshold
@@ -685,7 +697,8 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		}
 	}
 	if m.quoteVisible() {
-		buf.WriteString("quote\n\n")
+		buf.WriteString(m.renderStartupQuote())
+		buf.WriteString("\n\n")
 	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(activeProfile().titleFg).
@@ -755,7 +768,8 @@ func (m RepoSelectorModel) ignoredViewNonListHeight() int {
 		}
 	}
 	if m.quoteVisible() {
-		buf.WriteString("quote\n\n")
+		buf.WriteString(m.renderStartupQuote())
+		buf.WriteString("\n\n")
 	}
 	buf.WriteString(m.renderIgnoredViewTitle())
 	buf.WriteString("\n\n")
@@ -917,10 +931,7 @@ func (m RepoSelectorModel) View() string {
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n\n")
 	if m.quoteVisible() {
-		quoteStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFD166")).
-			Italic(true)
-		s.WriteString(quoteStyle.Render("🔥 \"" + m.currentStartupQuote + "\""))
+		s.WriteString(m.renderStartupQuote())
 		s.WriteString("\n\n")
 	}
 
@@ -1136,10 +1147,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 	s.WriteString(m.renderIgnoredViewTitle())
 	s.WriteString("\n\n")
 	if m.quoteVisible() {
-		quoteStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFD166")).
-			Italic(true)
-		s.WriteString(quoteStyle.Render("🔥 \"" + m.currentStartupQuote + "\""))
+		s.WriteString(m.renderStartupQuote())
 		s.WriteString("\n\n")
 	}
 

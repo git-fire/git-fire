@@ -366,6 +366,7 @@ func (m RepoSelectorModel) syncRuntimeFromConfig(cmds []tea.Cmd) (RepoSelectorMo
 	if m.cfg == nil {
 		return m, cmds
 	}
+	wasShowingStartupQuote := m.showStartupQuote
 	m.showFire = m.cfg.UI.ShowFireAnimation
 	m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
 	m.showStartupQuote = m.cfg.UI.ShowStartupQuote
@@ -375,12 +376,21 @@ func (m RepoSelectorModel) syncRuntimeFromConfig(cmds []tea.Cmd) (RepoSelectorMo
 		if m.currentStartupQuote == "" {
 			m.currentStartupQuote = randomStartupFireQuote()
 		}
-		m.startupQuoteVisible = true
-		if m.startupQuoteInterval > 0 {
+		// Re-show only when the feature is toggled on; avoid reviving hidden quotes
+		// on unrelated settings changes.
+		if !wasShowingStartupQuote {
+			m.startupQuoteVisible = true
+		}
+		if m.startupQuoteInterval > 0 && !m.quoteTickActive {
 			cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+			m.quoteTickActive = true
 		}
 	} else {
 		m.startupQuoteVisible = false
+		m.quoteTickActive = false
+	}
+	if m.startupQuoteInterval <= 0 {
+		m.quoteTickActive = false
 	}
 	return m, cmds
 }

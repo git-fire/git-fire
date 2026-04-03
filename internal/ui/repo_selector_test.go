@@ -582,6 +582,54 @@ func TestRepoSelectorModel_QuoteTick_RefreshBehavior(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_SyncRuntimeFromConfig_DoesNotDuplicateQuoteTickOrReshow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.cfg = &cfg
+	m.showStartupQuote = true
+	m.startupQuoteVisible = false
+	m.quoteTickActive = true
+
+	updated, cmds := m.syncRuntimeFromConfig(nil)
+
+	if updated.startupQuoteVisible {
+		t.Fatal("syncRuntimeFromConfig should not force hidden quote visible on unrelated config changes")
+	}
+	if len(cmds) != 0 {
+		t.Fatalf("syncRuntimeFromConfig should not enqueue duplicate quote ticks when one is already active; got %d cmds", len(cmds))
+	}
+	if !updated.quoteTickActive {
+		t.Fatal("quote tick should remain active when already running")
+	}
+}
+
+func TestRepoSelectorModel_SyncRuntimeFromConfig_ToggleOnReshowsAndSchedulesTick(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.cfg = &cfg
+	m.showStartupQuote = false
+	m.startupQuoteVisible = false
+	m.quoteTickActive = false
+
+	updated, cmds := m.syncRuntimeFromConfig(nil)
+
+	if !updated.startupQuoteVisible {
+		t.Fatal("syncRuntimeFromConfig should show quote when startup quote is toggled on")
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("syncRuntimeFromConfig should enqueue one quote tick when enabling startup quote; got %d cmds", len(cmds))
+	}
+	if !updated.quoteTickActive {
+		t.Fatal("quote tick should be marked active after scheduling")
+	}
+}
+
 func TestRepoSelectorModel_QuoteVisibleHelper(t *testing.T) {
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.showStartupQuote = true
@@ -788,6 +836,30 @@ func TestRepoSelectorModel_IgnoredListVisibleCount_NarrowWidthMoreChrome(t *test
 	if narrow.ignoredViewNonListHeight() <= wide.ignoredViewNonListHeight() {
 		t.Errorf("ignored chrome height narrow=%d should exceed wide=%d when help wraps",
 			narrow.ignoredViewNonListHeight(), wide.ignoredViewNonListHeight())
+	}
+}
+
+func TestRepoSelectorModel_QuoteWrappingAffectsMeasuredHeights(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.windowWidth = 40
+	m.windowHeight = 40
+	m.showFire = false
+	m.showStartupQuote = true
+	m.startupQuoteVisible = true
+
+	m.currentStartupQuote = "short quote"
+	shortIgnored := m.ignoredViewNonListHeight()
+	shortVisible := m.repoListVisibleCount()
+
+	m.currentStartupQuote = strings.Repeat("From ember to branch, every change deserves shelter. ", 3)
+	longIgnored := m.ignoredViewNonListHeight()
+	longVisible := m.repoListVisibleCount()
+
+	if longIgnored <= shortIgnored {
+		t.Fatalf("expected long wrapped quote to increase ignored view non-list height: long=%d short=%d", longIgnored, shortIgnored)
+	}
+	if longVisible >= shortVisible {
+		t.Fatalf("expected long wrapped quote to reduce visible repo rows: long=%d short=%d", longVisible, shortVisible)
 	}
 }
 
