@@ -697,16 +697,16 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 			buf.WriteString("\n")
 		}
 	}
-	if m.quoteVisible() {
-		buf.WriteString(m.renderStartupQuote())
-		buf.WriteString("\n\n")
-	}
 	buf.WriteString(lipgloss.NewStyle().Bold(true).
 		Foreground(activeProfile().titleFg).
 		Background(activeProfile().titleBg).
 		Padding(0, 2).
 		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
 	buf.WriteString("\n\n")
+	if m.quoteVisible() {
+		buf.WriteString(m.renderStartupQuote())
+		buf.WriteString("\n\n")
+	}
 	configHint := ""
 	if m.cfg != nil {
 		configHint = "  c  Settings  |  "
@@ -768,12 +768,12 @@ func (m RepoSelectorModel) ignoredViewNonListHeight() int {
 			buf.WriteString("\n")
 		}
 	}
+	buf.WriteString(m.renderIgnoredViewTitle())
+	buf.WriteString("\n\n")
 	if m.quoteVisible() {
 		buf.WriteString(m.renderStartupQuote())
 		buf.WriteString("\n\n")
 	}
-	buf.WriteString(m.renderIgnoredViewTitle())
-	buf.WriteString("\n\n")
 	buf.WriteString(renderIgnoredViewHelp())
 	return lipgloss.Height(boxStyle.Width(innerW).Render(buf.String()))
 }
