@@ -111,7 +111,10 @@ func SyncMirrorRepo(sourceRepoPath, destinationBarePath string) error {
 }
 
 func SyncCloneRepo(sourceRepoPath, destinationPath string) error {
-	if _, err := os.Stat(destinationPath); os.IsNotExist(err) {
+	if _, err := os.Stat(destinationPath); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to access clone destination: %w", err)
+		}
 		if err := os.MkdirAll(filepath.Dir(destinationPath), 0o700); err != nil {
 			return fmt.Errorf("failed creating clone destination parent: %w", err)
 		}

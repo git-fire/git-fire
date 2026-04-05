@@ -433,7 +433,7 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 			for _, action := range plan.Actions {
 				switch action.Type {
 				case usb.ActionAutoCommit:
-					if err := checkSecretsForUSB(repo.Path, cfg.Global.BlockOnSecrets); err != nil {
+					if err := executor.CheckSecrets(repo.Path, cfg.Global.BlockOnSecrets); err != nil {
 						recordFailure(repo.Name, "", err)
 						goto nextRepo
 					}
@@ -1166,37 +1166,6 @@ func verifyDestination(destination, strategy string) error {
 		}
 	default:
 		return fmt.Errorf("verify failed: unsupported strategy %s", strategy)
-	}
-	return nil
-}
-
-func checkSecretsForUSB(repoPath string, block bool) error {
-	uncommitted, scanErr := git.GetUncommittedFiles(repoPath)
-	if scanErr != nil {
-		if block {
-			return fmt.Errorf("failed to list uncommitted files for secret scan: %w", scanErr)
-		}
-		fmt.Fprintf(os.Stderr, "warning: secret scan skipped: %s\n", safety.SanitizeText(scanErr.Error()))
-		return nil
-	}
-	if len(uncommitted) == 0 {
-		return nil
-	}
-
-	scanner := safety.NewSecretScanner()
-	suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted)
-	if scanErr != nil {
-		if block {
-			return fmt.Errorf("secret scan failed: %w", scanErr)
-		}
-		fmt.Fprintf(os.Stderr, "warning: secret scan failed: %s\n", safety.SanitizeText(scanErr.Error()))
-		return nil
-	}
-	if len(suspicious) > 0 {
-		fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
-		if block {
-			return fmt.Errorf("potential secrets detected in uncommitted files")
-		}
 	}
 	return nil
 }
