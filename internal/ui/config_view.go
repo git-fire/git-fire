@@ -170,8 +170,6 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 			applyFireTickChange(cfg, opts, dir)
 		case 10:
 			cfg.UI.ColorProfile = opts[idx]
-		case 11:
-			// Reserved for future custom hex palette editing.
 		}
 	case configRowComingSoon:
 		// Reserved for future custom hex palette editing.
