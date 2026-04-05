@@ -421,13 +421,14 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		saveRegistry(reg, regPath)
 	}()
 
+	userCfgDir, _ := config.UserGitFireDir()
 	selected, err := ui.RunRepoSelectorStream(
 		tuiRepoChan,
 		folderProgress,
 		cfg.Global.DisableScan,
 		noScan,
 		cfg,
-		config.DefaultConfigPath(),
+		filepath.Join(userCfgDir, "config.toml"),
 		reg,
 		regPath,
 	)
