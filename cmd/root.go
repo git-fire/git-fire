@@ -1113,10 +1113,12 @@ func pruneUSBTarget(targetRoot, reposRoot string, plans []usb.RepoPlan) error {
 		if !entry.IsDir() {
 			continue
 		}
-		if !strings.HasSuffix(entry.Name(), ".git") {
-			continue
-		}
 		full := filepath.Join(reposRoot, entry.Name())
+		if !strings.HasSuffix(entry.Name(), ".git") {
+			if _, statErr := os.Stat(filepath.Join(full, ".git")); statErr != nil {
+				continue
+			}
+		}
 		if _, ok := want[full]; ok {
 			continue
 		}

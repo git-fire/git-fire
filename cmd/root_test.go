@@ -647,6 +647,56 @@ func TestPruneUSBTarget_PreservesAllPlannedDestinations(t *testing.T) {
 	}
 }
 
+func TestPruneUSBTarget_PrunesStaleCloneDestinations(t *testing.T) {
+	targetRoot := t.TempDir()
+	reposRoot := filepath.Join(targetRoot, "repos")
+	if err := os.MkdirAll(reposRoot, 0o700); err != nil {
+		t.Fatalf("mkdir repos root: %v", err)
+	}
+
+	keepCloneDest := filepath.Join(reposRoot, "keep-clone")
+	staleCloneDest := filepath.Join(reposRoot, "stale-clone")
+	nonRepoDir := filepath.Join(reposRoot, "notes")
+
+	for _, p := range []string{keepCloneDest, staleCloneDest, nonRepoDir} {
+		if err := os.MkdirAll(p, 0o700); err != nil {
+			t.Fatalf("mkdir %s: %v", p, err)
+		}
+	}
+	for _, p := range []string{keepCloneDest, staleCloneDest} {
+		if err := os.MkdirAll(filepath.Join(p, ".git"), 0o700); err != nil {
+			t.Fatalf("mkdir %s/.git: %v", p, err)
+		}
+	}
+
+	plans := []usb.RepoPlan{
+		{
+			Actions: []usb.Action{
+				{
+					Type:        usb.ActionSync,
+					TargetRoot:  targetRoot,
+					Destination: keepCloneDest,
+					SyncPolicy:  "prune",
+				},
+			},
+		},
+	}
+
+	if err := pruneUSBTarget(targetRoot, reposRoot, plans); err != nil {
+		t.Fatalf("pruneUSBTarget error: %v", err)
+	}
+
+	if _, err := os.Stat(keepCloneDest); err != nil {
+		t.Fatalf("expected planned clone destination to remain (%s): %v", keepCloneDest, err)
+	}
+	if _, err := os.Stat(staleCloneDest); !os.IsNotExist(err) {
+		t.Fatalf("expected stale clone destination to be removed, stat err: %v", err)
+	}
+	if _, err := os.Stat(nonRepoDir); err != nil {
+		t.Fatalf("expected non-repo directory to remain (%s): %v", nonRepoDir, err)
+	}
+}
+
 func TestRunUSB_DryRun_UsesPlannedDestinationFromOverrides(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
@@ -765,4 +815,10 @@ func resetFlags() {
 	backupTo = ""
 	configFile = ""
 	showStatus = false
+	usbTargets = nil
+	usbInit = false
+	usbWorkers = 0
+	usbStrategy = ""
+	usbResume = false
+	usbVerify = false
 }
