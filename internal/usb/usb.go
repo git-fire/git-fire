@@ -95,9 +95,13 @@ func SyncMirrorRepo(sourceRepoPath, destinationBarePath string) error {
 	if err := os.MkdirAll(filepath.Dir(destinationBarePath), 0o700); err != nil {
 		return fmt.Errorf("failed creating destination parent: %w", err)
 	}
-	if _, err := os.Stat(destinationBarePath); os.IsNotExist(err) {
-		if err := runGit("", "init", "--bare", destinationBarePath); err != nil {
-			return fmt.Errorf("failed to initialize bare destination: %w", err)
+	if _, err := os.Stat(destinationBarePath); err != nil {
+		if os.IsNotExist(err) {
+			if err := runGit("", "init", "--bare", destinationBarePath); err != nil {
+				return fmt.Errorf("failed to initialize bare destination: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to access bare destination: %w", err)
 		}
 	}
 	fileURL, err := fileURLFromPath(destinationBarePath)
