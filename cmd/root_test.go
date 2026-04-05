@@ -12,6 +12,8 @@ import (
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
+
+	"github.com/git-fire/git-fire/internal/usb"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -588,6 +590,121 @@ func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	}
 	if entry.Mode != git.ModePushAll.String() {
 		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
+	}
+}
+
+func TestPruneUSBTarget_PreservesAllPlannedDestinations(t *testing.T) {
+	targetRoot := t.TempDir()
+	reposRoot := filepath.Join(targetRoot, "repos")
+	if err := os.MkdirAll(reposRoot, 0o700); err != nil {
+		t.Fatalf("mkdir repos root: %v", err)
+	}
+
+	keepDest := filepath.Join(reposRoot, "keep-repo.git")
+	pruneDest := filepath.Join(reposRoot, "prune-repo.git")
+	staleDest := filepath.Join(reposRoot, "stale-repo.git")
+
+	for _, p := range []string{keepDest, pruneDest, staleDest} {
+		if err := os.MkdirAll(p, 0o700); err != nil {
+			t.Fatalf("mkdir %s: %v", p, err)
+		}
+	}
+
+	plans := []usb.RepoPlan{
+		{
+			Actions: []usb.Action{
+				{
+					Type:        usb.ActionSync,
+					TargetRoot:  targetRoot,
+					Destination: keepDest,
+					SyncPolicy:  "keep",
+				},
+			},
+		},
+		{
+			Actions: []usb.Action{
+				{
+					Type:        usb.ActionSync,
+					TargetRoot:  targetRoot,
+					Destination: pruneDest,
+					SyncPolicy:  "prune",
+				},
+			},
+		},
+	}
+
+	if err := pruneUSBTarget(targetRoot, reposRoot, plans); err != nil {
+		t.Fatalf("pruneUSBTarget error: %v", err)
+	}
+
+	for _, p := range []string{keepDest, pruneDest} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("expected planned destination to remain (%s): %v", p, err)
+		}
+	}
+	if _, err := os.Stat(staleDest); !os.IsNotExist(err) {
+		t.Fatalf("expected stale destination to be removed, stat err: %v", err)
+	}
+}
+
+func TestRunUSB_DryRun_UsesPlannedDestinationFromOverrides(t *testing.T) {
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("app").
+		AddFile("README.md", "hello\n").
+		Commit("init")
+
+	repoPath := repo.Path()
+	targetRoot := t.TempDir()
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ScanPath = filepath.Dir(repoPath)
+	cfg.USB.CreateOnFirst = true
+	cfg.USB.Strategy = usb.StrategyMirror
+	cfg.USB.SyncPolicy = "keep"
+
+	reg := &registry.Registry{
+		Repos: []registry.RegistryEntry{
+			{
+				Path:          repoPath,
+				Name:          "app",
+				Status:        registry.StatusActive,
+				Mode:          cfg.Global.DefaultMode,
+				USBStrategy:   usb.StrategyClone,
+				USBRepoPath:   "custom/app-backup",
+				USBSyncPolicy: "keep",
+				AddedAt:       time.Now(),
+				LastSeen:      time.Now(),
+			},
+		},
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.RootPath = cfg.Global.ScanPath
+	opts.DisableScan = false
+
+	resetFlags()
+	dryRun = true
+
+	var runErr error
+	output := captureStdoutFlavor(t, func() {
+		runErr = runUSB(&cfg, reg, "", opts, []string{targetRoot})
+	})
+
+	if runErr != errRunNoop {
+		t.Fatalf("expected errRunNoop for dry-run, got: %v", runErr)
+	}
+
+	expectedDest := filepath.Join(targetRoot, usb.DefaultRepoLayoutDir, "custom/app-backup")
+	if !strings.Contains(output, expectedDest) {
+		t.Fatalf("expected dry-run output to include override destination %q, got %q", expectedDest, output)
+	}
+	if strings.Contains(output, expectedDest+".git") {
+		t.Fatalf("did not expect .git suffix to be appended for override destination, got %q", output)
 	}
 }
 

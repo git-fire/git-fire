@@ -1,6 +1,9 @@
 package usb
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestManifestRoundTrip(t *testing.T) {
 	root := t.TempDir()
@@ -16,6 +19,13 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 	if err := SaveManifest(root, m); err != nil {
 		t.Fatalf("SaveManifest error: %v", err)
+	}
+	info, err := os.Stat(ManifestPath(root))
+	if err != nil {
+		t.Fatalf("stat manifest: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected manifest perms 0600, got %04o", got)
 	}
 	m2, err := LoadManifest(root)
 	if err != nil {

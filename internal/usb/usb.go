@@ -189,7 +189,7 @@ func writeVolumeConfig(path string, cfg *VolumeConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed encoding marker config: %w", err)
 	}
-	if err := os.WriteFile(path, b, 0o644); err != nil {
+	if err := os.WriteFile(path, b, 0o600); err != nil {
 		return fmt.Errorf("failed writing marker config: %w", err)
 	}
 	return nil

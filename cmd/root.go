@@ -319,27 +319,6 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 		return errRunNoop
 	}
 
-	fmt.Printf("✓ Found %d repositories\n", len(repos))
-	fmt.Printf("✓ USB targets: %d\n", len(normalizedTargets))
-	for _, t := range normalizedTargets {
-		fmt.Printf("  • %s\n", t)
-	}
-	fmt.Println()
-
-	if dryRun {
-		fmt.Println("USB Dry Run Plan:")
-		for _, repo := range repos {
-			fmt.Printf("  • %s\n", repo.Name)
-			for _, target := range normalizedTargets {
-				layout := usb.TargetReposRoot(target, targetCfg[target])
-				dst := filepath.Join(layout, usb.StableRepoName(repo.Path, repo.Name)+".git")
-				fmt.Printf("      -> %s\n", dst)
-			}
-		}
-		fmt.Println("\n🔥 Fire Drill Complete - No changes were made")
-		return errRunNoop
-	}
-
 	repoOverrides := make(map[string]usb.RepoOverride, len(repos))
 	for _, repo := range repos {
 		absPath, err := filepath.Abs(repo.Path)
@@ -355,6 +334,28 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 		}
 	}
 	plans := usb.BuildPlans(repos, normalizedTargets, targetCfg, repoOverrides, usb.PlanOptions{AutoCommit: cfg.Global.AutoCommitDirty})
+
+	fmt.Printf("✓ Found %d repositories\n", len(repos))
+	fmt.Printf("✓ USB targets: %d\n", len(normalizedTargets))
+	for _, t := range normalizedTargets {
+		fmt.Printf("  • %s\n", t)
+	}
+	fmt.Println()
+
+	if dryRun {
+		fmt.Println("USB Dry Run Plan:")
+		for _, repoPlan := range plans {
+			fmt.Printf("  • %s\n", repoPlan.Repo.Name)
+			for _, action := range repoPlan.Actions {
+				if action.Type != usb.ActionSync {
+					continue
+				}
+				fmt.Printf("      -> %s\n", action.Destination)
+			}
+		}
+		fmt.Println("\n🔥 Fire Drill Complete - No changes were made")
+		return errRunNoop
+	}
 
 	// Acquire per-target locks and load per-target manifests for resume/recording.
 	releaseLocks := make([]func(), 0, len(normalizedTargets))
@@ -436,7 +437,10 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 					targetSem <- struct{}{}
 					m := manifests[action.TargetRoot]
 					if usbResume {
-						if prev, ok := m.Results[repo.Path]; ok && prev.Success && prev.Destination == action.Destination {
+						manifestMu.Lock()
+						prev, ok := m.Results[repo.Path]
+						manifestMu.Unlock()
+						if ok && prev.Success && prev.Destination == action.Destination {
 							<-targetSem
 							continue
 						}
@@ -495,7 +499,7 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 			recordFailure("manifest", target, err)
 		}
 		if shouldPruneTarget(target, plans, cfg.USB.SyncPolicy) {
-			_ = pruneUSBTarget(target, usb.TargetReposRoot(target, targetCfg[target]), plans, cfg.USB.SyncPolicy)
+			_ = pruneUSBTarget(target, usb.TargetReposRoot(target, targetCfg[target]), plans)
 		}
 	}
 
@@ -1082,18 +1086,11 @@ func recordManifestOutcome(mu *sync.Mutex, m *usb.Manifest, repo git.Repository,
 	m.Results[repo.Path] = outcome
 }
 
-func pruneUSBTarget(targetRoot, reposRoot string, plans []usb.RepoPlan, defaultPolicy string) error {
+func pruneUSBTarget(targetRoot, reposRoot string, plans []usb.RepoPlan) error {
 	want := make(map[string]struct{}, len(plans))
 	for _, repoPlan := range plans {
 		for _, action := range repoPlan.Actions {
 			if action.Type != usb.ActionSync || action.TargetRoot != targetRoot {
-				continue
-			}
-			policy := strings.TrimSpace(action.SyncPolicy)
-			if policy == "" {
-				policy = defaultPolicy
-			}
-			if policy != "prune" {
 				continue
 			}
 			want[action.Destination] = struct{}{}

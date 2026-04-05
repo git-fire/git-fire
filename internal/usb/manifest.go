@@ -69,5 +69,5 @@ func SaveManifest(targetRoot string, m *Manifest) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ManifestPath(targetRoot), b, 0o644)
+	return os.WriteFile(ManifestPath(targetRoot), b, 0o600)
 }

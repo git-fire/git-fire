@@ -132,3 +132,40 @@ func TestAcquireTargetLock(t *testing.T) {
 		t.Fatal("expected lock acquisition failure when lock already held")
 	}
 }
+
+func TestAcquireTargetLock_FilePermissions(t *testing.T) {
+	root := t.TempDir()
+	release, err := AcquireTargetLock(root, time.Hour)
+	if err != nil {
+		t.Fatalf("AcquireTargetLock() error: %v", err)
+	}
+	defer release()
+
+	lockPath := filepath.Join(root, LockFileName)
+	info, err := os.Stat(lockPath)
+	if err != nil {
+		t.Fatalf("stat lock file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected lock file permissions 0600, got %04o", got)
+	}
+}
+
+func TestEnsureVolumeConfig_CreatesMarkerWithSecurePermissions(t *testing.T) {
+	root := t.TempDir()
+	if _, err := EnsureVolumeConfig(root, EnsureOptions{
+		DefaultStrategy: StrategyMirror,
+		CreateIfMissing: true,
+	}); err != nil {
+		t.Fatalf("EnsureVolumeConfig(create) error: %v", err)
+	}
+
+	markerPath := filepath.Join(root, MarkerFileName)
+	info, err := os.Stat(markerPath)
+	if err != nil {
+		t.Fatalf("stat marker file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected marker permissions 0600, got %04o", got)
+	}
+}
