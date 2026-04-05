@@ -93,7 +93,7 @@ jobs:
     # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
     # (the tag job is skipped on push; skipped needs are OK with this if:).
     if: |
-      always() &&
+      !cancelled() &&
       (needs.tag.result == 'success' ||
         (github.event_name == 'push' && needs.tag.result == 'skipped'))
     runs-on: ubuntu-latest
