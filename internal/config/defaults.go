@@ -123,15 +123,16 @@ disable_scan = false
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
 
-# Show a fire quote banner in the TUI.
+# Flavor quotes: TUI banner plus terminal motivation lines after runs.
+# In Settings (TUI) this row is labeled "Show flavor quotes".
 show_startup_quote = true
 
-# Startup quote behavior:
+# Flavor quote behavior in the TUI:
 # "refresh" = rotate to a new quote every startup_quote_interval_sec
 # "hide" = remove quote after startup_quote_interval_sec
 startup_quote_behavior = "refresh"
 
-# Seconds between quote refresh/hide actions.
+# Seconds between flavor quote refresh/hide actions in the TUI.
 startup_quote_interval_sec = 10
 
 # Fire animation speed in milliseconds per frame (also drives the TUI tick).

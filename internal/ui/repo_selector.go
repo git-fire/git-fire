@@ -182,7 +182,7 @@ type RepoSelectorModel struct {
 	showFire bool
 	fireTick time.Duration
 
-	// Startup quote banner in TUI.
+	// Flavor quote banner in TUI (Settings: "Show flavor quotes").
 	showStartupQuote     bool
 	startupQuoteBehavior string
 	startupQuoteInterval time.Duration
@@ -374,8 +374,17 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showStartupQuote {
 			switch m.startupQuoteBehavior {
 			case config.UIQuoteBehaviorHide:
-				m.startupQuoteVisible = false
-				// Hide mode is one-shot: stop quote ticks after hiding.
+				// Long scans can exceed startup_quote_interval_sec; defer hiding until
+				// streaming discovery finishes so the banner is not gone by the time
+				// the repo list is ready (hide mode is still one-shot after that).
+				if m.scanChan != nil && !m.scanDone {
+					if m.startupQuoteInterval > 0 {
+						cmds = append(cmds, quoteTickCmd(m.startupQuoteInterval))
+						m.quoteTickActive = true
+					}
+				} else {
+					m.startupQuoteVisible = false
+				}
 			default:
 				m.currentStartupQuote = randomStartupFireQuote()
 				m.startupQuoteVisible = true

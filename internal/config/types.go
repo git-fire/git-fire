@@ -97,16 +97,14 @@ type UIConfig struct {
 	// Automatically suppressed when the terminal is too short.
 	ShowFireAnimation bool `mapstructure:"show_fire_animation" toml:"show_fire_animation"`
 
-	// Show startup flavor quotes in the TUI.
-	// Toggle in the settings menu.
+	// Show flavor quotes: TUI banner plus CLI motivation lines (success/failure).
+	// TOML key remains show_startup_quote. Toggle in Settings as "Show flavor quotes".
 	ShowStartupQuote bool `mapstructure:"show_startup_quote" toml:"show_startup_quote"`
 
-	// Startup quote behavior after interval elapses.
-	// Options: "refresh", "hide".
+	// Flavor quote behavior after interval elapses (TUI). Options: "refresh", "hide".
 	StartupQuoteBehavior string `mapstructure:"startup_quote_behavior" toml:"startup_quote_behavior"`
 
-	// Interval in seconds for startup quote behavior.
-	// Used for either refreshing or hiding the quote.
+	// Interval in seconds for flavor quote behavior in the TUI.
 	StartupQuoteIntervalSec int `mapstructure:"startup_quote_interval_sec" toml:"startup_quote_interval_sec"`
 
 	// Fire animation tick interval in milliseconds.

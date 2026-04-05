@@ -47,12 +47,12 @@ var configRows = []configRow{
 		"16",
 	}},
 	{label: "Show fire animation", kind: configRowBool},
-	{label: "Show startup quote", kind: configRowBool},
-	{label: "Startup quote behavior", kind: configRowEnum, options: []string{
+	{label: "Show flavor quotes", kind: configRowBool},
+	{label: "Flavor quote behavior", kind: configRowEnum, options: []string{
 		config.UIQuoteBehaviorRefresh,
 		config.UIQuoteBehaviorHide,
 	}},
-	{label: "Startup quote interval (s)", kind: configRowEnum, options: []string{
+	{label: "Flavor quote interval (s)", kind: configRowEnum, options: []string{
 		"5",
 		"10",
 		"15",

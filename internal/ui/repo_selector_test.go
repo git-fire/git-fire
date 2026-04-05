@@ -546,6 +546,46 @@ func TestRepoSelectorModel_QuoteTick_HideBehavior(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_QuoteTick_HideDeferredWhileScanStreaming(t *testing.T) {
+	scanCh := make(chan git.Repository)
+	progCh := make(chan string)
+	cfg := config.DefaultConfig()
+	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorHide
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModelStream(scanCh, progCh, false, false, &cfg, "", nil, "")
+	if m.scanDone {
+		t.Fatal("sanity: scan should not be done at stream start")
+	}
+	m.currentStartupQuote = "Still scanning."
+	m.startupQuoteVisible = true
+
+	updated, cmd := m.Update(quoteTickMsg(time.Now()))
+	got, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	if !got.startupQuoteVisible {
+		t.Fatal("quote should stay visible while scan is streaming and hide tick fires")
+	}
+	if !got.quoteTickActive {
+		t.Fatal("quote tick should reschedule until scan finishes")
+	}
+	if cmd == nil {
+		t.Fatal("expected a follow-up quote tick cmd while scan is in progress")
+	}
+
+	got.scanDone = true
+	updated2, cmd2 := got.Update(quoteTickMsg(time.Now()))
+	after := updated2.(RepoSelectorModel)
+	if after.startupQuoteVisible {
+		t.Fatal("quote should hide on hide tick after scan completes")
+	}
+	if cmd2 != nil {
+		t.Fatal("hide should not schedule another tick after hiding")
+	}
+}
+
 func TestRepoSelectorModel_QuoteTick_NoOpWhenQuotesDisabled(t *testing.T) {
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.showStartupQuote = false
@@ -894,7 +934,7 @@ func TestRepoSelectorModel_ShowStartupQuoteConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowStartupQuote = true
 
-	// Row 6 is "Show startup quote"
+	// Row 6 is "Show flavor quotes" (ui.show_startup_quote)
 	val := configRowValue(6, &cfg)
 	if val != "true" {
 		t.Errorf("configRowValue(6) = %q, want %q", val, "true")
@@ -910,7 +950,7 @@ func TestRepoSelectorModel_StartupQuoteBehaviorConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorRefresh
 
-	// Row 7 is "Startup quote behavior"
+	// Row 7 is "Flavor quote behavior"
 	val := configRowValue(7, &cfg)
 	if val != config.UIQuoteBehaviorRefresh {
 		t.Errorf("configRowValue(7) = %q, want %q", val, config.UIQuoteBehaviorRefresh)
@@ -926,7 +966,7 @@ func TestRepoSelectorModel_StartupQuoteIntervalConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.StartupQuoteIntervalSec = 10
 
-	// Row 8 is "Startup quote interval (s)"
+	// Row 8 is "Flavor quote interval (s)"
 	val := configRowValue(8, &cfg)
 	if val != "10" {
 		t.Errorf("configRowValue(8) = %q, want %q", val, "10")

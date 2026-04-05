@@ -6,34 +6,18 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/git-fire/git-fire/internal/config"
 )
 
-func TestPickRandomMessage_Empty(t *testing.T) {
-	if got := pickRandomMessage(nil); got != "" {
-		t.Fatalf("expected empty string for nil slice, got %q", got)
+func TestFlavorQuotesEnabled(t *testing.T) {
+	if !FlavorQuotesEnabled(nil) {
+		t.Fatal("nil cfg should default to enabled")
 	}
-	if got := pickRandomMessage([]string{}); got != "" {
-		t.Fatalf("expected empty string for empty slice, got %q", got)
-	}
-}
-
-func TestPickRandomMessage_ReturnsProvidedValue(t *testing.T) {
-	options := []string{"alpha", "beta", "gamma"}
-	for range 50 {
-		got := pickRandomMessage(options)
-		if got == "" {
-			t.Fatal("expected non-empty random message")
-		}
-		found := false
-		for _, option := range options {
-			if got == option {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("got message %q not present in options %v", got, options)
-		}
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = false
+	if FlavorQuotesEnabled(&cfg) {
+		t.Fatal("ShowStartupQuote false should disable flavor quotes")
 	}
 }
 

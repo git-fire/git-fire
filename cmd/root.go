@@ -92,15 +92,17 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+	var cfg *config.Config
 	failRun := func(err error) error {
 		if err != nil {
-			printFailedRunEmberMessage()
+			if FlavorQuotesEnabled(cfg) {
+				printFailedRunEmberMessage()
+			}
 		}
 		return err
 	}
 
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
-	printStartupFireQuote()
 
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
@@ -113,9 +115,17 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load configuration
-	cfg, cfgErr := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
+	var cfgErr error
+	cfg, cfgErr = config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
 	if cfgErr != nil {
 		return failRun(fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error())))
+	}
+
+	// Flavor quotes (see ui.show_startup_quote / Settings → Show flavor quotes).
+	// --fire: quote is printed after the TUI exits (runFireStream) so it is visible
+	// on the normal screen buffer.
+	if !fireMode && FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Override config with flags
@@ -202,18 +212,24 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	if errors.Is(runErr, errRunAborted) {
-		printFailedRunEmberMessage()
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
 		return nil
 	}
 	if errors.Is(runErr, errRunNoop) {
 		return nil
 	}
 	if runErr != nil {
-		printFailedRunEmberMessage()
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
 		return runErr
 	}
 
-	printExtinguishWaterMessage()
+	if FlavorQuotesEnabled(cfg) {
+		printExtinguishWaterMessage()
+	}
 	return nil
 }
 
@@ -443,6 +459,12 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 
 	if scanErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: scan error: %s\n", safety.SanitizeText(scanErr.Error()))
+	}
+
+	// Back on the normal screen buffer: surface the flavor line here so it is
+	// visible after the alt-screen TUI (pre-run stdout is easy to miss).
+	if FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Show selected repos

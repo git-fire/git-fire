@@ -1,11 +1,5 @@
 package flavor
 
-import (
-	"math/rand"
-	"sync"
-	"time"
-)
-
 var startupFireQuotes = []string{
 	"Fire walk with me.",
 	"A light in the dark provides hope.",
@@ -17,19 +11,8 @@ var startupFireQuotes = []string{
 	"From ember to branch, every change deserves shelter.",
 }
 
-var (
-	startupQuoteRNG   = rand.New(rand.NewSource(time.Now().UnixNano()))
-	startupQuoteRNGMu sync.Mutex
-)
-
 func RandomStartupFireQuote() string {
-	if len(startupFireQuotes) == 0 {
-		return ""
-	}
-	startupQuoteRNGMu.Lock()
-	idx := startupQuoteRNG.Intn(len(startupFireQuotes))
-	startupQuoteRNGMu.Unlock()
-	return startupFireQuotes[idx]
+	return PickRandomString(startupFireQuotes)
 }
 
 func StartupFireQuotes() []string {

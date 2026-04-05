@@ -2,12 +2,20 @@ package cmd
 
 import (
 	"fmt"
-	"math/rand"
-	"sync"
-	"time"
 
+	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/flavor"
 )
+
+// FlavorQuotesEnabled reports whether flavor text (TUI quote banner and CLI
+// motivation lines) should appear. Nil cfg defaults to true so messages still
+// show when config has not been loaded yet.
+func FlavorQuotesEnabled(cfg *config.Config) bool {
+	if cfg == nil {
+		return true
+	}
+	return cfg.UI.ShowStartupQuote
+}
 
 var extinguishWaterMessages = []string{
 	"Extinguishing complete. Repos are cool, calm, and pushed.",
@@ -23,21 +31,6 @@ var failedRunEmberMessages = []string{
 	"This spark lives on. Regroup, re-run, reignite.",
 }
 
-var (
-	messageRNG   = rand.New(rand.NewSource(time.Now().UnixNano()))
-	messageRNGMu sync.Mutex
-)
-
-func pickRandomMessage(messages []string) string {
-	if len(messages) == 0 {
-		return ""
-	}
-	messageRNGMu.Lock()
-	idx := messageRNG.Intn(len(messages))
-	messageRNGMu.Unlock()
-	return messages[idx]
-}
-
 func printStartupFireQuote() {
 	quote := flavor.RandomStartupFireQuote()
 	if quote == "" {
@@ -48,7 +41,7 @@ func printStartupFireQuote() {
 }
 
 func printExtinguishWaterMessage() {
-	msg := pickRandomMessage(extinguishWaterMessages)
+	msg := flavor.PickRandomString(extinguishWaterMessages)
 	if msg == "" {
 		return
 	}
@@ -56,7 +49,7 @@ func printExtinguishWaterMessage() {
 }
 
 func printFailedRunEmberMessage() {
-	msg := pickRandomMessage(failedRunEmberMessages)
+	msg := flavor.PickRandomString(failedRunEmberMessages)
 	if msg == "" {
 		return
 	}
