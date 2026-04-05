@@ -24,9 +24,11 @@ func DefaultRegistryPath() (string, error) {
 				home = abs
 			}
 		}
-		path := filepath.Join(home, ".config", "git-fire", "repos.toml")
-		fmt.Fprintf(os.Stderr, "warning: using fallback registry path %q\n", path)
-		return path, nil
+		if filepath.IsAbs(home) {
+			path := filepath.Join(home, ".config", "git-fire", "repos.toml")
+			fmt.Fprintf(os.Stderr, "warning: using fallback registry path %q\n", path)
+			return path, nil
+		}
 	}
 
 	if wd, wdErr := os.Getwd(); wdErr == nil {
