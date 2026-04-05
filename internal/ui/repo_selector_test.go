@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/git-fire/git-fire/internal/config"
@@ -500,6 +501,220 @@ func TestRepoSelectorModel_FireTickFromConfig(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_StartupQuoteConfigFromStreamModel(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorHide
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	if !m.showStartupQuote {
+		t.Fatal("showStartupQuote should be true from config")
+	}
+	if m.startupQuoteBehavior != config.UIQuoteBehaviorHide {
+		t.Fatalf("startupQuoteBehavior = %q, want %q", m.startupQuoteBehavior, config.UIQuoteBehaviorHide)
+	}
+	if got := int(m.startupQuoteInterval.Seconds()); got != 10 {
+		t.Fatalf("startupQuoteInterval = %ds, want 10s", got)
+	}
+	if !m.startupQuoteVisible {
+		t.Fatal("startupQuoteVisible should start true when quotes enabled")
+	}
+}
+
+func TestRepoSelectorModel_QuoteTick_HideBehavior(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = true
+	m.startupQuoteBehavior = config.UIQuoteBehaviorHide
+	m.startupQuoteInterval = 10 * time.Second
+	m.currentStartupQuote = "Fire walk with me."
+	m.startupQuoteVisible = true
+
+	updated, cmd := m.Update(quoteTickMsg(time.Now()))
+	got, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	if got.startupQuoteVisible {
+		t.Fatal("quote should be hidden after tick when behavior=hide")
+	}
+	if got.quoteTickActive {
+		t.Fatal("quote tick should stop after hide behavior hides the quote")
+	}
+	if cmd != nil {
+		t.Fatal("hide behavior should not schedule another quote tick")
+	}
+}
+
+func TestRepoSelectorModel_QuoteTick_HideDeferredWhileScanStreaming(t *testing.T) {
+	scanCh := make(chan git.Repository)
+	progCh := make(chan string)
+	cfg := config.DefaultConfig()
+	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorHide
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModelStream(scanCh, progCh, false, false, &cfg, "", nil, "")
+	if m.scanDone {
+		t.Fatal("sanity: scan should not be done at stream start")
+	}
+	m.currentStartupQuote = "Still scanning."
+	m.startupQuoteVisible = true
+
+	updated, cmd := m.Update(quoteTickMsg(time.Now()))
+	got, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	if !got.startupQuoteVisible {
+		t.Fatal("quote should stay visible while scan is streaming and hide tick fires")
+	}
+	if !got.quoteTickActive {
+		t.Fatal("quote tick should reschedule until scan finishes")
+	}
+	if cmd == nil {
+		t.Fatal("expected a follow-up quote tick cmd while scan is in progress")
+	}
+
+	got.scanDone = true
+	updated2, cmd2 := got.Update(quoteTickMsg(time.Now()))
+	after := updated2.(RepoSelectorModel)
+	if after.startupQuoteVisible {
+		t.Fatal("quote should hide on hide tick after scan completes")
+	}
+	if cmd2 != nil {
+		t.Fatal("hide should not schedule another tick after hiding")
+	}
+}
+
+func TestRepoSelectorModel_QuoteTick_NoOpWhenQuotesDisabled(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = false
+	m.startupQuoteBehavior = config.UIQuoteBehaviorRefresh
+	m.startupQuoteInterval = 10 * time.Second
+	m.currentStartupQuote = "unchanged"
+	m.startupQuoteVisible = true
+
+	updated, _ := m.Update(quoteTickMsg(time.Now()))
+	got, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	if got.currentStartupQuote != "unchanged" {
+		t.Fatalf("quote changed while disabled: got %q", got.currentStartupQuote)
+	}
+	if !got.startupQuoteVisible {
+		t.Fatal("quote visibility should remain unchanged when quotes are disabled")
+	}
+}
+
+func TestRepoSelectorModel_QuoteTick_RefreshBehavior(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = true
+	m.startupQuoteBehavior = config.UIQuoteBehaviorRefresh
+	m.startupQuoteInterval = 10 * time.Second
+	m.currentStartupQuote = ""
+	m.startupQuoteVisible = false
+
+	updated, _ := m.Update(quoteTickMsg(time.Now()))
+	got, ok := updated.(RepoSelectorModel)
+	if !ok {
+		t.Fatalf("Update() returned %T, want RepoSelectorModel", updated)
+	}
+	if !got.startupQuoteVisible {
+		t.Fatal("quote should be visible after tick when behavior=refresh")
+	}
+	if got.currentStartupQuote == "" {
+		t.Fatal("quote should refresh to a non-empty value")
+	}
+}
+
+func TestRepoSelectorModel_SyncRuntimeFromConfig_DoesNotDuplicateQuoteTickOrReshow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.cfg = &cfg
+	m.showStartupQuote = true
+	m.startupQuoteVisible = false
+	m.quoteTickActive = true
+
+	updated, cmds := m.syncRuntimeFromConfig(nil)
+
+	if updated.startupQuoteVisible {
+		t.Fatal("syncRuntimeFromConfig should not force hidden quote visible on unrelated config changes")
+	}
+	if len(cmds) != 0 {
+		t.Fatalf("syncRuntimeFromConfig should not enqueue duplicate quote ticks when one is already active; got %d cmds", len(cmds))
+	}
+	if !updated.quoteTickActive {
+		t.Fatal("quote tick should remain active when already running")
+	}
+}
+
+func TestRepoSelectorModel_SyncRuntimeFromConfig_ToggleOnReshowsAndSchedulesTick(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.cfg = &cfg
+	m.showStartupQuote = false
+	m.startupQuoteVisible = false
+	m.quoteTickActive = false
+
+	updated, cmds := m.syncRuntimeFromConfig(nil)
+
+	if !updated.startupQuoteVisible {
+		t.Fatal("syncRuntimeFromConfig should show quote when startup quote is toggled on")
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("syncRuntimeFromConfig should enqueue one quote tick when enabling startup quote; got %d cmds", len(cmds))
+	}
+	if !updated.quoteTickActive {
+		t.Fatal("quote tick should be marked active after scheduling")
+	}
+}
+
+func TestRepoSelectorModel_QuoteVisibleHelper(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = true
+	m.startupQuoteVisible = true
+	m.currentStartupQuote = "A light in the dark provides hope."
+	if !m.quoteVisible() {
+		t.Fatal("quoteVisible should be true when all quote flags are set")
+	}
+
+	m.currentStartupQuote = ""
+	if m.quoteVisible() {
+		t.Fatal("quoteVisible should be false with empty quote text")
+	}
+}
+
+func TestRepoSelectorModel_View_HidesQuoteBannerWhenNotVisible(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = true
+	m.startupQuoteVisible = false
+	m.currentStartupQuote = "A light in the dark provides hope."
+
+	view := m.View()
+	if strings.Contains(view, `🔥 "A light in the dark provides hope."`) {
+		t.Fatalf("did not expect startup quote banner in view, got: %q", view)
+	}
+}
+
+func TestRepoSelectorModel_View_ShowsQuoteBannerWhenVisible(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.showStartupQuote = true
+	m.startupQuoteVisible = true
+	m.currentStartupQuote = "A light in the dark provides hope."
+
+	view := m.View()
+	if !strings.Contains(view, `🔥 "A light in the dark provides hope."`) {
+		t.Fatalf("expected startup quote banner in view, got: %q", view)
+	}
+}
+
 func TestRepoSelectorModel_FKeyTogglesShowFire(t *testing.T) {
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.windowHeight = 40 // large enough that auto-suppress doesn't interfere
@@ -670,6 +885,30 @@ func TestRepoSelectorModel_IgnoredListVisibleCount_NarrowWidthMoreChrome(t *test
 	}
 }
 
+func TestRepoSelectorModel_QuoteWrappingAffectsMeasuredHeights(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.windowWidth = 40
+	m.windowHeight = 40
+	m.showFire = false
+	m.showStartupQuote = true
+	m.startupQuoteVisible = true
+
+	m.currentStartupQuote = "short quote"
+	shortIgnored := m.ignoredViewNonListHeight()
+	shortVisible := m.repoListVisibleCount()
+
+	m.currentStartupQuote = strings.Repeat("From ember to branch, every change deserves shelter. ", 3)
+	longIgnored := m.ignoredViewNonListHeight()
+	longVisible := m.repoListVisibleCount()
+
+	if longIgnored <= shortIgnored {
+		t.Fatalf("expected long wrapped quote to increase ignored view non-list height: long=%d short=%d", longIgnored, shortIgnored)
+	}
+	if longVisible >= shortVisible {
+		t.Fatalf("expected long wrapped quote to reduce visible repo rows: long=%d short=%d", longVisible, shortVisible)
+	}
+}
+
 func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowFireAnimation = true
@@ -691,24 +930,77 @@ func TestRepoSelectorModel_ShowFireAnimationConfigRow(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_ShowStartupQuoteConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.ShowStartupQuote = true
+
+	// Row 6 is "Show flavor quotes" (ui.show_startup_quote)
+	val := configRowValue(6, &cfg)
+	if val != "true" {
+		t.Errorf("configRowValue(6) = %q, want %q", val, "true")
+	}
+
+	applyConfigChange(6, &cfg, 0) // direction ignored for bools
+	if cfg.UI.ShowStartupQuote {
+		t.Error("applyConfigChange(6) should have toggled ShowStartupQuote to false")
+	}
+}
+
+func TestRepoSelectorModel_StartupQuoteBehaviorConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorRefresh
+
+	// Row 7 is "Flavor quote behavior"
+	val := configRowValue(7, &cfg)
+	if val != config.UIQuoteBehaviorRefresh {
+		t.Errorf("configRowValue(7) = %q, want %q", val, config.UIQuoteBehaviorRefresh)
+	}
+
+	applyConfigChange(7, &cfg, +1)
+	if cfg.UI.StartupQuoteBehavior != config.UIQuoteBehaviorHide {
+		t.Errorf("applyConfigChange(7,+1) = %q, want %q", cfg.UI.StartupQuoteBehavior, config.UIQuoteBehaviorHide)
+	}
+}
+
+func TestRepoSelectorModel_StartupQuoteIntervalConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.StartupQuoteIntervalSec = 10
+
+	// Row 8 is "Flavor quote interval (s)"
+	val := configRowValue(8, &cfg)
+	if val != "10" {
+		t.Errorf("configRowValue(8) = %q, want %q", val, "10")
+	}
+
+	applyConfigChange(8, &cfg, +1)
+	if cfg.UI.StartupQuoteIntervalSec != 15 {
+		t.Errorf("applyConfigChange(8,+1) = %d, want %d", cfg.UI.StartupQuoteIntervalSec, 15)
+	}
+
+	applyConfigChange(8, &cfg, -1)
+	if cfg.UI.StartupQuoteIntervalSec != 10 {
+		t.Errorf("applyConfigChange(8,-1) = %d, want %d", cfg.UI.StartupQuoteIntervalSec, 10)
+	}
+}
+
 func TestRepoSelectorModel_FireSpeedConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.FireTickMS = 180
 
-	// Row 6 is "Fire speed (ms)"
-	val := configRowValue(6, &cfg)
+	// Row 9 is "Fire speed (ms)"
+	val := configRowValue(9, &cfg)
 	if val != "180" {
-		t.Errorf("configRowValue(6) = %q, want %q", val, "180")
+		t.Errorf("configRowValue(9) = %q, want %q", val, "180")
 	}
 
-	applyConfigChange(6, &cfg, +1)
+	applyConfigChange(9, &cfg, +1)
 	if cfg.UI.FireTickMS != 220 {
-		t.Errorf("applyConfigChange(6,+1) = %d, want %d", cfg.UI.FireTickMS, 220)
+		t.Errorf("applyConfigChange(9,+1) = %d, want %d", cfg.UI.FireTickMS, 220)
 	}
 
-	applyConfigChange(6, &cfg, -1)
+	applyConfigChange(9, &cfg, -1)
 	if cfg.UI.FireTickMS != 180 {
-		t.Errorf("applyConfigChange(6,-1) = %d, want %d", cfg.UI.FireTickMS, 180)
+		t.Errorf("applyConfigChange(9,-1) = %d, want %d", cfg.UI.FireTickMS, 180)
 	}
 }
 
@@ -716,15 +1008,15 @@ func TestRepoSelectorModel_FireSpeedConfigRow_FromCustomOverride(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.FireTickMS = 175 // manual override not present in presets
 
-	applyConfigChange(6, &cfg, +1)
+	applyConfigChange(9, &cfg, +1)
 	if cfg.UI.FireTickMS != 180 {
-		t.Errorf("applyConfigChange custom +1 = %d, want %d", cfg.UI.FireTickMS, 180)
+		t.Errorf("applyConfigChange(9) custom +1 = %d, want %d", cfg.UI.FireTickMS, 180)
 	}
 
 	cfg.UI.FireTickMS = 175
-	applyConfigChange(6, &cfg, -1)
+	applyConfigChange(9, &cfg, -1)
 	if cfg.UI.FireTickMS != 150 {
-		t.Errorf("applyConfigChange custom -1 = %d, want %d", cfg.UI.FireTickMS, 150)
+		t.Errorf("applyConfigChange(9) custom -1 = %d, want %d", cfg.UI.FireTickMS, 150)
 	}
 }
 
@@ -753,15 +1045,15 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ColorProfile = config.UIColorProfileClassic
 
-	// Row 7 is "Color profile"
-	val := configRowValue(7, &cfg)
+	// Row 10 is "Color profile"
+	val := configRowValue(10, &cfg)
 	if val != config.UIColorProfileClassic {
-		t.Errorf("configRowValue(7) = %q, want %q", val, config.UIColorProfileClassic)
+		t.Errorf("configRowValue(10) = %q, want %q", val, config.UIColorProfileClassic)
 	}
 
-	applyConfigChange(7, &cfg, +1)
+	applyConfigChange(10, &cfg, +1)
 	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
-		t.Error("applyConfigChange(7,+1) should move to next color profile")
+		t.Error("applyConfigChange(10,+1) should move to next color profile")
 	}
 }
 
@@ -769,13 +1061,13 @@ func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
 	cfg := config.DefaultConfig()
 	beforeProfile := cfg.UI.ColorProfile
 
-	// Row 8 is "Custom hex palette" and should be non-editable for now.
-	val := configRowValue(8, &cfg)
+	// Row 11 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(11, &cfg)
 	if val == "" {
-		t.Fatal("configRowValue(8) should show a placeholder/preview string")
+		t.Fatal("configRowValue(11) should show a placeholder/preview string")
 	}
 
-	applyConfigChange(8, &cfg, +1)
+	applyConfigChange(11, &cfg, +1)
 	if cfg.UI.ColorProfile != beforeProfile {
 		t.Error("coming-soon row should not mutate config")
 	}
