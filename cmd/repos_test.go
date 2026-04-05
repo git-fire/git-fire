@@ -121,7 +121,7 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 			{Path: repo.Path(), Name: "tracked", Status: registry.StatusActive},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	regPath := testRegistryPath(t)
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -140,12 +140,12 @@ func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
 
-	// Write a corrupt registry file
-	regDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(regDir, 0o700); err != nil {
+	// Write a corrupt registry file at the same path the app resolves (e.g. macOS Application Support).
+	regPath := testRegistryPath(t)
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(regDir, "repos.toml"), []byte("not valid toml [[["), 0o600); err != nil {
+	if err := os.WriteFile(regPath, []byte("not valid toml [[["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -190,7 +190,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 			{Path: targetPath, Name: "locked", Status: registry.StatusMissing},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	regPath := testRegistryPath(t)
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -223,12 +223,11 @@ func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
 
-	// Corrupt the registry file
-	regDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(regDir, 0o700); err != nil {
+	regPath := testRegistryPath(t)
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(regDir, "repos.toml"), []byte("not valid toml [[["), 0o600); err != nil {
+	if err := os.WriteFile(regPath, []byte("not valid toml [[["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -330,6 +329,16 @@ func setTestUserDirs(t *testing.T, home string) {
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
 	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+}
+
+// testRegistryPath returns the path handleStatus/runGitFire use after setTestUserDirs (matches macOS vs XDG layout).
+func testRegistryPath(t *testing.T) string {
+	t.Helper()
+	p, err := registry.DefaultRegistryPath()
+	if err != nil {
+		t.Fatalf("DefaultRegistryPath: %v", err)
+	}
+	return p
 }
 
 func TestLoadRegistry(t *testing.T) {

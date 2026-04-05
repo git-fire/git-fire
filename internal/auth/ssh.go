@@ -228,11 +228,14 @@ func writeAskpassScript(passphrase string) (name string, cleanup func(), err err
 		script = fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\n", escaped)
 	}
 	if _, err := f.WriteString(script); err != nil {
-		f.Close()
+		_ = f.Close()
 		cleanup()
 		return "", func() {}, err
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(name, 0o700); err != nil {
 			cleanup()
