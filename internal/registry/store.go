@@ -13,30 +13,44 @@ import (
 // in the user config directory (same directory as config.toml).
 func DefaultRegistryPath() (string, error) {
 	base, err := os.UserConfigDir()
-	if err != nil {
-		home, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			base = os.TempDir()
-			if !filepath.IsAbs(base) {
-				if abs, absErr := filepath.Abs(base); absErr == nil {
-					base = abs
-				}
-			}
-			path := filepath.Join(base, "git-fire", "repos.toml")
-			fmt.Fprintf(os.Stderr, "warning: using temporary registry fallback %q; this path may not persist across reboots\n", path)
-			return path, nil
-		}
+	if err == nil {
+		return filepath.Join(base, "git-fire", "repos.toml"), nil
+	}
+
+	home, homeErr := os.UserHomeDir()
+	if homeErr == nil {
 		if !filepath.IsAbs(home) {
 			if abs, absErr := filepath.Abs(home); absErr == nil {
 				home = abs
 			}
 		}
-		base = filepath.Join(home, ".config")
-		path := filepath.Join(base, "git-fire", "repos.toml")
+		path := filepath.Join(home, ".config", "git-fire", "repos.toml")
 		fmt.Fprintf(os.Stderr, "warning: using fallback registry path %q\n", path)
 		return path, nil
 	}
-	return filepath.Join(base, "git-fire", "repos.toml"), nil
+
+	if wd, wdErr := os.Getwd(); wdErr == nil {
+		if !filepath.IsAbs(wd) {
+			if abs, absErr := filepath.Abs(wd); absErr == nil {
+				wd = abs
+			}
+		}
+		if filepath.IsAbs(wd) {
+			path := filepath.Join(wd, "git-fire", "repos.toml")
+			fmt.Fprintf(os.Stderr, "warning: using working-directory registry fallback %q\n", path)
+			return path, nil
+		}
+	}
+
+	base = os.TempDir()
+	if !filepath.IsAbs(base) {
+		if abs, absErr := filepath.Abs(base); absErr == nil {
+			base = abs
+		}
+	}
+	path := filepath.Join(base, "git-fire", "repos.toml")
+	fmt.Fprintf(os.Stderr, "warning: using temporary registry fallback %q; this path may not persist across reboots\n", path)
+	return path, nil
 }
 
 // Load reads the registry from disk. If the file or directory does not exist
