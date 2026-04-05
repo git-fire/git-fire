@@ -257,6 +257,12 @@ Plugin support is in active development. Command plugin internals exist, but def
 
 See [docs/agentic-flows.md](docs/agentic-flows.md).
 
+## USB Mode (coming soon)
+
+USB mode is planned as a first-class backup destination. The initial release will support syncing repos to one or more USB targets (including plain folder mounts), with incremental git-native updates and a per-target `.git-fire` marker/config at the destination root.
+
+Detailed design and rollout notes will be documented in `docs/USB_MODE.md` as implementation lands.
+
 ### TUI color profiles
 
 You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
