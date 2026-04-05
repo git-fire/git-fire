@@ -476,7 +476,11 @@ func TestDefaultConfigPath_UsesUserConfigDir(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdgHome)
 
 	path := DefaultConfigPath()
-	want := filepath.Join(xdgHome, "git-fire", "config.toml")
+	cfgBase, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("os.UserConfigDir: %v", err)
+	}
+	want := filepath.Join(cfgBase, "git-fire", "config.toml")
 	if path != want {
 		t.Fatalf("expected path %q, got %q", want, path)
 	}
