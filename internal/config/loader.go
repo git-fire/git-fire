@@ -20,7 +20,7 @@ type LoadOptions struct {
 // Priority (highest to lowest):
 //  1. Environment variables (GIT_FIRE_*)
 //  2. Explicit --config file (optional)
-//  3. ~/.config/git-fire/config.toml (user config)
+//  3. user config dir/git-fire/config.toml (user config)
 //  4. Default config
 func Load() (*Config, error) {
 	return LoadWithOptions(LoadOptions{})
@@ -37,9 +37,13 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 
-	// Add config paths
-	v.AddConfigPath("$HOME/.config/git-fire") // User config
-	v.AddConfigPath("/etc/git-fire")          // System config
+	// Add user config path via a shared resolver so read/write behavior stays aligned.
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	v.AddConfigPath(userCfgDir)
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
+	}
+	v.AddConfigPath("/etc/git-fire") // System config
 	if opts.ConfigFile != "" {
 		v.SetConfigFile(opts.ConfigFile)
 	}
@@ -246,10 +250,81 @@ func WriteExampleConfig(path string) error {
 	return nil
 }
 
-// DefaultConfigPath returns the default user config path
+// DefaultConfigPath returns the default user config file path.
 func DefaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "git-fire", "config.toml")
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
+	}
+	return filepath.Join(userCfgDir, "config.toml")
+}
+
+func userConfigDir() (string, error) {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine user config directory: %w", err)
+	}
+	return filepath.Join(base, "git-fire"), nil
+}
+
+func fallbackUserConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine home directory for fallback: %w", err)
+	}
+	if !filepath.IsAbs(home) {
+		abs, absErr := filepath.Abs(home)
+		if absErr != nil {
+			return "", fmt.Errorf("fallback home directory is not absolute (%q): %w", home, absErr)
+		}
+		home = abs
+	}
+	return filepath.Join(home, ".config", "git-fire"), nil
+}
+
+func resolvedUserConfigDir() (string, string) {
+	if dir, err := userConfigDir(); err == nil {
+		return dir, ""
+	}
+	if dir, err := fallbackUserConfigDir(); err == nil {
+		return dir, fmt.Sprintf("using fallback user config directory %q", dir)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if !filepath.IsAbs(wd) {
+			if abs, absErr := filepath.Abs(wd); absErr == nil {
+				wd = abs
+			}
+		}
+		if filepath.IsAbs(wd) {
+			dir := filepath.Join(wd, "git-fire")
+			return dir, fmt.Sprintf("using working-directory config fallback %q", dir)
+		}
+	}
+	tempBase := os.TempDir()
+	if !filepath.IsAbs(tempBase) {
+		if abs, absErr := filepath.Abs(tempBase); absErr == nil {
+			tempBase = abs
+		}
+	}
+	dir := filepath.Join(tempBase, "git-fire")
+	return dir, fmt.Sprintf("using temporary config fallback %q; this path may not persist across reboots", dir)
+}
+
+// UserGitFireDir returns the per-user git-fire application directory (the parent
+// of config.toml and repos.toml). The warning string is non-empty when a
+// non-primary fallback from resolvedUserConfigDir is in use.
+func UserGitFireDir() (dir string, warning string) {
+	return resolvedUserConfigDir()
+}
+
+// WarnIfFallbackUserGitFireDir prints a stderr warning when UserGitFireDir used
+// a fallback. Call from code paths that resolve the registry without loading
+// config (so LoadWithOptions has not already emitted the same warning).
+func WarnIfFallbackUserGitFireDir() {
+	_, w := resolvedUserConfigDir()
+	if w != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
 }
 
 // ParseDuration parses duration strings (supports Viper's format)

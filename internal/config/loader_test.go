@@ -471,6 +471,21 @@ func TestDefaultConfigPath(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigPath_UsesUserConfigDir(t *testing.T) {
+	xdgHome := filepath.Join(t.TempDir(), "xdg")
+	t.Setenv("XDG_CONFIG_HOME", xdgHome)
+
+	path := DefaultConfigPath()
+	cfgBase, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("os.UserConfigDir: %v", err)
+	}
+	want := filepath.Join(cfgBase, "git-fire", "config.toml")
+	if path != want {
+		t.Fatalf("expected path %q, got %q", want, path)
+	}
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))

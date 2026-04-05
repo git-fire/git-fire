@@ -331,7 +331,22 @@ func TestDefaultRegistryPath(t *testing.T) {
 	if filepath.Base(parent) != "git-fire" {
 		t.Errorf("expected parent dir git-fire, got %q", filepath.Base(parent))
 	}
-	if filepath.Base(filepath.Dir(parent)) != ".config" {
-		t.Errorf("expected ~/.config/git-fire/repos.toml, got parent of git-fire = %q", filepath.Base(filepath.Dir(parent)))
+}
+
+func TestDefaultRegistryPath_UsesUserConfigDir(t *testing.T) {
+	xdgHome := filepath.Join(t.TempDir(), "xdg")
+	t.Setenv("XDG_CONFIG_HOME", xdgHome)
+
+	path, err := DefaultRegistryPath()
+	if err != nil {
+		t.Fatalf("DefaultRegistryPath() error: %v", err)
+	}
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("os.UserConfigDir() error: %v", err)
+	}
+	want := filepath.Join(cfgDir, "git-fire", "repos.toml")
+	if path != want {
+		t.Fatalf("expected path %q, got %q", want, path)
 	}
 }

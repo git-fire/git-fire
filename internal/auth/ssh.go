@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -186,40 +187,77 @@ func addKeyWithPassphrase(keyPath, passphrase string) error {
 	return nil
 }
 
-// writeAskpassScript creates a temporary SSH_ASKPASS helper script in
-// ~/.cache/git-fire/ that outputs passphrase when invoked by ssh-keygen.
+// writeAskpassScript creates a temporary SSH_ASKPASS helper script in the
+// user cache dir (git-fire subdirectory) that outputs passphrase when invoked
+// by ssh-keygen.
 // Using an app-owned directory avoids noexec tmpfs mounts on hardened hosts.
 // The caller must invoke the returned cleanup function when done.
 func writeAskpassScript(passphrase string) (name string, cleanup func(), err error) {
-	home, err := os.UserHomeDir()
+	base, err := os.UserCacheDir()
 	if err != nil {
-		return "", func() {}, err
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", func() {}, err
+		}
+		base = filepath.Join(home, ".cache")
 	}
-	dir := filepath.Join(home, ".cache", "git-fire")
+	dir := filepath.Join(base, "git-fire")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", func() {}, err
 	}
-	f, err := os.CreateTemp(dir, "gf-askpass-*.sh")
+	pattern := "gf-askpass-*.sh"
+	if runtime.GOOS == "windows" {
+		pattern = "gf-askpass-*.cmd"
+	}
+	f, err := os.CreateTemp(dir, pattern)
 	if err != nil {
 		return "", func() {}, err
 	}
 	name = f.Name()
 	cleanup = func() { os.Remove(name) }
-	// Use printf to avoid a trailing newline that could mismatch the passphrase.
-	// Single-quote the passphrase; escape any embedded single quotes.
-	escaped := strings.ReplaceAll(passphrase, "'", `'\''`)
-	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\n", escaped)
+	// Emit a platform-native askpass helper. Windows OpenSSH expects an
+	// executable command file (.cmd), while Unix uses a shell script.
+	var script string
+	if runtime.GOOS == "windows" {
+		escaped := escapeForCmdSetP(passphrase)
+		script = fmt.Sprintf("@echo off\r\n<nul set /p =%s\r\n", escaped)
+	} else {
+		// Use printf to avoid a trailing newline that could mismatch the passphrase.
+		// Single-quote the passphrase; escape any embedded single quotes.
+		escaped := strings.ReplaceAll(passphrase, "'", `'\''`)
+		script = fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s'\n", escaped)
+	}
 	if _, err := f.WriteString(script); err != nil {
-		f.Close()
+		_ = f.Close()
 		cleanup()
 		return "", func() {}, err
 	}
-	f.Close()
-	if err := os.Chmod(name, 0o700); err != nil {
+	if err := f.Close(); err != nil {
 		cleanup()
 		return "", func() {}, err
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(name, 0o700); err != nil {
+			cleanup()
+			return "", func() {}, err
+		}
 	}
 	return name, cleanup, nil
+}
+
+func escapeForCmdSetP(s string) string {
+	replacer := strings.NewReplacer(
+		"^", "^^",
+		`"`, `^"`,
+		"&", "^&",
+		"|", "^|",
+		"<", "^<",
+		">", "^>",
+		"(", "^(",
+		")", "^)",
+		"%", "%%",
+	)
+	return replacer.Replace(s)
 }
 
 // TestPassphrase tests if a passphrase is correct for a key.

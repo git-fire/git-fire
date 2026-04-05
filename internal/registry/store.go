@@ -7,16 +7,15 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/git-fire/git-fire/internal/config"
 )
 
-// DefaultRegistryPath returns the default path for the registry file:
-// ~/.config/git-fire/repos.toml (same directory as config.toml).
+// DefaultRegistryPath returns the default path for the registry file
+// in the user config directory (same directory as config.toml).
 func DefaultRegistryPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("could not determine home directory: %w", err)
-	}
-	return filepath.Join(home, ".config", "git-fire", "repos.toml"), nil
+	dir, _ := config.UserGitFireDir()
+	return filepath.Join(dir, "repos.toml"), nil
 }
 
 // Load reads the registry from disk. If the file or directory does not exist

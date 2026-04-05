@@ -17,8 +17,8 @@ import (
 var reposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Manage the persistent repository registry",
-	Long: `Manage the persistent repository registry stored at ~/.config/git-fire/repos.toml
-(same directory as config.toml).
+	Long: `Manage the persistent repository registry stored in your user config
+directory (git-fire/repos.toml, same directory as config.toml).
 
 The registry tracks all git repositories that git-fire has discovered, so that
 future runs load them instantly without re-scanning the filesystem.`,
@@ -87,6 +87,7 @@ func loadRegistry() (*registry.Registry, string, error) {
 }
 
 func reposList(_ *cobra.Command, _ []string) error {
+	config.WarnIfFallbackUserGitFireDir()
 	reg, _, err := loadRegistry()
 	if err != nil {
 		return err
@@ -195,6 +196,7 @@ func reposScan(_ *cobra.Command, args []string) error {
 }
 
 func reposRemove(_ *cobra.Command, args []string) error {
+	config.WarnIfFallbackUserGitFireDir()
 	reg, regPath, err := loadRegistry()
 	if err != nil {
 		return err
@@ -226,6 +228,7 @@ func reposUnignore(_ *cobra.Command, args []string) error {
 }
 
 func setRepoStatus(rawPath, status, label string) error {
+	config.WarnIfFallbackUserGitFireDir()
 	reg, regPath, err := loadRegistry()
 	if err != nil {
 		return err
