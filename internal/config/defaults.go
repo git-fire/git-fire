@@ -5,6 +5,12 @@ import "time"
 const DefaultPushWorkers = 4
 const DefaultUIFireTickMS = 180
 const DefaultUIStartupQuoteIntervalSec = 10
+const DefaultUSBWorkers = 1
+const MinUSBWorkers = 1
+const MaxUSBWorkers = 64
+const DefaultUSBTargetWorkers = 1
+const MinUSBTargetWorkers = 1
+const MaxUSBTargetWorkers = 64
 
 // MinUIFireTickMS and MaxUIFireTickMS clamp ui.fire_tick_ms after load (see
 // Config.Validate). That field becomes the Bubble Tea program's tick period: the
@@ -57,8 +63,8 @@ func DefaultConfig() Config {
 		},
 		USB: USBConfig{
 			Strategy:      "git-mirror",
-			Workers:       1,
-			TargetWorkers: 1,
+			Workers:       DefaultUSBWorkers,
+			TargetWorkers: DefaultUSBTargetWorkers,
 			CreateOnFirst: false,
 			SyncPolicy:    "keep",
 			Targets:       []USBTargetConfig{},

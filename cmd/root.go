@@ -262,11 +262,16 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 
 	targetCfg := make(map[string]*usb.VolumeConfig, len(targets))
 	normalizedTargets := make([]string, 0, len(targets))
+	seenNormalizedTargets := make(map[string]struct{}, len(targets))
 	for _, rawTarget := range targets {
 		absTarget, err := filepath.Abs(rawTarget)
 		if err != nil {
 			return fmt.Errorf("invalid usb target %q: %w", rawTarget, err)
 		}
+		if _, ok := seenNormalizedTargets[absTarget]; ok {
+			continue
+		}
+		seenNormalizedTargets[absTarget] = struct{}{}
 		cfgForTarget, err := usb.EnsureVolumeConfig(absTarget, usb.EnsureOptions{
 			DefaultStrategy: cfg.USB.Strategy,
 			CreateIfMissing: usbInit || cfg.USB.CreateOnFirst,
@@ -446,7 +451,7 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 						}
 					}
 					reposRoot := usb.TargetReposRoot(action.TargetRoot, targetCfg[action.TargetRoot])
-					if err := os.MkdirAll(reposRoot, 0o755); err != nil {
+					if err := os.MkdirAll(reposRoot, 0o700); err != nil {
 						recordFailure(repo.Name, action.TargetRoot, err)
 						recordManifestOutcome(&manifestMu, m, repo, action.Destination, err)
 						<-targetSem

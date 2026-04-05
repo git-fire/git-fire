@@ -649,9 +649,7 @@ func TestPruneUSBTarget_PreservesAllPlannedDestinations(t *testing.T) {
 
 func TestRunUSB_DryRun_UsesPlannedDestinationFromOverrides(t *testing.T) {
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	scenario := testutil.NewScenario(t)
 	repo := scenario.CreateRepo("app").
@@ -705,6 +703,52 @@ func TestRunUSB_DryRun_UsesPlannedDestinationFromOverrides(t *testing.T) {
 	}
 	if strings.Contains(output, expectedDest+".git") {
 		t.Fatalf("did not expect .git suffix to be appended for override destination, got %q", output)
+	}
+}
+
+func TestRunUSB_DedupsNormalizedTargetsBeforeLocking(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("app").
+		AddFile("README.md", "hello\n").
+		Commit("init")
+
+	repoPath := repo.Path()
+	targetRoot := t.TempDir()
+
+	cfg := config.DefaultConfig()
+	cfg.USB.CreateOnFirst = true
+	cfg.USB.Strategy = usb.StrategyMirror
+	cfg.USB.SyncPolicy = "keep"
+	cfg.USB.Workers = 1
+	cfg.USB.TargetWorkers = 1
+
+	reg := &registry.Registry{
+		Repos: []registry.RegistryEntry{
+			{
+				Path:     repoPath,
+				Name:     "app",
+				Status:   registry.StatusActive,
+				Mode:     cfg.Global.DefaultMode,
+				AddedAt:  time.Now(),
+				LastSeen: time.Now(),
+			},
+		},
+	}
+
+	opts := git.DefaultScanOptions()
+	opts.DisableScan = true
+	opts.KnownPaths = map[string]bool{repoPath: false}
+
+	resetFlags()
+	dryRun = false
+
+	dupPathWithTrailingSlash := targetRoot + string(os.PathSeparator)
+	runErr := runUSB(&cfg, reg, "", opts, []string{targetRoot, dupPathWithTrailingSlash})
+	if runErr != nil {
+		t.Fatalf("expected duplicate normalized targets to be handled, got error: %v", runErr)
 	}
 }
 

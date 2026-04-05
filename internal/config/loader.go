@@ -183,10 +183,18 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid usb.strategy: %s (must be git-mirror or git-clone)", c.USB.Strategy)
 	}
 	if c.USB.Workers <= 0 {
-		c.USB.Workers = 1
+		c.USB.Workers = DefaultUSBWorkers
+	} else if c.USB.Workers < MinUSBWorkers {
+		c.USB.Workers = MinUSBWorkers
+	} else if c.USB.Workers > MaxUSBWorkers {
+		c.USB.Workers = MaxUSBWorkers
 	}
 	if c.USB.TargetWorkers <= 0 {
-		c.USB.TargetWorkers = 1
+		c.USB.TargetWorkers = DefaultUSBTargetWorkers
+	} else if c.USB.TargetWorkers < MinUSBTargetWorkers {
+		c.USB.TargetWorkers = MinUSBTargetWorkers
+	} else if c.USB.TargetWorkers > MaxUSBTargetWorkers {
+		c.USB.TargetWorkers = MaxUSBTargetWorkers
 	}
 	if c.USB.SyncPolicy == "" {
 		c.USB.SyncPolicy = "keep"

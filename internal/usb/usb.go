@@ -92,7 +92,7 @@ func StableRepoName(repoPath, repoName string) string {
 }
 
 func SyncMirrorRepo(sourceRepoPath, destinationBarePath string) error {
-	if err := os.MkdirAll(filepath.Dir(destinationBarePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destinationBarePath), 0o700); err != nil {
 		return fmt.Errorf("failed creating destination parent: %w", err)
 	}
 	if _, err := os.Stat(destinationBarePath); os.IsNotExist(err) {
@@ -112,7 +112,7 @@ func SyncMirrorRepo(sourceRepoPath, destinationBarePath string) error {
 
 func SyncCloneRepo(sourceRepoPath, destinationPath string) error {
 	if _, err := os.Stat(destinationPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(destinationPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(destinationPath), 0o700); err != nil {
 			return fmt.Errorf("failed creating clone destination parent: %w", err)
 		}
 		if err := runGit("", "clone", sourceRepoPath, destinationPath); err != nil {

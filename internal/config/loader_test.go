@@ -169,6 +169,7 @@ func TestValidate_USBDefaultsAndStrategy(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.USB.Strategy = ""
 	cfg.USB.Workers = 0
+	cfg.USB.TargetWorkers = 0
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -184,6 +185,19 @@ func TestValidate_USBDefaultsAndStrategy(t *testing.T) {
 	}
 	if cfg.USB.SyncPolicy != "keep" {
 		t.Fatalf("expected default usb sync policy keep, got %s", cfg.USB.SyncPolicy)
+	}
+
+	cfg4 := DefaultConfig()
+	cfg4.USB.Workers = MaxUSBWorkers + 1
+	cfg4.USB.TargetWorkers = MaxUSBTargetWorkers + 1
+	if err := cfg4.Validate(); err != nil {
+		t.Fatalf("Validate() with oversized usb workers error = %v", err)
+	}
+	if cfg4.USB.Workers != MaxUSBWorkers {
+		t.Fatalf("expected usb workers clamp to %d, got %d", MaxUSBWorkers, cfg4.USB.Workers)
+	}
+	if cfg4.USB.TargetWorkers != MaxUSBTargetWorkers {
+		t.Fatalf("expected usb target workers clamp to %d, got %d", MaxUSBTargetWorkers, cfg4.USB.TargetWorkers)
 	}
 
 	cfg2 := DefaultConfig()
