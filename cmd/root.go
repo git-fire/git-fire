@@ -141,21 +141,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		printStartupFireQuote()
 	}
 
-	// Override config with flags
-	if skipCommit {
-		cfg.Global.AutoCommitDirty = false
-	}
-	if scanPath != "." {
-		cfg.Global.ScanPath = scanPath
-	}
-	if noScan {
-		cfg.Global.DisableScan = true
-	}
-	if usbWorkers > 0 {
-		cfg.USB.Workers = usbWorkers
-	}
-	if strings.TrimSpace(usbStrategy) != "" {
-		cfg.USB.Strategy = strings.TrimSpace(usbStrategy)
+	// Override config with flags and re-validate/clamp normalized values.
+	if err := applyFlagOverrides(cfg); err != nil {
+		return failRun(fmt.Errorf("invalid flag overrides: %s", safety.SanitizeText(err.Error())))
 	}
 
 	// Fire drill is same as dry run
@@ -253,6 +241,26 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		printExtinguishWaterMessage()
 	}
 	return nil
+}
+
+func applyFlagOverrides(cfg *config.Config) error {
+	if skipCommit {
+		cfg.Global.AutoCommitDirty = false
+	}
+	if scanPath != "." {
+		cfg.Global.ScanPath = scanPath
+	}
+	if noScan {
+		cfg.Global.DisableScan = true
+	}
+	if usbWorkers > 0 {
+		cfg.USB.Workers = usbWorkers
+	}
+	if strings.TrimSpace(usbStrategy) != "" {
+		cfg.USB.Strategy = strings.TrimSpace(usbStrategy)
+	}
+
+	return cfg.Validate()
 }
 
 func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions, targets []string) error {

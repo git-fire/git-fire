@@ -802,6 +802,37 @@ func TestRunUSB_DedupsNormalizedTargetsBeforeLocking(t *testing.T) {
 	}
 }
 
+func TestApplyFlagOverrides_USBWorkersClampedToMax(t *testing.T) {
+	resetFlags()
+	t.Cleanup(resetFlags)
+
+	cfg := config.DefaultConfig()
+	usbWorkers = config.MaxUSBWorkers + 1000
+
+	if err := applyFlagOverrides(&cfg); err != nil {
+		t.Fatalf("applyFlagOverrides() unexpected error: %v", err)
+	}
+	if cfg.USB.Workers != config.MaxUSBWorkers {
+		t.Fatalf("expected usb workers to clamp to %d, got %d", config.MaxUSBWorkers, cfg.USB.Workers)
+	}
+}
+
+func TestApplyFlagOverrides_InvalidUSBStrategyReturnsError(t *testing.T) {
+	resetFlags()
+	t.Cleanup(resetFlags)
+
+	cfg := config.DefaultConfig()
+	usbStrategy = "git-Clone"
+
+	err := applyFlagOverrides(&cfg)
+	if err == nil {
+		t.Fatal("expected invalid usb strategy to return validation error")
+	}
+	if !strings.Contains(err.Error(), "invalid usb.strategy") {
+		t.Fatalf("expected invalid usb.strategy error, got: %v", err)
+	}
+}
+
 // Helper function to reset flags between tests
 func resetFlags() {
 	dryRun = false
