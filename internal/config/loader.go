@@ -43,7 +43,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	if cfgWarning != "" {
 		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
 	}
-	v.AddConfigPath("/etc/git-fire")          // System config
+	v.AddConfigPath("/etc/git-fire") // System config
 	if opts.ConfigFile != "" {
 		v.SetConfigFile(opts.ConfigFile)
 	}
@@ -308,6 +308,23 @@ func resolvedUserConfigDir() (string, string) {
 	}
 	dir := filepath.Join(tempBase, "git-fire")
 	return dir, fmt.Sprintf("using temporary config fallback %q; this path may not persist across reboots", dir)
+}
+
+// UserGitFireDir returns the per-user git-fire application directory (the parent
+// of config.toml and repos.toml). The warning string is non-empty when a
+// non-primary fallback from resolvedUserConfigDir is in use.
+func UserGitFireDir() (dir string, warning string) {
+	return resolvedUserConfigDir()
+}
+
+// WarnIfFallbackUserGitFireDir prints a stderr warning when UserGitFireDir used
+// a fallback. Call from code paths that resolve the registry without loading
+// config (so LoadWithOptions has not already emitted the same warning).
+func WarnIfFallbackUserGitFireDir() {
+	_, w := resolvedUserConfigDir()
+	if w != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
 }
 
 // ParseDuration parses duration strings (supports Viper's format)
