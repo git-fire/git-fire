@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -392,6 +393,89 @@ func TestReposScan_DefaultPath(t *testing.T) {
 
 	if err := reposScan(reposScanCmd, []string{scanRoot}); err != nil {
 		t.Errorf("reposScan() with explicit path error = %v", err)
+	}
+}
+
+func TestReposScan_NewEntriesUseConfiguredDefaultMode(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	repoPath := testutil.CreateTestRepo(t, testutil.RepoOptions{Name: "mode-default"})
+	scanRoot := filepath.Dir(repoPath)
+
+	cfgPath := filepath.Join(tmpHome, ".config", "git-fire", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("[global]\ndefault_mode = \"push-all\"\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if err := reposScan(reposScanCmd, []string{scanRoot}); err != nil {
+		t.Fatalf("reposScan() error = %v", err)
+	}
+
+	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	reg, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("load registry: %v", err)
+	}
+	absRepoPath, _ := filepath.Abs(repoPath)
+	entry := reg.FindByPath(absRepoPath)
+	if entry == nil {
+		t.Fatalf("expected repo entry %s in registry", absRepoPath)
+	}
+	if entry.Mode != "push-all" {
+		t.Fatalf("expected mode push-all, got %q", entry.Mode)
+	}
+}
+
+func TestRunGitFire_HonorsConfiguredScanDepth(t *testing.T) {
+	tmpHome := isolateHome(t)
+
+	scanRoot := t.TempDir()
+	nestedRepo := filepath.Join(scanRoot, "a", "b", "deep-repo")
+	if err := os.MkdirAll(nestedRepo, 0o755); err != nil {
+		t.Fatalf("mkdir nested repo: %v", err)
+	}
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = nestedRepo
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v (%s)", args, err, out)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(nestedRepo, "README.md"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	run("add", "README.md")
+	run("commit", "-q", "-m", "init")
+
+	cfgPath := filepath.Join(tmpHome, ".config", "git-fire", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	cfg := fmt.Sprintf("[global]\nscan_path = %q\nscan_depth = 0\nauto_commit_dirty = false\n", scanRoot)
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	dryRun = true
+
+	var runErr error
+	out := captureStdout(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+	if runErr != nil {
+		t.Fatalf("runGitFire() error = %v", runErr)
+	}
+	if !strings.Contains(out, "✓ Found 0 repositories") {
+		t.Fatalf("expected configured scan_depth to exclude deep repo, output:\n%s", out)
 	}
 }
 

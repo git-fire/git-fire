@@ -44,6 +44,9 @@ var (
 	showStatus bool
 )
 
+var errRunAborted = errors.New("run aborted")
+var errRunNoop = errors.New("run completed with no backup actions")
+
 var rootCmd = &cobra.Command{
 	Use:   "git-fire",
 	Short: "Emergency git backup tool",
@@ -89,20 +92,40 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+	var cfg *config.Config
+	failRun := func(err error) error {
+		if err != nil {
+			if FlavorQuotesEnabled(cfg) {
+				printFailedRunEmberMessage()
+			}
+		}
+		return err
+	}
+
+	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
-		return fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)")
+		return failRun(fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)"))
 	}
 
 	// Verify git is available before doing anything else
 	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("git not found in PATH: please install git before using git-fire")
+		return failRun(fmt.Errorf("git not found in PATH: please install git before using git-fire"))
 	}
 
 	// Load configuration
-	cfg, cfgErr := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
+	var cfgErr error
+	cfg, cfgErr = config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
 	if cfgErr != nil {
-		return fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error()))
+		return failRun(fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error())))
+	}
+
+	// Flavor quotes (see ui.show_startup_quote / Settings → Show flavor quotes).
+	// --fire: quote is printed after the TUI exits (runFireStream) so it is visible
+	// on the normal screen buffer.
+	if !fireMode && FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Override config with flags
@@ -161,11 +184,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
 	opts.Exclude = cfg.Global.ScanExclude
+	opts.MaxDepth = cfg.Global.ScanDepth
 	opts.Workers = cfg.Global.ScanWorkers
 	opts.KnownPaths = knownPaths
 	opts.DisableScan = cfg.Global.DisableScan
 
-	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
 	if cfg.Global.DisableScan {
 		if noScan {
 			fmt.Println("⚠️  Scanning Disabled (this run only)")
@@ -179,13 +202,35 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	//   --fire         → streaming TUI (repos appear as discovered)
 	//   --dry-run      → batch collect then plan summary (no changes made)
 	//   default        → streaming backup pipeline
+	var runErr error
 	if fireMode {
-		return runFireStream(cfg, reg, regPath, opts)
+		runErr = runFireStream(cfg, reg, regPath, opts)
+	} else if dryRun {
+		runErr = runBatch(cfg, reg, regPath, opts)
+	} else {
+		runErr = runStream(cfg, reg, regPath, opts)
 	}
-	if dryRun {
-		return runBatch(cfg, reg, regPath, opts)
+
+	if errors.Is(runErr, errRunAborted) {
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
+		return nil
 	}
-	return runStream(cfg, reg, regPath, opts)
+	if errors.Is(runErr, errRunNoop) {
+		return nil
+	}
+	if runErr != nil {
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
+		return runErr
+	}
+
+	if FlavorQuotesEnabled(cfg) {
+		printExtinguishWaterMessage()
+	}
+	return nil
 }
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
@@ -259,7 +304,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if len(repos) == 0 {
 		fmt.Println("No git repositories found.")
-		return nil
+		return errRunNoop
 	}
 
 	// Repo selection: auto-select all (dry-run path only — fireMode uses streaming).
@@ -295,7 +340,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if dryRun {
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
-		return nil
+		return errRunNoop
 	}
 
 	// Setup logging
@@ -389,25 +434,37 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	// Drain both channels BEFORE cancelling so neither the upsert goroutine
 	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block
 	// on a send after the TUI exits. Only then cancel the scan and wait.
-	go func() { for range tuiRepoChan {} }()
-	go func() { for range folderProgress {} }()
+	go func() {
+		for range tuiRepoChan {
+		}
+	}()
+	go func() {
+		for range folderProgress {
+		}
+	}()
 	cancelScan()
 	<-scanDone
 
 	if err != nil {
 		if errors.Is(err, ui.ErrCancelled) {
 			fmt.Println("Aborted.")
-			return nil
+			return errRunAborted
 		}
 		return fmt.Errorf("repo selection failed: %w", err)
 	}
 	if len(selected) == 0 {
 		fmt.Println("No repositories selected.")
-		return nil
+		return errRunNoop
 	}
 
 	if scanErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: scan error: %s\n", safety.SanitizeText(scanErr.Error()))
+	}
+
+	// Back on the normal screen buffer: surface the flavor line here so it is
+	// visible after the alt-screen TUI (pre-run stdout is easy to miss).
+	if FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Show selected repos
@@ -764,6 +821,7 @@ func handleStatus() error {
 
 	opts := git.DefaultScanOptions()
 	opts.RootPath = cfg.Global.ScanPath
+	opts.MaxDepth = cfg.Global.ScanDepth
 	opts.DisableScan = cfg.Global.DisableScan
 
 	reg := &registry.Registry{}
