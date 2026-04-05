@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: 'v0.1.0-alpha'
+  # Allows releases when workflow_dispatch is unavailable (e.g. narrow GitHub tokens):
+  # create an annotated tag on main and push it — GoReleaser runs for that tag.
+  push:
+    tags:
+      - 'v*.*.*-*'
 
 permissions:
   contents: read
@@ -15,6 +20,7 @@ permissions:
 jobs:
   tag:
     name: Create tag
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,6 +90,12 @@ jobs:
   goreleaser:
     name: GoReleaser
     needs: tag
+    # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
+    # (the tag job is skipped on push; skipped needs are OK with this if:).
+    if: |
+      always() &&
+      (needs.tag.result == 'success' ||
+        (github.event_name == 'push' && needs.tag.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,7 +104,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ needs.tag.outputs.tag }}
+          ref: >-
+            ${{
+              github.event_name == 'workflow_dispatch'
+              && needs.tag.outputs.tag
+              || github.ref
+            }}
 
       - uses: actions/setup-go@v5
         with:
