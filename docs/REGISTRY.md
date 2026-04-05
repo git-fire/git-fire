@@ -109,7 +109,7 @@ flowchart TD
     A[Load] -->|file missing| B[empty Registry]
     A -->|file exists| C["TOML unmarshal → *Registry"]
 
-    D[Upsert] -->|path exists| E["update fields<br/>preserve AddedAt<br/>preserve RescanSubmodules if nil"]
+    D[Upsert] -->|path exists| E["update fields<br/>preserve AddedAt<br/>preserve RescanSubmodules if nil<br/>preserve usb_* overrides when unset"]
     D -->|path missing| F["append new entry<br/>set AddedAt=now if zero"]
 
     G[SetStatus] -->|found| H["update Status<br/>set LastSeen=now if active"]
@@ -124,3 +124,13 @@ flowchart TD
     P --> Q[os.Rename onto target - atomic]
     Q -->|rename fails| R[remove temp, return error]
 ```
+
+## USB-related Registry Fields
+
+Each `repos.toml` entry may include optional USB overrides:
+
+- `usb_strategy`: per-repo strategy override (`git-mirror` or `git-clone`)
+- `usb_repo_path`: destination path override relative to target repos root
+- `usb_sync_policy`: per-repo sync policy (`keep` or `prune`)
+
+When an existing repo entry is upserted, these overrides are preserved if the incoming update does not specify them.

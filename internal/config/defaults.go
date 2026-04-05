@@ -58,7 +58,9 @@ func DefaultConfig() Config {
 		USB: USBConfig{
 			Strategy:      "git-mirror",
 			Workers:       1,
+			TargetWorkers: 1,
 			CreateOnFirst: false,
+			SyncPolicy:    "keep",
 			Targets:       []USBTargetConfig{},
 		},
 		Auth: AuthConfig{
@@ -179,8 +181,14 @@ strategy = "git-mirror"
 # Number of concurrent repos processed per target
 workers = 1
 
+# Number of USB targets processed concurrently
+target_workers = 1
+
 # Create a missing target marker file (<target>/.git-fire) automatically
 create_on_first_use = false
+
+# USB sync policy: "keep" or "prune"
+sync_policy = "keep"
 
 # USB/folder targets (repeatable)
 #[[usb.targets]]

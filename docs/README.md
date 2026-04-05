@@ -16,6 +16,7 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 - Agent workflows and automation patterns: [agentic-flows.md](agentic-flows.md)
 - Security and operations checkpoint workflows: [security-ops.md](security-ops.md)
 - Persistent repository registry internals: [REGISTRY.md](REGISTRY.md)
+- USB mode backup workflow: [USB_MODE.md](USB_MODE.md)
 - Plugin examples: [../examples/plugins/s3-upload.md](../examples/plugins/s3-upload.md)
 
 ## Reference

@@ -27,6 +27,15 @@ type RegistryEntry struct {
 	// nil means inherit the global rescan_submodules setting.
 	RescanSubmodules *bool `toml:"rescan_submodules,omitempty"`
 
+	// Optional per-repo USB strategy override (e.g. "git-mirror", "git-clone").
+	USBStrategy string `toml:"usb_strategy,omitempty"`
+
+	// Optional per-repo destination repo path override relative to USB repos root.
+	USBRepoPath string `toml:"usb_repo_path,omitempty"`
+
+	// USB sync policy override: "keep" or "prune".
+	USBSyncPolicy string `toml:"usb_sync_policy,omitempty"`
+
 	// When this repo was first added to the registry
 	AddedAt time.Time `toml:"added_at"`
 

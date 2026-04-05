@@ -179,11 +179,23 @@ func TestValidate_USBDefaultsAndStrategy(t *testing.T) {
 	if cfg.USB.Workers != 1 {
 		t.Fatalf("expected default usb workers 1, got %d", cfg.USB.Workers)
 	}
+	if cfg.USB.TargetWorkers != 1 {
+		t.Fatalf("expected default usb target workers 1, got %d", cfg.USB.TargetWorkers)
+	}
+	if cfg.USB.SyncPolicy != "keep" {
+		t.Fatalf("expected default usb sync policy keep, got %s", cfg.USB.SyncPolicy)
+	}
 
 	cfg2 := DefaultConfig()
 	cfg2.USB.Strategy = "nope"
 	if err := cfg2.Validate(); err == nil {
 		t.Fatal("expected invalid usb strategy error")
+	}
+
+	cfg3 := DefaultConfig()
+	cfg3.USB.SyncPolicy = "drop"
+	if err := cfg3.Validate(); err == nil {
+		t.Fatal("expected invalid usb sync policy error")
 	}
 }
 

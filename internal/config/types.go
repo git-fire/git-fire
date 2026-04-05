@@ -70,7 +70,9 @@ type USBConfig struct {
 	Targets       []USBTargetConfig `mapstructure:"targets" toml:"targets"`
 	Strategy      string            `mapstructure:"strategy" toml:"strategy"`
 	Workers       int               `mapstructure:"workers" toml:"workers"`
+	TargetWorkers int               `mapstructure:"target_workers" toml:"target_workers"`
 	CreateOnFirst bool              `mapstructure:"create_on_first_use" toml:"create_on_first_use"`
+	SyncPolicy    string            `mapstructure:"sync_policy" toml:"sync_policy"`
 }
 
 // USBTargetConfig defines one usb/folder target.

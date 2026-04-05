@@ -300,6 +300,7 @@ Start with [docs/README.md](docs/README.md).
 
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
+- USB mode guide: [docs/USB_MODE.md](docs/USB_MODE.md)
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Validation status: [docs/REQUIREMENTS_VALIDATION.md](docs/REQUIREMENTS_VALIDATION.md)

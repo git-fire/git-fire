@@ -110,6 +110,39 @@ func SyncMirrorRepo(sourceRepoPath, destinationBarePath string) error {
 	return nil
 }
 
+func SyncCloneRepo(sourceRepoPath, destinationPath string) error {
+	if _, err := os.Stat(destinationPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(destinationPath), 0o755); err != nil {
+			return fmt.Errorf("failed creating clone destination parent: %w", err)
+		}
+		if err := runGit("", "clone", sourceRepoPath, destinationPath); err != nil {
+			return fmt.Errorf("failed initial clone: %w", err)
+		}
+		return nil
+	}
+
+	const syncRemote = "git-fire-source"
+	if err := runGit(destinationPath, "remote", "add", syncRemote, sourceRepoPath); err != nil {
+		_ = runGit(destinationPath, "remote", "set-url", syncRemote, sourceRepoPath)
+	}
+	if err := runGit(destinationPath, "fetch", syncRemote, "--prune", "--tags"); err != nil {
+		return fmt.Errorf("failed fetch from source: %w", err)
+	}
+
+	currentBranch, err := currentBranch(sourceRepoPath)
+	if err != nil {
+		return fmt.Errorf("failed to detect source branch: %w", err)
+	}
+	remoteRef := fmt.Sprintf("%s/%s", syncRemote, currentBranch)
+	if err := runGit(destinationPath, "checkout", "-B", currentBranch, remoteRef); err != nil {
+		return fmt.Errorf("failed checkout synced branch: %w", err)
+	}
+	if err := runGit(destinationPath, "reset", "--hard", remoteRef); err != nil {
+		return fmt.Errorf("failed hard reset to source branch: %w", err)
+	}
+	return nil
+}
+
 func normalizeConfig(cfg *VolumeConfig) *VolumeConfig {
 	if cfg == nil {
 		return &VolumeConfig{
@@ -172,6 +205,20 @@ func runGit(dir string, args ...string) error {
 		return fmt.Errorf("git %s: %w (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func currentBranch(repoPath string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = repoPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "" || branch == "HEAD" {
+		return "", fmt.Errorf("detached HEAD")
+	}
+	return branch, nil
 }
 
 func fileURLFromPath(path string) (string, error) {

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	testutil "github.com/git-fire/git-testkit"
 )
@@ -83,5 +84,51 @@ func TestSyncMirrorRepo(t *testing.T) {
 
 	if err := SyncMirrorRepo(source, destBare); err != nil {
 		t.Fatalf("SyncMirrorRepo(second) error: %v", err)
+	}
+}
+
+func TestSyncCloneRepo(t *testing.T) {
+	source := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "source",
+		Files: map[string]string{
+			"README.md": "hello",
+		},
+	})
+	destRoot := t.TempDir()
+	dest := filepath.Join(destRoot, "clone")
+
+	if err := SyncCloneRepo(source, dest); err != nil {
+		t.Fatalf("SyncCloneRepo(initial) error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".git")); err != nil {
+		t.Fatalf("expected cloned .git directory, got err: %v", err)
+	}
+
+	// Update source and sync again.
+	newFile := filepath.Join(source, "clone-more.txt")
+	if err := os.WriteFile(newFile, []byte("more"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	testutil.RunGitCmd(t, source, "add", "clone-more.txt")
+	testutil.RunGitCmd(t, source, "commit", "-m", "more")
+
+	if err := SyncCloneRepo(source, dest); err != nil {
+		t.Fatalf("SyncCloneRepo(second) error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "clone-more.txt")); err != nil {
+		t.Fatalf("expected synced file in clone destination, got err: %v", err)
+	}
+}
+
+func TestAcquireTargetLock(t *testing.T) {
+	root := t.TempDir()
+	release, err := AcquireTargetLock(root, time.Hour)
+	if err != nil {
+		t.Fatalf("AcquireTargetLock() error: %v", err)
+	}
+	defer release()
+
+	if _, err := AcquireTargetLock(root, time.Hour); err == nil {
+		t.Fatal("expected lock acquisition failure when lock already held")
 	}
 }

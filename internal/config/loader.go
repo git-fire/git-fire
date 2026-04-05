@@ -124,7 +124,9 @@ func setDefaults(v *viper.Viper) {
 	// USB defaults
 	v.SetDefault("usb.strategy", defaults.USB.Strategy)
 	v.SetDefault("usb.workers", defaults.USB.Workers)
+	v.SetDefault("usb.target_workers", defaults.USB.TargetWorkers)
 	v.SetDefault("usb.create_on_first_use", defaults.USB.CreateOnFirst)
+	v.SetDefault("usb.sync_policy", defaults.USB.SyncPolicy)
 
 	// Auth defaults
 	v.SetDefault("auth.use_ssh_agent", defaults.Auth.UseSSHAgent)
@@ -182,6 +184,17 @@ func (c *Config) Validate() error {
 	}
 	if c.USB.Workers <= 0 {
 		c.USB.Workers = 1
+	}
+	if c.USB.TargetWorkers <= 0 {
+		c.USB.TargetWorkers = 1
+	}
+	if c.USB.SyncPolicy == "" {
+		c.USB.SyncPolicy = "keep"
+	}
+	switch c.USB.SyncPolicy {
+	case "keep", "prune":
+	default:
+		return fmt.Errorf("invalid usb.sync_policy: %s (must be keep or prune)", c.USB.SyncPolicy)
 	}
 	for i := range c.USB.Targets {
 		if c.USB.Targets[i].Path == "" {
