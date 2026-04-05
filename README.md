@@ -200,6 +200,7 @@ The goal is "paranoid and lazy" at the same time: set up layers once, then run o
 | Structured JSON logs (`~/.cache/git-fire/logs/`) | ⚪ Optional | ✅ | ✅ | ✅ | ⚪ Optional |
 | `--status` SSH/repo snapshot | ✅ | ✅ | ✅ | ✅ | ⚪ Optional |
 | Conflict-safe backup branches (no force push in normal flow) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| USB mode (multi-target sync + per-target `.git-fire` config, coming soon) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
 | Plugin internals (`v0.2` CLI auto-loading target) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
 
 ## Why It Is Trustworthy in Alpha

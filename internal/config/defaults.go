@@ -55,6 +55,12 @@ func DefaultConfig() Config {
 			RepoTemplate:     "backup-{repo}-{date}",
 			GenerateManifest: true,
 		},
+		USB: USBConfig{
+			Strategy:      "git-mirror",
+			Workers:       1,
+			CreateOnFirst: false,
+			Targets:       []USBTargetConfig{},
+		},
 		Auth: AuthConfig{
 			UseSSHAgent: true,
 		},
@@ -164,6 +170,23 @@ organization = ""
 
 # Generate backup manifest (JSON metadata file)
 generate_manifest = true
+
+[usb]
+# Default strategy for USB mode.
+# Options: "git-mirror", "git-clone" (git-mirror currently implemented)
+strategy = "git-mirror"
+
+# Number of concurrent repos processed per target
+workers = 1
+
+# Create a missing target marker file (<target>/.git-fire) automatically
+create_on_first_use = false
+
+# USB/folder targets (repeatable)
+#[[usb.targets]]
+#name = "travel-stick"
+#path = "/media/user/TRAVEL"
+#enabled = true
 
 [auth]
 # SSH passphrase (prefer env var: GIT_FIRE_SSH_PASSPHRASE)

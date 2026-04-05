@@ -165,6 +165,28 @@ func TestLoadConfig_EnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestValidate_USBDefaultsAndStrategy(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.USB.Strategy = ""
+	cfg.USB.Workers = 0
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if cfg.USB.Strategy != "git-mirror" {
+		t.Fatalf("expected default usb strategy git-mirror, got %s", cfg.USB.Strategy)
+	}
+	if cfg.USB.Workers != 1 {
+		t.Fatalf("expected default usb workers 1, got %d", cfg.USB.Workers)
+	}
+
+	cfg2 := DefaultConfig()
+	cfg2.USB.Strategy = "nope"
+	if err := cfg2.Validate(); err == nil {
+		t.Fatal("expected invalid usb strategy error")
+	}
+}
+
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name    string

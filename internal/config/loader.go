@@ -121,6 +121,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("backup.repo_template", defaults.Backup.RepoTemplate)
 	v.SetDefault("backup.generate_manifest", defaults.Backup.GenerateManifest)
 
+	// USB defaults
+	v.SetDefault("usb.strategy", defaults.USB.Strategy)
+	v.SetDefault("usb.workers", defaults.USB.Workers)
+	v.SetDefault("usb.create_on_first_use", defaults.USB.CreateOnFirst)
+
 	// Auth defaults
 	v.SetDefault("auth.use_ssh_agent", defaults.Auth.UseSSHAgent)
 
@@ -164,6 +169,23 @@ func (c *Config) Validate() error {
 		}
 		if !validPlatforms[c.Backup.Platform] {
 			return fmt.Errorf("invalid platform: %s (must be github, gitlab, or gitea)", c.Backup.Platform)
+		}
+	}
+
+	if c.USB.Strategy == "" {
+		c.USB.Strategy = "git-mirror"
+	}
+	switch c.USB.Strategy {
+	case "git-mirror", "git-clone":
+	default:
+		return fmt.Errorf("invalid usb.strategy: %s (must be git-mirror or git-clone)", c.USB.Strategy)
+	}
+	if c.USB.Workers <= 0 {
+		c.USB.Workers = 1
+	}
+	for i := range c.USB.Targets {
+		if c.USB.Targets[i].Path == "" {
+			return fmt.Errorf("invalid usb.targets[%d].path: cannot be empty", i)
 		}
 	}
 

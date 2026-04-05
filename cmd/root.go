@@ -24,6 +24,7 @@ import (
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-fire/internal/safety"
 	"github.com/git-fire/git-fire/internal/ui"
+	"github.com/git-fire/git-fire/internal/usb"
 )
 
 // Version is set at build time via -ldflags "-X github.com/git-fire/git-fire/cmd.Version=vX.Y.Z"
@@ -42,6 +43,10 @@ var (
 	backupTo   string
 	configFile string
 	showStatus bool
+	usbTargets []string
+	usbInit    bool
+	usbWorkers int
+	usbStrategy string
 )
 
 var errRunAborted = errors.New("run aborted")
@@ -80,6 +85,10 @@ func init() {
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
+	rootCmd.Flags().StringArrayVar(&usbTargets, "usb", nil, "USB/folder backup target root (repeatable)")
+	rootCmd.Flags().BoolVar(&usbInit, "usb-init", false, "Create missing <target>/.git-fire marker config")
+	rootCmd.Flags().IntVar(&usbWorkers, "usb-workers", 0, "USB mode per-target repo workers (default from config, min 1)")
+	rootCmd.Flags().StringVar(&usbStrategy, "usb-strategy", "", "USB mode strategy override: git-mirror or git-clone")
 }
 
 func runGitFire(cmd *cobra.Command, args []string) error {
@@ -137,6 +146,12 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	if noScan {
 		cfg.Global.DisableScan = true
+	}
+	if usbWorkers > 0 {
+		cfg.USB.Workers = usbWorkers
+	}
+	if strings.TrimSpace(usbStrategy) != "" {
+		cfg.USB.Strategy = strings.TrimSpace(usbStrategy)
 	}
 
 	// Fire drill is same as dry run
@@ -203,7 +218,10 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	//   --dry-run      → batch collect then plan summary (no changes made)
 	//   default        → streaming backup pipeline
 	var runErr error
-	if fireMode {
+	targets := resolveUSBTargets(cfg, usbTargets)
+	if len(targets) > 0 {
+		runErr = runUSB(cfg, reg, regPath, opts, targets)
+	} else if fireMode {
 		runErr = runFireStream(cfg, reg, regPath, opts)
 	} else if dryRun {
 		runErr = runBatch(cfg, reg, regPath, opts)
@@ -230,6 +248,196 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if FlavorQuotesEnabled(cfg) {
 		printExtinguishWaterMessage()
 	}
+	return nil
+}
+
+func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions, targets []string) error {
+	if fireMode {
+		return fmt.Errorf("--fire is not yet supported with --usb")
+	}
+
+	workerCount := cfg.USB.Workers
+	if workerCount <= 0 {
+		workerCount = 1
+	}
+
+	targetCfg := make(map[string]*usb.VolumeConfig, len(targets))
+	for _, rawTarget := range targets {
+		absTarget, err := filepath.Abs(rawTarget)
+		if err != nil {
+			return fmt.Errorf("invalid usb target %q: %w", rawTarget, err)
+		}
+		cfgForTarget, err := usb.EnsureVolumeConfig(absTarget, usb.EnsureOptions{
+			DefaultStrategy: cfg.USB.Strategy,
+			CreateIfMissing: usbInit || cfg.USB.CreateOnFirst,
+		})
+		if err != nil {
+			return err
+		}
+		targetCfg[absTarget] = cfgForTarget
+	}
+
+	if opts.DisableScan {
+		fmt.Printf("🔥 USB mode: loading %d known repositories from registry (scan disabled)\n", len(opts.KnownPaths))
+	} else {
+		fmt.Printf("🔥 USB mode: loading %d known repositories and scanning for new ones...\n", len(opts.KnownPaths))
+	}
+	fmt.Println()
+
+	repos, err := git.ScanRepositories(opts)
+	if err != nil {
+		return fmt.Errorf("repository scan failed: %w", err)
+	}
+
+	// Upsert all discovered repos into the registry.
+	now := time.Now()
+	defaultMode := git.ParseMode(cfg.Global.DefaultMode)
+	for i, repo := range repos {
+		repos[i], _ = upsertRepoIntoRegistry(reg, repo, now, defaultMode)
+	}
+	saveRegistry(reg, regPath)
+
+	// Exclude ignored repos from backup.
+	activeRepos := make([]git.Repository, 0, len(repos))
+	for _, repo := range repos {
+		absPath, err := filepath.Abs(repo.Path)
+		if err != nil {
+			activeRepos = append(activeRepos, repo)
+			continue
+		}
+		entry := reg.FindByPath(absPath)
+		if entry != nil && entry.Status == registry.StatusIgnored {
+			continue
+		}
+		activeRepos = append(activeRepos, repo)
+	}
+	repos = activeRepos
+
+	if len(repos) == 0 {
+		fmt.Println("No git repositories found.")
+		return errRunNoop
+	}
+
+	normalizedTargets := make([]string, 0, len(targets))
+	for _, t := range targets {
+		abs, err := filepath.Abs(t)
+		if err != nil {
+			continue
+		}
+		normalizedTargets = append(normalizedTargets, abs)
+	}
+
+	fmt.Printf("✓ Found %d repositories\n", len(repos))
+	fmt.Printf("✓ USB targets: %d\n", len(normalizedTargets))
+	for _, t := range normalizedTargets {
+		fmt.Printf("  • %s\n", t)
+	}
+	fmt.Println()
+
+	if dryRun {
+		fmt.Println("USB Dry Run Plan:")
+		for _, repo := range repos {
+			fmt.Printf("  • %s\n", repo.Name)
+			for _, target := range normalizedTargets {
+				layout := usb.TargetReposRoot(target, targetCfg[target])
+				dst := filepath.Join(layout, usb.StableRepoName(repo.Path, repo.Name)+".git")
+				fmt.Printf("      -> %s\n", dst)
+			}
+		}
+		fmt.Println("\n🔥 Fire Drill Complete - No changes were made")
+		return errRunNoop
+	}
+
+	type job struct {
+		repo git.Repository
+	}
+	type repoFailure struct {
+		repo   string
+		target string
+		err    error
+	}
+
+	jobs := make(chan job, len(repos))
+	failures := make([]repoFailure, 0)
+	var failuresMu sync.Mutex
+	var wg sync.WaitGroup
+
+	recordFailure := func(repo, target string, err error) {
+		failuresMu.Lock()
+		defer failuresMu.Unlock()
+		failures = append(failures, repoFailure{
+			repo:   repo,
+			target: target,
+			err:    err,
+		})
+	}
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			repo := j.repo
+			fmt.Printf("➡️  %s\n", repo.Name)
+			if repo.IsDirty && cfg.Global.AutoCommitDirty {
+				if err := checkSecretsForUSB(repo.Path, cfg.Global.BlockOnSecrets); err != nil {
+					recordFailure(repo.Name, "", err)
+					continue
+				}
+				_, err := git.AutoCommitDirtyWithStrategy(repo.Path, git.CommitOptions{
+					Message:          fmt.Sprintf("git-fire emergency backup - %s", time.Now().Format("2006-01-02 15:04:05")),
+					UseDualBranch:    true,
+					ReturnToOriginal: true,
+				})
+				if err != nil {
+					recordFailure(repo.Name, "", err)
+					continue
+				}
+			}
+
+			for _, target := range normalizedTargets {
+				vc := targetCfg[target]
+				if vc.Strategy != usb.StrategyMirror {
+					recordFailure(repo.Name, target, fmt.Errorf("usb strategy %q is not implemented yet", vc.Strategy))
+					continue
+				}
+				reposRoot := usb.TargetReposRoot(target, vc)
+				if err := os.MkdirAll(reposRoot, 0o755); err != nil {
+					recordFailure(repo.Name, target, err)
+					continue
+				}
+				dest := filepath.Join(reposRoot, usb.StableRepoName(repo.Path, repo.Name)+".git")
+				if err := usb.SyncMirrorRepo(repo.Path, dest); err != nil {
+					recordFailure(repo.Name, target, err)
+					continue
+				}
+			}
+		}
+	}
+
+	for w := 0; w < workerCount; w++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, repo := range repos {
+		jobs <- job{repo: repo}
+	}
+	close(jobs)
+	wg.Wait()
+
+	saveRegistry(reg, regPath)
+
+	if len(failures) > 0 {
+		fmt.Println("\n⚠️  USB mode completed with failures:")
+		for _, f := range failures {
+			if f.target == "" {
+				fmt.Printf("  • %s: %s\n", f.repo, safety.SanitizeText(f.err.Error()))
+				continue
+			}
+			fmt.Printf("  • %s -> %s: %s\n", f.repo, f.target, safety.SanitizeText(f.err.Error()))
+		}
+		return fmt.Errorf("some repositories failed in usb mode")
+	}
+
+	fmt.Printf("\n✓ USB mode complete. Mirrored %d repositories to %d target(s).\n", len(repos), len(normalizedTargets))
 	return nil
 }
 
@@ -748,6 +956,66 @@ func saveRegistry(reg *registry.Registry, regPath string) {
 	if err := registry.Save(reg, regPath); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to save registry: %v\n", err)
 	}
+}
+
+func resolveUSBTargets(cfg *config.Config, flagTargets []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0)
+
+	appendTarget := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+
+	for _, target := range flagTargets {
+		appendTarget(target)
+	}
+	for _, target := range cfg.USB.Targets {
+		if !target.Enabled {
+			continue
+		}
+		appendTarget(target.Path)
+	}
+
+	return out
+}
+
+func checkSecretsForUSB(repoPath string, block bool) error {
+	uncommitted, scanErr := git.GetUncommittedFiles(repoPath)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("failed to list uncommitted files for secret scan: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan skipped: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(uncommitted) == 0 {
+		return nil
+	}
+
+	scanner := safety.NewSecretScanner()
+	suspicious, scanErr := scanner.ScanFiles(repoPath, uncommitted)
+	if scanErr != nil {
+		if block {
+			return fmt.Errorf("secret scan failed: %w", scanErr)
+		}
+		fmt.Fprintf(os.Stderr, "warning: secret scan failed: %s\n", safety.SanitizeText(scanErr.Error()))
+		return nil
+	}
+	if len(suspicious) > 0 {
+		fmt.Fprint(os.Stderr, safety.FormatWarning(suspicious))
+		if block {
+			return fmt.Errorf("potential secrets detected in uncommitted files")
+		}
+	}
+	return nil
 }
 
 // printResult prints the final summary after a run.
