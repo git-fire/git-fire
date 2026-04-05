@@ -330,6 +330,34 @@ func TestWriteAskpassScript_UsesUserCacheDir(t *testing.T) {
 	}
 }
 
+func TestEscapeForCmdSetP(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "exclamation remains literal",
+			in:   "p@ss!",
+			want: "p@ss!",
+		},
+		{
+			name: "quote escaped before metacharacter",
+			in:   `p"&x`,
+			want: `p^"^&x`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeForCmdSetP(tt.in)
+			if got != tt.want {
+				t.Fatalf("escapeForCmdSetP(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && containsHelper(s, substr)

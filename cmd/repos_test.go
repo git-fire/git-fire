@@ -3,6 +3,9 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"github.com/git-fire/git-fire/internal/executor"
+	"github.com/git-fire/git-fire/internal/registry"
+	testutil "github.com/git-fire/git-testkit"
 	"io"
 	"os"
 	"os/exec"
@@ -10,9 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"github.com/git-fire/git-fire/internal/executor"
-	"github.com/git-fire/git-fire/internal/registry"
-	testutil "github.com/git-fire/git-testkit"
 )
 
 // ---- buildKnownPaths ----
@@ -494,7 +494,10 @@ func TestReposRemove_Function(t *testing.T) {
 		t.Errorf("reposRemove() error = %v", err)
 	}
 
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if loaded.FindByPath(abs) != nil {
 		t.Error("entry should have been removed")
 	}
@@ -521,7 +524,10 @@ func TestSetRepoStatus_IgnoreUnignore(t *testing.T) {
 	if err := setRepoStatus(abs, registry.StatusIgnored, "ignored"); err != nil {
 		t.Errorf("setRepoStatus(ignored) error = %v", err)
 	}
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
 		t.Error("status should be ignored")
 	}
@@ -529,7 +535,10 @@ func TestSetRepoStatus_IgnoreUnignore(t *testing.T) {
 	if err := setRepoStatus(abs, registry.StatusActive, "active"); err != nil {
 		t.Errorf("setRepoStatus(active) error = %v", err)
 	}
-	loaded2, _ := registry.Load(regPath)
+	loaded2, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded2.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
 		t.Error("status should be active after unignore")
 	}
@@ -556,7 +565,10 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 	if err := reposIgnore(reposIgnoreCmd, []string{abs}); err != nil {
 		t.Fatalf("reposIgnore() error = %v", err)
 	}
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
 		t.Fatalf("reposIgnore should mark status as ignored")
 	}
@@ -564,7 +576,10 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 	if err := reposUnignore(reposUnignoreCmd, []string{abs}); err != nil {
 		t.Fatalf("reposUnignore() error = %v", err)
 	}
-	loaded, _ = registry.Load(regPath)
+	loaded, err = registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
 		t.Fatalf("reposUnignore should mark status as active")
 	}

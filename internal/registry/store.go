@@ -22,7 +22,9 @@ func DefaultRegistryPath() (string, error) {
 					base = abs
 				}
 			}
-			return filepath.Join(base, "git-fire", "repos.toml"), nil
+			path := filepath.Join(base, "git-fire", "repos.toml")
+			fmt.Fprintf(os.Stderr, "warning: using temporary registry fallback %q; this path may not persist across reboots\n", path)
+			return path, nil
 		}
 		if !filepath.IsAbs(home) {
 			if abs, absErr := filepath.Abs(home); absErr == nil {
@@ -30,6 +32,9 @@ func DefaultRegistryPath() (string, error) {
 			}
 		}
 		base = filepath.Join(home, ".config")
+		path := filepath.Join(base, "git-fire", "repos.toml")
+		fmt.Fprintf(os.Stderr, "warning: using fallback registry path %q\n", path)
+		return path, nil
 	}
 	return filepath.Join(base, "git-fire", "repos.toml"), nil
 }

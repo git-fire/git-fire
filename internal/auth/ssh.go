@@ -245,6 +245,7 @@ func writeAskpassScript(passphrase string) (name string, cleanup func(), err err
 func escapeForCmdSetP(s string) string {
 	replacer := strings.NewReplacer(
 		"^", "^^",
+		`"`, `^"`,
 		"&", "^&",
 		"|", "^|",
 		"<", "^<",
@@ -252,7 +253,6 @@ func escapeForCmdSetP(s string) string {
 		"(", "^(",
 		")", "^)",
 		"%", "%%",
-		"!", "^^!",
 	)
 	return replacer.Replace(s)
 }
