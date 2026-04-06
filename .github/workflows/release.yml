@@ -143,7 +143,7 @@ jobs:
     needs:
       - tag
       - goreleaser
-    if: needs.goreleaser.result == 'success'
+    if: always() && !cancelled() && needs.goreleaser.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: write
