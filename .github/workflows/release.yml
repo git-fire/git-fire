@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v0.1.0-alpha)'
+        description: 'Tag to release (e.g. v0.1.0 or v0.1.0-rc.1)'
         required: true
         type: string
         default: 'v0.1.0-alpha'
@@ -12,7 +12,7 @@ on:
   # create an annotated tag on main and push it — GoReleaser runs for that tag.
   push:
     tags:
-      - 'v*.*.*-*'
+      - 'v*.*.*'
 
 permissions:
   contents: read
@@ -42,9 +42,9 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)$'; then
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
             echo "Invalid tag format: $TAG"
-            echo "Expected: vMAJOR.MINOR.PATCH-prerelease (prerelease required)"
+            echo "Expected: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease"
             exit 1
           fi
 
@@ -114,6 +114,23 @@ jobs:
               || github.ref
             }}
 
+      - name: Determine release channel
+        id: release_meta
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && needs.tag.outputs.tag || github.ref_name }}"
+          if [[ "$TAG" == *-* ]]; then
+            IS_PRERELEASE=true
+            GORELEASER_CONFIG=.goreleaser.yaml
+          else
+            IS_PRERELEASE=false
+            GORELEASER_CONFIG=.goreleaser.stable.yaml
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "goreleaser_config=$GORELEASER_CONFIG" >> "$GITHUB_OUTPUT"
+
       - name: Require pushed tag to target mainline
         if: github.event_name == 'push'
         run: |
@@ -134,6 +151,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --config ${{ steps.release_meta.outputs.goreleaser_config }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

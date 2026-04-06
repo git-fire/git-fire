@@ -1,155 +1,157 @@
-#!/bin/bash
-# Git-Fire Installer
-#
-# Install git-fire:
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install git-fire from GitHub release assets with checksum verification.
+# Usage:
 #   curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
-#
-# OR:
-#   wget -qO- https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
+# Optional env vars:
+#   VERSION=v0.2.0
+#   INSTALL_DIR=$HOME/.local/bin
+#   REPO=git-fire/git-fire
 
-set -e
-
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
+REPO="${REPO:-git-fire/git-fire}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-GITHUB_REPO="git-fire/git-fire"
+VERSION="${VERSION:-}"
+BINARY_NAME="git-fire"
 
-echo -e "${GREEN}🔥 Installing Git-Fire...${NC}\n"
+log() {
+  printf '[git-fire install] %s\n' "$1"
+}
 
-# Detect OS and architecture
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+fail() {
+  printf '[git-fire install] ERROR: %s\n' "$1" >&2
+  exit 1
+}
 
-case "$ARCH" in
-    x86_64)          ARCH="amd64" ;;
-    aarch64|arm64)   ARCH="arm64" ;;
-    armv7l|armv6l)   ARCH="armv6" ;;
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+download_to() {
+  src="$1"
+  dst="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$src" -o "$dst"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dst" "$src"
+  else
+    fail "curl or wget is required"
+  fi
+}
+
+sha256_file() {
+  target="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$target" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$target" | awk '{print $1}'
+  else
+    fail "sha256sum or shasum is required"
+  fi
+}
+
+normalize_os() {
+  local raw_os
+  raw_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  case "$raw_os" in
+    linux) echo "linux" ;;
+    darwin) echo "darwin" ;;
     *)
-        echo -e "${RED}Unsupported architecture: $ARCH${NC}"
-        exit 1
-        ;;
-esac
+      fail "unsupported OS: $raw_os (expected linux or darwin)"
+      ;;
+  esac
+}
 
-echo "Detected: $OS-$ARCH"
+normalize_arch() {
+  local raw_arch
+  raw_arch="$(uname -m)"
+  case "$raw_arch" in
+    x86_64|amd64) echo "amd64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    armv6l|armv7l) echo "armv6" ;;
+    i386|i686) echo "386" ;;
+    *)
+      fail "unsupported architecture: $raw_arch"
+      ;;
+  esac
+}
 
-# Fetch latest release version from GitHub API
-echo "Fetching latest release..."
-if command -v curl &> /dev/null; then
-    VERSION=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
-        | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/')
-elif command -v wget &> /dev/null; then
-    VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
-        | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"v\([^"]*\)".*/\1/')
-else
-    echo -e "${RED}Error: curl or wget required${NC}"
-    exit 1
+resolve_version() {
+  if [ -n "$VERSION" ]; then
+    printf '%s\n' "$VERSION"
+    return
+  fi
+
+  api_url="https://api.github.com/repos/$REPO/releases/latest"
+  if command -v curl >/dev/null 2>&1; then
+    response="$(curl -fsSL "$api_url")"
+  elif command -v wget >/dev/null 2>&1; then
+    response="$(wget -qO- "$api_url")"
+  else
+    fail "curl or wget is required"
+  fi
+
+  tag="$(printf '%s\n' "$response" | awk -F '"' '/"tag_name"[[:space:]]*:/ {print $4; exit}')"
+  [ -n "$tag" ] || fail "could not resolve latest release tag from GitHub API"
+  printf '%s\n' "$tag"
+}
+
+install_binary() {
+  local src_bin="$1"
+  local target_dir="$2"
+  local target_bin="$target_dir/$BINARY_NAME"
+  mkdir -p "$target_dir"
+
+  if [ -w "$target_dir" ] || [ ! -e "$target_dir" ]; then
+    install -m 0755 "$src_bin" "$target_bin"
+    return
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo install -m 0755 "$src_bin" "$target_bin"
+    return
+  fi
+
+  fail "install directory is not writable and sudo is unavailable: $target_dir"
+}
+
+need_cmd tar
+os="$(normalize_os)"
+arch="$(normalize_arch)"
+version_tag="$(resolve_version)"
+version="${version_tag#v}"
+
+archive_name="${BINARY_NAME}_${version}_${os}_${arch}.tar.gz"
+archive_url="https://github.com/$REPO/releases/download/${version_tag}/${archive_name}"
+checksums_url="https://github.com/$REPO/releases/download/${version_tag}/checksums.txt"
+
+log "installing ${BINARY_NAME} ${version_tag} for ${os}/${arch}"
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+archive_path="$tmp_dir/$archive_name"
+checksums_path="$tmp_dir/checksums.txt"
+
+log "downloading release archive"
+download_to "$archive_url" "$archive_path"
+
+log "downloading checksum file"
+download_to "$checksums_url" "$checksums_path"
+
+expected_sum="$(awk -v file="$archive_name" '$2 == file {print $1; exit}' "$checksums_path")"
+[ -n "$expected_sum" ] || fail "could not find checksum entry for $archive_name"
+
+actual_sum="$(sha256_file "$archive_path")"
+if [ "$expected_sum" != "$actual_sum" ]; then
+  fail "checksum mismatch for $archive_name"
 fi
 
-if [ -z "$VERSION" ]; then
-    echo -e "${RED}Error: could not determine latest version${NC}"
-    exit 1
-fi
+log "checksum verified"
+tar -xzf "$archive_path" -C "$tmp_dir"
+[ -f "$tmp_dir/$BINARY_NAME" ] || fail "archive did not contain $BINARY_NAME"
 
-echo "Latest version: v$VERSION"
+install_binary "$tmp_dir/$BINARY_NAME" "$INSTALL_DIR"
 
-# Build tarball name and URL (GoReleaser naming convention)
-# e.g. git-fire_1.2.3_linux_amd64.tar.gz
-ARCHIVE_NAME="git-fire_${VERSION}_${OS}_${ARCH}.tar.gz"
-DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/v${VERSION}/${ARCHIVE_NAME}"
-
-# Alternative: build from source if binary not available
-BUILD_FROM_SOURCE=false
-
-# Download and extract
-echo "Downloading $ARCHIVE_NAME..."
-mkdir -p "$INSTALL_DIR"
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
-
-if command -v curl &> /dev/null; then
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
-        BUILD_FROM_SOURCE=true
-    fi
-elif command -v wget &> /dev/null; then
-    if ! wget -q "$DOWNLOAD_URL" -O "$TMP_DIR/$ARCHIVE_NAME" 2>/dev/null; then
-        BUILD_FROM_SOURCE=true
-    fi
-fi
-
-if [ "$BUILD_FROM_SOURCE" = false ]; then
-    tar -xzf "$TMP_DIR/$ARCHIVE_NAME" -C "$TMP_DIR"
-    cp "$TMP_DIR/git-fire" "$INSTALL_DIR/git-fire"
-fi
-
-# Build from source if download failed
-if [ "$BUILD_FROM_SOURCE" = true ]; then
-    echo -e "${YELLOW}Binary not available, building from source...${NC}"
-
-    if ! command -v go &> /dev/null; then
-        echo -e "${RED}Error: Go is required to build from source${NC}"
-        echo "Install Go from: https://golang.org/dl/"
-        exit 1
-    fi
-
-    BUILD_DIR=$(mktemp -d)
-    git clone "https://github.com/$GITHUB_REPO.git" "$BUILD_DIR/git-fire"
-    (cd "$BUILD_DIR/git-fire" && go build -ldflags="-s -w" -o "$INSTALL_DIR/git-fire" .)
-    rm -rf "$BUILD_DIR"
-fi
-
-# Make executable
-chmod +x "$INSTALL_DIR/git-fire"
-
-# Verify installation
-if [ -x "$INSTALL_DIR/git-fire" ]; then
-    echo -e "\n${GREEN}✓ Git-Fire installed successfully!${NC}\n"
-
-    # Check if in PATH
-    if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-        echo -e "${YELLOW}⚠️  $INSTALL_DIR is not in your PATH${NC}\n"
-        echo "Add this to your shell rc file (~/.bashrc, ~/.zshrc, etc.):"
-        echo -e "  ${GREEN}export PATH=\"$INSTALL_DIR:\$PATH\"${NC}\n"
-
-        if [ -n "$BASH_VERSION" ]; then
-            echo "For bash:"
-            echo -e "  ${GREEN}echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc${NC}"
-            echo -e "  ${GREEN}source ~/.bashrc${NC}\n"
-        elif [ -n "$ZSH_VERSION" ]; then
-            echo "For zsh:"
-            echo -e "  ${GREEN}echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.zshrc${NC}"
-            echo -e "  ${GREEN}source ~/.zshrc${NC}\n"
-        fi
-    fi
-
-    # Test run
-    echo "Testing installation..."
-    if "$INSTALL_DIR/git-fire" --help > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Test passed${NC}\n"
-    else
-        echo -e "${YELLOW}⚠️  Installation may have issues${NC}\n"
-    fi
-
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  Next steps:${NC}"
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo "1. Generate config (optional):"
-    echo -e "   ${GREEN}git-fire --init${NC}"
-    echo ""
-    echo "2. Test with dry-run:"
-    echo -e "   ${GREEN}git-fire --dry-run${NC}"
-    echo ""
-    echo "3. Emergency mode (when building is on fire):"
-    echo -e "   ${GREEN}git-fire${NC}"
-    echo ""
-    echo "For help:"
-    echo -e "   ${GREEN}git-fire --help${NC}"
-    echo ""
-
-else
-    echo -e "${RED}✗ Installation failed${NC}"
-    exit 1
-fi
+log "installed to $INSTALL_DIR/$BINARY_NAME"
+log "verify with: $BINARY_NAME --version"

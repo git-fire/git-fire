@@ -49,11 +49,51 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scri
 
 | Method | Command | Platform |
 |---|---|---|
+| Homebrew | `brew install git-fire/tap/git-fire` | macOS, Linuxbrew |
+| WinGet | `winget install git-fire.git-fire` | Windows |
+| Linux install script | `curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh \| bash` | Linux |
+| Linux package | Download `.deb` or `.rpm` from [GitHub Releases](https://github.com/git-fire/git-fire/releases) | Linux |
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
-| Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
+| Binary archive | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
 
-For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
-Homebrew/Scoop publishing will be enabled in a later stable release.
+Package-manager channels are published for stable tags (`vX.Y.Z`).
+Prerelease tags (`-alpha`, `-beta`, `-rc`) always ship release binaries.
+
+#### Homebrew (macOS/Linuxbrew)
+
+```bash
+brew tap git-fire/tap
+brew install git-fire
+```
+
+#### WinGet (Windows)
+
+```powershell
+winget install git-fire.git-fire
+```
+
+#### Linux quick install script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
+```
+
+Optional environment overrides:
+
+```bash
+VERSION=v0.2.0 INSTALL_DIR="$HOME/.local/bin" \
+  curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
+```
+
+#### Linux native packages (`.deb` / `.rpm`)
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i ./git-fire_<version>_amd64.deb
+
+# Fedora/RHEL/CentOS (dnf)
+sudo dnf install ./git-fire_<version>_amd64.rpm
+```
 
 #### PATH setup (required)
 
@@ -79,6 +119,10 @@ New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
 Move-Item .\git-fire.exe "$env:USERPROFILE\bin\git-fire.exe" -Force
 ```
 Then add `$env:USERPROFILE\bin` to your user `PATH` if not already present.
+
+#### Build from source
+
+Cross-platform source build instructions live in [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md).
 
 #### Verify install
 
