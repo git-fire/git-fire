@@ -198,9 +198,7 @@ func TestHandleInit(t *testing.T) {
 
 func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	resetFlags()
 	customPath := filepath.Join(tmpHome, "custom", "my-git-fire.toml")

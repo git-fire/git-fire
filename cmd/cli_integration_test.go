@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/git-fire/git-fire/internal/config"
 )
 
 // TestCLI_InitHonorsConfigFlag builds the real binary and verifies --init --config
@@ -25,7 +27,7 @@ func TestCLI_InitHonorsConfigFlag(t *testing.T) {
 		}
 	}
 	tmpHome := t.TempDir()
-	t.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	binDir := t.TempDir()
 	binName := "git-fire"
@@ -45,7 +47,14 @@ func TestCLI_InitHonorsConfigFlag(t *testing.T) {
 
 	customCfg := filepath.Join(tmpHome, "nested", "project-fire.toml")
 	runInit := exec.Command(binPath, "--init", "--force", "--config", customCfg)
-	runInit.Env = append(os.Environ(), "HOME="+tmpHome)
+	runInit.Env = append(
+		os.Environ(),
+		"HOME="+tmpHome,
+		"XDG_CONFIG_HOME="+filepath.Join(tmpHome, ".config"),
+		"XDG_CACHE_HOME="+filepath.Join(tmpHome, ".cache"),
+		"APPDATA="+filepath.Join(tmpHome, "AppData", "Roaming"),
+		"LOCALAPPDATA="+filepath.Join(tmpHome, "AppData", "Local"),
+	)
 	if out, err := runInit.CombinedOutput(); err != nil {
 		t.Fatalf("git-fire --init --force --config: %v\n%s", err, out)
 	}
@@ -63,7 +72,7 @@ func TestCLI_InitHonorsConfigFlag(t *testing.T) {
 	}
 
 	// Default user config must not appear when only custom --config was used.
-	defaultPath := filepath.Join(tmpHome, ".config", "git-fire", "config.toml")
+	defaultPath := config.DefaultConfigPath()
 	if _, err := os.Stat(defaultPath); err == nil {
 		t.Fatalf("unexpected default config at %s (should only use --config path)", defaultPath)
 	}
