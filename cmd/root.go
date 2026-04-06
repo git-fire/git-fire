@@ -766,6 +766,9 @@ func printResult(result *executor.ExecutionResult, logPath string) {
 
 func handleInit() error {
 	configPath := config.DefaultConfigPath()
+	if configFile != "" {
+		configPath = configFile
+	}
 
 	// Check if config already exists
 	if _, err := os.Stat(configPath); err == nil {
