@@ -65,21 +65,35 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		}
 	}
 
+	fileSecrets := fileSecretSnapshot{}
+	if cfgPath := v.ConfigFileUsed(); cfgPath != "" {
+		snapshot, err := readFileSecretSnapshot(cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to capture file-backed secret snapshot: %v\n", err)
+		} else {
+			fileSecrets = snapshot
+		}
+	}
+
 	// Unmarshal into struct
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	cfg.fileBackupAPIToken = cfg.Backup.APIToken
-	cfg.fileSSHPassphrase = cfg.Auth.SSHPassphrase
-	cfg.hasFileBackupAPIToken = cfg.Backup.APIToken != ""
-	cfg.hasFileSSHPassphrase = cfg.Auth.SSHPassphrase != ""
+	cfg.fileBackupAPIToken = fileSecrets.backupAPIToken
+	cfg.fileSSHPassphrase = fileSecrets.sshPassphrase
+	cfg.hasFileBackupAPIToken = fileSecrets.hasBackupAPIToken
+	cfg.hasFileSSHPassphrase = fileSecrets.hasSSHPassphrase
 
 	// Override with env vars for sensitive data
 	if token := os.Getenv("GIT_FIRE_API_TOKEN"); token != "" {
 		cfg.Backup.APIToken = token
+	} else if token := os.Getenv("GIT_FIRE_BACKUP_API_TOKEN"); token != "" {
+		cfg.Backup.APIToken = token
 	}
 	if passphrase := os.Getenv("GIT_FIRE_SSH_PASSPHRASE"); passphrase != "" {
+		cfg.Auth.SSHPassphrase = passphrase
+	} else if passphrase := os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE"); passphrase != "" {
 		cfg.Auth.SSHPassphrase = passphrase
 	}
 
@@ -89,6 +103,30 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+type fileSecretSnapshot struct {
+	backupAPIToken    string
+	sshPassphrase     string
+	hasBackupAPIToken bool
+	hasSSHPassphrase  bool
+}
+
+func readFileSecretSnapshot(configPath string) (fileSecretSnapshot, error) {
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	v.SetConfigType("toml")
+	if err := v.ReadInConfig(); err != nil {
+		return fileSecretSnapshot{}, err
+	}
+	backup := v.GetString("backup.api_token")
+	ssh := v.GetString("auth.ssh_passphrase")
+	return fileSecretSnapshot{
+		backupAPIToken:    backup,
+		sshPassphrase:     ssh,
+		hasBackupAPIToken: backup != "",
+		hasSSHPassphrase:  ssh != "",
+	}, nil
 }
 
 // LoadOrDefault loads config or returns defaults if no config found

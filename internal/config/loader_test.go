@@ -720,3 +720,29 @@ ssh_passphrase = "passphrase-from-file"
 		t.Fatalf("expected file secrets preserved, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
 	}
 }
+
+func TestLoadWithOptions_EnvOnlySecretsNotMarkedAsFileBacked(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(cfgPath, []byte("[global]\ndefault_mode = \"push-known-branches\"\n"), 0o600); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	t.Setenv("GIT_FIRE_BACKUP_API_TOKEN", "env-only-token")
+	t.Setenv("GIT_FIRE_AUTH_SSH_PASSPHRASE", "env-only-pass")
+	t.Setenv("GIT_FIRE_API_TOKEN", "")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "")
+
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions: %v", err)
+	}
+	if cfg.Backup.APIToken != "env-only-token" || cfg.Auth.SSHPassphrase != "env-only-pass" {
+		t.Fatalf("expected env overrides in memory, got api_token=%q passphrase=%q", cfg.Backup.APIToken, cfg.Auth.SSHPassphrase)
+	}
+	if cfg.hasFileBackupAPIToken || cfg.hasFileSSHPassphrase {
+		t.Fatalf("env-only secrets must not be marked file-backed (api=%v, ssh=%v)", cfg.hasFileBackupAPIToken, cfg.hasFileSSHPassphrase)
+	}
+	if cfg.fileBackupAPIToken != "" || cfg.fileSSHPassphrase != "" {
+		t.Fatalf("env-only secrets must not populate file snapshots (api=%q, ssh=%q)", cfg.fileBackupAPIToken, cfg.fileSSHPassphrase)
+	}
+}
