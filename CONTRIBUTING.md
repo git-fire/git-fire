@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing!
 
-For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Behavioral expectations and edge-case semantics live in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
+For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Historical behavior/design notes and edge-case context live in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ All tests must pass before submitting a PR.
 
 ## Maintainer
 
-The main project maintainer is `TBRX103`.
+Maintainers are listed on the GitHub repository: `github.com/git-fire/git-fire`.
 
 ## Package Overview
 
@@ -65,4 +65,4 @@ The main project maintainer is `TBRX103`.
 
 ## Reporting Issues
 
-Open a GitHub issue with a minimal reproduction case. For security issues, please email the maintainer directly rather than opening a public issue.
+Open a GitHub issue with a minimal reproduction case. For security issues, do not open a public issue; use the private reporting path in [SECURITY.md](SECURITY.md).

@@ -52,6 +52,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 - [Roadmap and Coming Soon](#roadmap-and-coming-soon)
 - [Documentation](#documentation)
 - [Security Notes](#security-notes)
+- [Security Policy](#security-policy)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -317,6 +318,7 @@ Start with [docs/README.md](docs/README.md).
 - Build from source: [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md)
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
+- Planned USB mode scope: [docs/USB_MODE.md](docs/USB_MODE.md)
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
@@ -329,6 +331,10 @@ Before running broad backups:
 
 `git-fire` includes secret detection warnings, but commit responsibility remains with the user.
 
+## Security Policy
+
+To report security issues privately, use [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -336,4 +342,5 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
 

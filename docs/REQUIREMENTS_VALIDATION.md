@@ -2,6 +2,8 @@
 
 > Historical validation snapshot: this file reflects a point-in-time assessment from 2026-03-29 and is not the canonical source for current runtime behavior on `main`.
 >
+> The percentages, blocker counts, and timeline statements below are historical and may not match the current implementation state.
+>
 > For current behavior and docs source-of-truth, use:
 > - [../README.md](../README.md)
 > - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)

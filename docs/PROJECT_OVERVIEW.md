@@ -143,7 +143,7 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Tighten edge-case handling and operational confidence.
 - Improve onboarding and safe-usage documentation.
 
-### 1.0 (Target: next 2-4 months)
+### 1.0 (timing depends on alpha feedback)
 
 - Close beta-critical issues.
 - Ship stable production-ready core flows.
