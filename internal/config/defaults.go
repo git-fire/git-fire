@@ -4,6 +4,7 @@ import "time"
 
 const DefaultPushWorkers = 4
 const DefaultUIFireTickMS = 180
+const DefaultUIStartupQuoteIntervalSec = 10
 
 // MinUIFireTickMS and MaxUIFireTickMS clamp ui.fire_tick_ms after load (see
 // Config.Validate). That field becomes the Bubble Tea program's tick period: the
@@ -19,9 +20,12 @@ const MaxUIFireTickMS = 60000
 func DefaultConfig() Config {
 	return Config{
 		UI: UIConfig{
-			ShowFireAnimation: true,
-			FireTickMS:        DefaultUIFireTickMS,
-			ColorProfile:      UIColorProfileClassic,
+			ShowFireAnimation:       true,
+			ShowStartupQuote:        true,
+			StartupQuoteBehavior:    UIQuoteBehaviorRefresh,
+			StartupQuoteIntervalSec: DefaultUIStartupQuoteIntervalSec,
+			FireTickMS:              DefaultUIFireTickMS,
+			ColorProfile:            UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
 			DefaultMode:      "push-known-branches",
@@ -118,6 +122,18 @@ disable_scan = false
 # Toggle live during a session with the 'f' key.
 # The animation is always suppressed when the terminal is too short regardless of this setting.
 show_fire_animation = true
+
+# Flavor quotes: TUI banner plus terminal motivation lines after runs.
+# In Settings (TUI) this row is labeled "Show flavor quotes".
+show_startup_quote = true
+
+# Flavor quote behavior in the TUI:
+# "refresh" = rotate to a new quote every startup_quote_interval_sec
+# "hide" = remove quote after startup_quote_interval_sec
+startup_quote_behavior = "refresh"
+
+# Seconds between flavor quote refresh/hide actions in the TUI.
+startup_quote_interval_sec = 10
 
 # Fire animation speed in milliseconds per frame (also drives the TUI tick).
 # Lower = faster/smoother but higher CPU usage. Recommended: 120-300.

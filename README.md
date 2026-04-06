@@ -253,8 +253,11 @@ git-fire --config ./git-fire.toml
 # use only known registry repos for this run
 git-fire --no-scan
 
-# generate config template
+# generate config template (default path: user config dir, e.g. ~/.config/git-fire/config.toml)
 git-fire --init
+
+# same, but write the template to a project-local file (pairs with --config on runs)
+git-fire --init --config ./git-fire.toml
 ```
 
 ## Set-and-Forget Repeatability
@@ -268,6 +271,12 @@ See [docs/REGISTRY.md](docs/REGISTRY.md).
 Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
 
 See [docs/agentic-flows.md](docs/agentic-flows.md).
+
+## USB Mode (coming soon)
+
+USB mode is planned as a first-class backup destination. The initial release will support syncing repos to one or more USB targets (including plain folder mounts), with incremental git-native updates and a per-target `.git-fire` marker/config at the destination root.
+
+Detailed design and rollout notes will be documented in `docs/USB_MODE.md` as implementation lands.
 
 ### TUI color profiles
 

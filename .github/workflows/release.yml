@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: 'v0.1.0-alpha'
+  # Allows releases when workflow_dispatch is unavailable (e.g. narrow GitHub tokens):
+  # create an annotated tag on main and push it — GoReleaser runs for that tag.
+  push:
+    tags:
+      - 'v*.*.*-*'
 
 permissions:
   contents: read
@@ -15,6 +20,7 @@ permissions:
 jobs:
   tag:
     name: Create tag
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,6 +90,15 @@ jobs:
   goreleaser:
     name: GoReleaser
     needs: tag
+    # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
+    # (the tag job is skipped on push; skipped needs require always() so this if is evaluated).
+    # always() && !cancelled(): respect workflow cancellation (Bugbot).
+    # Push path: only initial tag creation, not delete/force-push (CodeRabbit).
+    if: |
+      always() && !cancelled() &&
+      (github.event_name != 'push' || (github.event.created && !github.event.deleted && !github.event.forced)) &&
+      (needs.tag.result == 'success' ||
+        (github.event_name == 'push' && needs.tag.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,7 +107,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ needs.tag.outputs.tag }}
+          ref: >-
+            ${{
+              github.event_name == 'workflow_dispatch'
+              && needs.tag.outputs.tag
+              || github.ref
+            }}
+
+      - name: Require pushed tag to target mainline
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          TAG_COMMIT="$(git rev-parse HEAD)"
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" "origin/main"; then
+            echo "Release tag must point to a commit reachable from origin/main (not a feature-branch-only SHA)."
+            exit 1
+          fi
 
       - uses: actions/setup-go@v5
         with:

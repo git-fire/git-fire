@@ -38,6 +38,15 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
 		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
 	}
+	if !cfg.UI.ShowStartupQuote {
+		t.Error("Expected ui.show_startup_quote to be true")
+	}
+	if cfg.UI.StartupQuoteBehavior != UIQuoteBehaviorRefresh {
+		t.Errorf("Expected ui.startup_quote_behavior to be %q, got %q", UIQuoteBehaviorRefresh, cfg.UI.StartupQuoteBehavior)
+	}
+	if cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
+		t.Errorf("Expected ui.startup_quote_interval_sec to be %d, got %d", DefaultUIStartupQuoteIntervalSec, cfg.UI.StartupQuoteIntervalSec)
+	}
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {
@@ -202,6 +211,35 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid startup quote behavior",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:         UIColorProfileClassic,
+					StartupQuoteBehavior: "invalid",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid startup quote interval fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:            UIColorProfileClassic,
+					StartupQuoteBehavior:    UIQuoteBehaviorRefresh,
+					StartupQuoteIntervalSec: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "invalid platform",
 			cfg: Config{
 				Global: GlobalConfig{
@@ -290,6 +328,9 @@ func TestValidate(t *testing.T) {
 			}
 			if tt.name == "fire tick above max clamps" && tt.cfg.UI.FireTickMS != MaxUIFireTickMS {
 				t.Errorf("FireTickMS clamp high = %d, want %d", tt.cfg.UI.FireTickMS, MaxUIFireTickMS)
+			}
+			if tt.name == "invalid startup quote interval fallback to default" && tt.cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
+				t.Errorf("StartupQuoteIntervalSec fallback = %d, want %d", tt.cfg.UI.StartupQuoteIntervalSec, DefaultUIStartupQuoteIntervalSec)
 			}
 		})
 	}
@@ -436,11 +477,11 @@ func TestDefaultConfigPath_UsesUserConfigDir(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdgHome)
 
 	path := DefaultConfigPath()
-	base, err := os.UserConfigDir()
+	cfgBase, err := os.UserConfigDir()
 	if err != nil {
-		t.Fatalf("UserConfigDir: %v", err)
+		t.Fatalf("os.UserConfigDir: %v", err)
 	}
-	want := filepath.Join(base, "git-fire", "config.toml")
+	want := filepath.Join(cfgBase, "git-fire", "config.toml")
 	if path != want {
 		t.Fatalf("expected path %q, got %q", want, path)
 	}
