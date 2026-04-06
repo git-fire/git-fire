@@ -55,6 +55,15 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scri
 For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
 Homebrew/Scoop publishing will be enabled in a later stable release.
 
+#### WinGet automation (maintainers)
+
+This repo includes `.github/workflows/winget.yml` to submit/update `git-fire.git-fire` in `microsoft/winget-pkgs` when a release is published.
+
+Required setup:
+- Fork `microsoft/winget-pkgs` under the `git-fire` account.
+- Add a classic PAT with `public_repo` scope as repository secret `WINGET_TOKEN`.
+- Ensure at least one `git-fire.git-fire` manifest version already exists in `winget-pkgs` (bootstrap release is manual).
+
 #### PATH setup (required)
 
 After install, make sure the binary location is on your `PATH`.

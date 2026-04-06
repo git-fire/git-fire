@@ -32,3 +32,8 @@ All standard dev commands are in the `Makefile` and documented in `CLAUDE.md`:
 - The repo registry at `~/.config/git-fire/repos.toml` persists discovered repos across runs. This file is auto-created on first run.
 - `internal/ui` has no tests by design (Bubble Tea TUI testing is deferred).
 - golangci-lint v2 migration is in progress — do not enable it in CI without checking compatibility first.
+
+### Release automation caveat
+
+- WinGet automation is configured in `.github/workflows/winget.yml` and depends on repository secret `WINGET_TOKEN` (classic PAT with `public_repo`) plus a `git-fire` fork of `microsoft/winget-pkgs`.
+- If release automation fails, run the workflow manually via `workflow_dispatch` and pass `release_tag` (example: `v0.1.1-alpha`).
