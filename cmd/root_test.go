@@ -155,7 +155,7 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 func TestHandleInit(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Run handleInit
 	err := handleInit()
@@ -218,7 +218,7 @@ func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create config directory and file
 	configDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -256,7 +256,7 @@ func TestHandleStatus(t *testing.T) {
 func TestRunGitFire_DryRun(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -323,7 +323,7 @@ func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create empty directory
 	emptyDir := t.TempDir()
@@ -373,7 +373,7 @@ func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_FireDrillFlag(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -402,7 +402,7 @@ func TestRunGitFire_FireDrillFlag(t *testing.T) {
 func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -429,7 +429,7 @@ func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 func TestRunGitFire_WithInit(t *testing.T) {
 	// Setup temp home
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
