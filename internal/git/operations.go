@@ -668,8 +668,11 @@ func clearIndexForUnborn(repoPath string) error {
 func listStagedPaths(repoPath string) ([]string, error) {
 	cmd := exec.Command("git", "diff", "--cached", "--name-only", "-z")
 	cmd.Dir = repoPath
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+			return nil, commandError("git diff --cached --name-only -z", err, exitErr.Stderr)
+		}
 		return nil, commandError("git diff --cached --name-only -z", err, output)
 	}
 
