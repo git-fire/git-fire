@@ -523,6 +523,17 @@ func saveConfigAndReload(t *testing.T, cfg *Config) Config {
 	return loaded
 }
 
+func TestSaveConfig_NilConfig(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	err := SaveConfig(nil, cfgPath)
+	if err == nil {
+		t.Fatal("expected error for nil config")
+	}
+	if err.Error() != "nil config" {
+		t.Fatalf("expected nil config error, got %q", err)
+	}
+}
+
 func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original := DefaultConfig()
 	original.Global.DefaultMode = "push-all"

@@ -341,6 +341,10 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 // SaveConfig marshals cfg to TOML and atomically writes it to path.
 // It creates the parent directory if necessary.
 func SaveConfig(cfg *Config, path string) error {
+	if cfg == nil {
+		return fmt.Errorf("nil config")
+	}
+
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
