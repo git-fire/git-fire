@@ -95,6 +95,14 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return handleStatus()
 	}
 
+	// --fire-drill is an alias for --dry-run.
+	if fireDrill {
+		dryRun = true
+	}
+	if fireMode && dryRun {
+		return fmt.Errorf("--fire and --dry-run cannot be used together")
+	}
+
 	var cfg *config.Config
 	failRun := func(err error) error {
 		if err != nil {
