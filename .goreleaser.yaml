@@ -77,7 +77,7 @@ changelog:
     - title: Other
       order: 999
 
-brews:
+homebrew_casks:
   - name: git-fire
     repository:
       owner: git-fire
@@ -85,16 +85,12 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
       pull_request:
         enabled: false
-    directory: Formula
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
     homepage: "https://github.com/git-fire/git-fire"
     description: "Multi-repo checkpoint CLI for Git."
-    license: MIT
-    install: bin.install "git-fire"
-    test: system "#{bin}/git-fire", "--version"
 
 # scoops:
 #   - name: git-fire
