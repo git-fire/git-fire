@@ -288,9 +288,7 @@ func TestRunGitFire_DryRun(t *testing.T) {
 func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -348,9 +346,7 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	emptyDir := t.TempDir()
 

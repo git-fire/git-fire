@@ -346,8 +346,11 @@ func SaveConfig(cfg *Config, path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	toSave := *cfg
+	sanitizeSecretsForSave(&toSave)
+
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(&toSave); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
 
@@ -360,4 +363,13 @@ func SaveConfig(cfg *Config, path string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	return nil
+}
+
+func sanitizeSecretsForSave(cfg *Config) {
+	if os.Getenv("GIT_FIRE_API_TOKEN") != "" {
+		cfg.Backup.APIToken = ""
+	}
+	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" {
+		cfg.Auth.SSHPassphrase = ""
+	}
 }

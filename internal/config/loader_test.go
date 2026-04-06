@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -573,6 +574,44 @@ func TestSaveConfig_RepoOverridesRoundTrip(t *testing.T) {
 	}
 	if loaded.Repos[0].Mode != "push-all" {
 		t.Errorf("Mode: want push-all, got %s", loaded.Repos[0].Mode)
+	}
+}
+
+func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+
+	t.Setenv("GIT_FIRE_API_TOKEN", "test-token-123")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "test-passphrase")
+
+	cfg := DefaultConfig()
+	cfg.Backup.APIToken = "test-token-123"
+	cfg.Auth.SSHPassphrase = "test-passphrase"
+
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(raw), "test-token-123") {
+		t.Fatal("saved config contains API token from env")
+	}
+	if strings.Contains(string(raw), "test-passphrase") {
+		t.Fatal("saved config contains SSH passphrase from env")
+	}
+
+	var loaded Config
+	if err := tomlUnmarshal(raw, &loaded); err != nil {
+		t.Fatalf("tomlUnmarshal after SaveConfig: %v", err)
+	}
+	if loaded.Backup.APIToken != "" {
+		t.Errorf("Backup.APIToken: want empty, got %q", loaded.Backup.APIToken)
+	}
+	if loaded.Auth.SSHPassphrase != "" {
+		t.Errorf("Auth.SSHPassphrase: want empty, got %q", loaded.Auth.SSHPassphrase)
 	}
 }
 
