@@ -142,14 +142,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		cfg.Global.DisableScan = true
 	}
 
-	// Fire drill is same as dry run.
-	if fireDrill {
-		dryRun = true
-	}
-	if fireMode && dryRun {
-		return fmt.Errorf("--fire and --dry-run cannot be used together")
-	}
-
 	// Show security notice
 	if !dryRun {
 		fmt.Println(safety.SecurityNotice())
