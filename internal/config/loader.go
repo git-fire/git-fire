@@ -70,6 +70,10 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	cfg.fileBackupAPIToken = cfg.Backup.APIToken
+	cfg.fileSSHPassphrase = cfg.Auth.SSHPassphrase
+	cfg.hasFileBackupAPIToken = cfg.Backup.APIToken != ""
+	cfg.hasFileSSHPassphrase = cfg.Auth.SSHPassphrase != ""
 
 	// Override with env vars for sensitive data
 	if token := os.Getenv("GIT_FIRE_API_TOKEN"); token != "" {
@@ -343,10 +347,18 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 // credentials into config.toml).
 func sanitizeSecretsForSave(cfg *Config) {
 	if os.Getenv("GIT_FIRE_API_TOKEN") != "" || os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != "" {
-		cfg.Backup.APIToken = ""
+		if cfg.hasFileBackupAPIToken {
+			cfg.Backup.APIToken = cfg.fileBackupAPIToken
+		} else {
+			cfg.Backup.APIToken = ""
+		}
 	}
 	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" || os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != "" {
-		cfg.Auth.SSHPassphrase = ""
+		if cfg.hasFileSSHPassphrase {
+			cfg.Auth.SSHPassphrase = cfg.fileSSHPassphrase
+		} else {
+			cfg.Auth.SSHPassphrase = ""
+		}
 	}
 }
 
