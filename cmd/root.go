@@ -107,14 +107,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
 
-	// Fire drill is same as dry run.
-	if fireDrill {
-		dryRun = true
-	}
-	if fireMode && dryRun {
-		return fmt.Errorf("--fire and --dry-run cannot be used together")
-	}
-
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
 		return failRun(fmt.Errorf("--backup-to is not yet implemented (planned for v0.2)"))
