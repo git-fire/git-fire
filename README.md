@@ -241,8 +241,11 @@ git-fire --config ./git-fire.toml
 # use only known registry repos for this run
 git-fire --no-scan
 
-# generate config template
+# generate config template (default path: user config dir, e.g. ~/.config/git-fire/config.toml)
 git-fire --init
+
+# same, but write the template to a project-local file (pairs with --config on runs)
+git-fire --init --config ./git-fire.toml
 ```
 
 ## Set-and-Forget Repeatability
