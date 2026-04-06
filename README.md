@@ -58,6 +58,9 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scri
 
 Package-manager channels are published for stable tags (`vX.Y.Z`).
 Prerelease tags (`-alpha`, `-beta`, `-rc`) always ship release binaries.
+Maintainer runbooks:
+- Homebrew: [`docs/HOMEBREW_RELEASE_RUNBOOK.md`](docs/HOMEBREW_RELEASE_RUNBOOK.md)
+- WinGet: [`docs/WINGET_RELEASE_RUNBOOK.md`](docs/WINGET_RELEASE_RUNBOOK.md)
 
 #### Homebrew (macOS/Linuxbrew)
 
@@ -285,11 +288,8 @@ git-fire --config ./git-fire.toml
 # use only known registry repos for this run
 git-fire --no-scan
 
-# generate config template (default path: user config dir, e.g. ~/.config/git-fire/config.toml)
+# generate config template
 git-fire --init
-
-# same, but write the template to a project-local file (pairs with --config on runs)
-git-fire --init --config ./git-fire.toml
 ```
 
 ## Set-and-Forget Repeatability
