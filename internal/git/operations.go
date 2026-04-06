@@ -489,11 +489,12 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 
 	timestamp := time.Now().Format("20060102-150405")
 	commitsCreated := 0
+	successRestoreAttempted := false
 
 	// Failure path cleanup: always reset to the original commit to avoid orphan
 	// backup commits, even when multiple commits were created.
 	defer func() {
-		if retErr == nil || commitsCreated == 0 {
+		if retErr == nil || commitsCreated == 0 || successRestoreAttempted {
 			return
 		}
 		if cleanupErr := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalStagedPaths); cleanupErr != nil {
@@ -623,6 +624,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 
 	// Success path restore: preserve original staged/unstaged shape.
 	if opts.ReturnToOriginal && commitsCreated > 0 {
+		successRestoreAttempted = true
 		if err := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalStagedPaths); err != nil {
 			return returnResultOnError(result, err)
 		}
