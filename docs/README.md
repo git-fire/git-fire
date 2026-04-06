@@ -8,8 +8,9 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 
 - Project entrypoint: [../README.md](../README.md)
 - Project snapshot and architecture reference: [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
-- Behavior spec: [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+- Legacy behavior/design reference (may include proposed ideas): [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
 - Contributor workflow: [../CONTRIBUTING.md](../CONTRIBUTING.md)
+- Security policy: [../SECURITY.md](../SECURITY.md)
 
 ## Guides
 
@@ -21,19 +22,22 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 ## Reference
 
 - Plugin architecture and supported types: [../PLUGINS.md](../PLUGINS.md)
-- Requirements validation matrix: [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
+- Planned USB backup mode (not in current alpha): [USB_MODE.md](USB_MODE.md)
 
-## Active vs Historical Validation Docs
+## Current Source of Truth
 
-- Current behavior/source-of-truth:
-  - [../README.md](../README.md)
-  - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
-  - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
-- Historical validation snapshot and planning context:
-  - [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
-  - [VALIDATION_PROGRESS.md](VALIDATION_PROGRESS.md)
-  - [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
-  - [UAT_BUGS.md](UAT_BUGS.md)
-  - [validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md](validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md)
+- [../README.md](../README.md)
+- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
+- [../ROADMAP.md](../ROADMAP.md)
+
+## Historical / Archive
+
+These are preserved for planning and historical context. They are not canonical product status for current `main`.
+
+- [REQUIREMENTS_VALIDATION.md](REQUIREMENTS_VALIDATION.md)
+- [VALIDATION_PROGRESS.md](VALIDATION_PROGRESS.md)
+- [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
+- [UAT_BUGS.md](UAT_BUGS.md)
+- [validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md](validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md)
 - Artifact retention policy: [validation-artifacts/README.md](validation-artifacts/README.md)
 

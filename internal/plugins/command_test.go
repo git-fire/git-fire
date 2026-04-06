@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -18,6 +19,10 @@ func (l *testLogger) Success(msg string) {
 }
 
 func (l *testLogger) Error(msg string, err error) {
+	if err != nil {
+		l.messages = append(l.messages, "ERROR: "+msg+" "+err.Error())
+		return
+	}
 	l.messages = append(l.messages, "ERROR: "+msg)
 }
 
@@ -182,6 +187,66 @@ func TestCommandPlugin_Cleanup(t *testing.T) {
 	plugin := NewCommandPlugin("cleanup-test", "echo", []string{"ok"})
 	if err := plugin.Cleanup(); err != nil {
 		t.Fatalf("Cleanup() should return nil, got %v", err)
+	}
+}
+
+func TestCommandPlugin_Execute_SanitizesStderr(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   false,
+	}
+
+	plugin := NewCommandPlugin("test-stderr", "sh", []string{"-c", "echo 'fatal https://user:secret@github.com/repo.git' 1>&2; exit 1"})
+
+	err := plugin.Execute(ctx)
+	if err == nil {
+		t.Fatal("Expected command error")
+	}
+
+	if contains(err.Error(), "user:secret@") {
+		t.Fatalf("Expected sanitized error, got %q", err.Error())
+	}
+	if !contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("Expected masked secret marker in error, got %q", err.Error())
+	}
+}
+
+func TestCommandPlugin_Execute_SanitizesStdoutDebug(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   false,
+	}
+
+	plugin := NewCommandPlugin("test-stdout", "sh", []string{"-c", "echo 'https://user:secret@github.com/repo.git'"})
+
+	err := plugin.Execute(ctx)
+	if err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+
+	joined := ""
+	for _, m := range logger.messages {
+		joined += m
+	}
+	if contains(joined, "user:secret@") {
+		t.Fatalf("Expected sanitized logger output, got %q", joined)
+	}
+	if !contains(joined, "[REDACTED]") {
+		t.Fatalf("Expected masked secret marker in logger output, got %q", joined)
+	}
+}
+
+func TestTestLoggerErrorIncludesErr(t *testing.T) {
+	logger := &testLogger{}
+	logger.Error("boom", errors.New("details"))
+	if !contains(logger.messages[0], "details") {
+		t.Fatalf("expected logger to include error details, got %q", logger.messages[0])
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/git-fire/git-fire/internal/safety"
 )
 
 // CommandPlugin executes external commands
@@ -88,8 +90,8 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 		expandedArgs[i] = p.expandVars(arg, ctx)
 	}
 
-	ctx.Logger.Info(fmt.Sprintf("Executing: %s %s",
-		p.command, strings.Join(expandedArgs, " ")))
+	ctx.Logger.Info(safety.SanitizeText(fmt.Sprintf("Executing: %s %s",
+		p.command, strings.Join(expandedArgs, " "))))
 
 	// Create command
 	cmd := exec.Command(p.command, expandedArgs...)
@@ -123,12 +125,13 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 
 	case err := <-done:
 		if err != nil {
-			ctx.Logger.Error(fmt.Sprintf("Command failed: %s", stderr.String()), err)
-			return fmt.Errorf("command failed: %w\nStderr: %s", err, stderr.String())
+			sanitizedStderr := safety.SanitizeText(stderr.String())
+			ctx.Logger.Error(fmt.Sprintf("Command failed: %s", sanitizedStderr), err)
+			return fmt.Errorf("command failed: %w\nStderr: %s", err, sanitizedStderr)
 		}
 
 		if stdout.Len() > 0 {
-			ctx.Logger.Debug(fmt.Sprintf("Output: %s", stdout.String()))
+			ctx.Logger.Debug(fmt.Sprintf("Output: %s", safety.SanitizeText(stdout.String())))
 		}
 
 		ctx.Logger.Success(fmt.Sprintf("Command completed successfully"))
