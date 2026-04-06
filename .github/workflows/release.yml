@@ -137,3 +137,32 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-winget:
+    name: Publish WinGet
+    needs:
+      - tag
+      - goreleaser
+    if: needs.goreleaser.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger WinGet workflow
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && needs.tag.outputs.tag || github.ref_name }}
+          DISPATCH_REF: ${{ github.event.repository.default_branch }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'winget.yml',
+              ref: process.env.DISPATCH_REF,
+              inputs: {
+                release_tag: process.env.RELEASE_TAG,
+              },
+            })

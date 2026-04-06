@@ -1,8 +1,6 @@
 name: Publish to WinGet
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -18,10 +16,10 @@ jobs:
     runs-on: ubuntu-slim
     steps:
       - name: Publish release to WinGet
-        uses: vedantmgoyal9/winget-releaser@main
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
           identifier: git-fire.git-fire
           installers-regex: '_windows_(386|amd64|arm64)\.zip$'
-          release-tag: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
+          release-tag: ${{ inputs.release_tag }}
           fork-user: git-fire
           token: ${{ secrets.WINGET_TOKEN }}
