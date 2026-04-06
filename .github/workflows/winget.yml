@@ -24,11 +24,15 @@ jobs:
       - name: Resolve target tag
         id: meta
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $tag = "${{ inputs.release_tag }}"
+          if ($env:EVENT_NAME -eq "workflow_dispatch") {
+            $tag = $env:DISPATCH_RELEASE_TAG
           } else {
-            $tag = "${{ github.event.release.tag_name }}"
+            $tag = $env:RELEASE_TAG
           }
 
           if ($tag -notmatch '^v\d+\.\d+\.\d+$') {

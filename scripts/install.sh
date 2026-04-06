@@ -100,14 +100,19 @@ install_binary() {
   local src_bin="$1"
   local target_dir="$2"
   local target_bin="$target_dir/$BINARY_NAME"
-  mkdir -p "$target_dir"
 
-  if [ -w "$target_dir" ] || [ ! -e "$target_dir" ]; then
+  if [ -w "$target_dir" ]; then
+    install -m 0755 "$src_bin" "$target_bin"
+    return
+  fi
+
+  if [ ! -e "$target_dir" ] && mkdir -p "$target_dir"; then
     install -m 0755 "$src_bin" "$target_bin"
     return
   fi
 
   if command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$target_dir"
     sudo install -m 0755 "$src_bin" "$target_bin"
     return
   fi
