@@ -116,6 +116,23 @@ brews:
     install: bin.install "git-fire"
     test: system "#{bin}/git-fire", "--version"
 
+scoops:
+  - name: git-fire
+    repository:
+      owner: git-fire
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      directory: bucket
+      pull_request:
+        enabled: false
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+    homepage: "https://github.com/git-fire/git-fire"
+    description: "Emergency git backup - commit and push all repos when disaster strikes"
+    license: MIT
+
 release:
   github:
     owner: git-fire
