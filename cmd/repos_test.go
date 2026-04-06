@@ -107,7 +107,7 @@ func TestStatusLabel_EmptyString(t *testing.T) {
 func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 	// Set HOME to a temp dir so registry.DefaultRegistryPath() points there
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a real git repo to track
 	scenario := testutil.NewScenario(t)
@@ -121,7 +121,7 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 			{Path: repo.Path(), Name: "tracked", Status: registry.StatusActive},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	regPath := testRegistryPath(t)
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -138,14 +138,14 @@ func TestHandleStatus_IncludesRegistryRepos(t *testing.T) {
 
 func TestHandleStatus_CorruptRegistry_DoesNotPanic(t *testing.T) {
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
-	// Write a corrupt registry file
-	regDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(regDir, 0o700); err != nil {
+	// Write a corrupt registry file at the same path the app resolves (e.g. macOS Application Support).
+	regPath := testRegistryPath(t)
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(regDir, "repos.toml"), []byte("not valid toml [[["), 0o600); err != nil {
+	if err := os.WriteFile(regPath, []byte("not valid toml [[["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -167,7 +167,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 	}
 
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a path inside an unreadable parent dir so os.Stat returns EACCES,
 	// not ENOENT. The parent has mode 0o000 so traversal is denied.
@@ -190,7 +190,7 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 			{Path: targetPath, Name: "locked", Status: registry.StatusMissing},
 		},
 	}
-	regPath := filepath.Join(tmpHome, ".config", "git-fire", "repos.toml")
+	regPath := testRegistryPath(t)
 	if err := registry.Save(reg, regPath); err != nil {
 		t.Fatalf("failed to write test registry: %v", err)
 	}
@@ -221,14 +221,13 @@ func TestRunGitFire_PermissionDenied_DoesNotReactivateMissingRepo(t *testing.T) 
 
 func TestRunGitFire_CorruptRegistry_DoesNotAbort(t *testing.T) {
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
-	// Corrupt the registry file
-	regDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(regDir, 0o700); err != nil {
+	regPath := testRegistryPath(t)
+	if err := os.MkdirAll(filepath.Dir(regPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(regDir, "repos.toml"), []byte("not valid toml [[["), 0o600); err != nil {
+	if err := os.WriteFile(regPath, []byte("not valid toml [[["), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -266,7 +265,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create two repos
 	scenario := testutil.NewScenario(t)
@@ -313,12 +312,33 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 
 // ---- repos subcommand function coverage ----
 
-// isolateHome redirects HOME (and clears XDG_*) so loadRegistry() uses a temp registry.
+// isolateHome redirects HOME so loadRegistry() uses a temp registry.
 func isolateHome(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
-	setTestHome(t, tmp)
+	setTestUserDirs(t, tmp)
 	return tmp
+}
+
+// setTestUserDirs normalizes user-dir environment variables for tests that
+// depend on UserConfigDir/UserCacheDir path resolution.
+func setTestUserDirs(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+}
+
+// testRegistryPath returns the path handleStatus/runGitFire use after setTestUserDirs (matches macOS vs XDG layout).
+func testRegistryPath(t *testing.T) string {
+	t.Helper()
+	p, err := registry.DefaultRegistryPath()
+	if err != nil {
+		t.Fatalf("DefaultRegistryPath: %v", err)
+	}
+	return p
 }
 
 func TestLoadRegistry(t *testing.T) {
@@ -483,7 +503,10 @@ func TestReposRemove_Function(t *testing.T) {
 		t.Errorf("reposRemove() error = %v", err)
 	}
 
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if loaded.FindByPath(abs) != nil {
 		t.Error("entry should have been removed")
 	}
@@ -510,7 +533,10 @@ func TestSetRepoStatus_IgnoreUnignore(t *testing.T) {
 	if err := setRepoStatus(abs, registry.StatusIgnored, "ignored"); err != nil {
 		t.Errorf("setRepoStatus(ignored) error = %v", err)
 	}
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
 		t.Error("status should be ignored")
 	}
@@ -518,7 +544,10 @@ func TestSetRepoStatus_IgnoreUnignore(t *testing.T) {
 	if err := setRepoStatus(abs, registry.StatusActive, "active"); err != nil {
 		t.Errorf("setRepoStatus(active) error = %v", err)
 	}
-	loaded2, _ := registry.Load(regPath)
+	loaded2, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded2.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
 		t.Error("status should be active after unignore")
 	}
@@ -545,7 +574,10 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 	if err := reposIgnore(reposIgnoreCmd, []string{abs}); err != nil {
 		t.Fatalf("reposIgnore() error = %v", err)
 	}
-	loaded, _ := registry.Load(regPath)
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusIgnored {
 		t.Fatalf("reposIgnore should mark status as ignored")
 	}
@@ -553,9 +585,40 @@ func TestReposIgnoreAndUnignore_Wrappers(t *testing.T) {
 	if err := reposUnignore(reposUnignoreCmd, []string{abs}); err != nil {
 		t.Fatalf("reposUnignore() error = %v", err)
 	}
-	loaded, _ = registry.Load(regPath)
+	loaded, err = registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
 	if e := loaded.FindByPath(abs); e == nil || e.Status != registry.StatusActive {
 		t.Fatalf("reposUnignore should mark status as active")
+	}
+}
+
+func TestReposRemove_UsesXDGRegistryPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+	cfgRoot := filepath.Join(tmpHome, ".xdg_config")
+	t.Setenv("XDG_CONFIG_HOME", cfgRoot)
+	t.Setenv("APPDATA", cfgRoot)
+	t.Setenv("LOCALAPPDATA", cfgRoot)
+
+	regPath := filepath.Join(cfgRoot, "git-fire", "repos.toml")
+	reg := &registry.Registry{}
+	abs, _ := filepath.Abs("/xdg/repo")
+	reg.Upsert(registry.RegistryEntry{Path: abs, Name: "xdg", Status: registry.StatusActive})
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+
+	if err := reposRemove(reposRemoveCmd, []string{abs}); err != nil {
+		t.Fatalf("reposRemove() error = %v", err)
+	}
+	loaded, err := registry.Load(regPath)
+	if err != nil {
+		t.Fatalf("reload registry: %v", err)
+	}
+	if loaded.FindByPath(abs) != nil {
+		t.Fatal("entry should be removed when using XDG config path")
 	}
 }
 
@@ -576,7 +639,7 @@ func TestStatusLabel_AllValues(t *testing.T) {
 
 func TestHandleInit_ForceFlag(t *testing.T) {
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// First call creates the file
 	forceInit = false

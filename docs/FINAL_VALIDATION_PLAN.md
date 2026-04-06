@@ -4,12 +4,12 @@ This plan is preserved as historical context only.
 
 - Planned run: strict pre-release validation campaign
 - Execution date: 2026-03-29
-- Final outcome: completed and marked GO in the validation report
+- Final outcome: completed (2026-03-29 pre-release pass)
 
 ## Superseded by
 
-- `docs/validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md` (executed results)
-- `docs/REQUIREMENTS_VALIDATION.md` (current status source)
+- `docs/REQUIREMENTS_VALIDATION.md` (status matrix)
+- `docs/UAT_BUGS.md` (issue and remediation history)
 
 ## Original intent (condensed)
 
@@ -21,5 +21,5 @@ The plan required:
 4. Resilience and safety checks (dry-run, ignore rules, exit codes, no force-push)
 5. GO/NO-GO decision with artifact traceability
 
-All five areas were executed in the 2026-03-29 run and moved to report form.
+All five areas were exercised in the 2026-03-29 run; outcomes are reflected in the matrix and UAT notes above.
 

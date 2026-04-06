@@ -46,6 +46,9 @@ var (
 	showStatus bool
 )
 
+var errRunAborted = errors.New("run aborted")
+var errRunNoop = errors.New("run completed with no backup actions")
+
 var rootCmd = &cobra.Command{
 	Use:   "git-fire",
 	Short: "Emergency git backup tool",
@@ -92,6 +95,18 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return handleStatus()
 	}
 
+	var cfg *config.Config
+	failRun := func(err error) error {
+		if err != nil {
+			if FlavorQuotesEnabled(cfg) {
+				printFailedRunEmberMessage()
+			}
+		}
+		return err
+	}
+
+	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+
 	// Fire drill is same as dry run.
 	if fireDrill {
 		dryRun = true
@@ -101,18 +116,26 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	if backupTo != "" {
-		return fmt.Errorf("--backup-to is not implemented yet; use configured remotes instead")
+		return failRun(fmt.Errorf("--backup-to is not implemented yet; use configured remotes instead"))
 	}
 
 	// Verify git is available before doing anything else
 	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("git not found in PATH: please install git before using git-fire")
+		return failRun(fmt.Errorf("git not found in PATH: please install git before using git-fire"))
 	}
 
 	// Load configuration
-	cfg, cfgErr := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
+	var cfgErr error
+	cfg, cfgErr = config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
 	if cfgErr != nil {
-		return fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error()))
+		return failRun(fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error())))
+	}
+
+	// Flavor quotes (see ui.show_startup_quote / Settings → Show flavor quotes).
+	// --fire: quote is printed after the TUI exits (runFireStream) so it is visible
+	// on the normal screen buffer.
+	if !fireMode && FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Override config with flags
@@ -171,7 +194,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	opts.KnownPaths = knownPaths
 	opts.DisableScan = cfg.Global.DisableScan
 
-	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
 	if cfg.Global.DisableScan {
 		if noScan {
 			fmt.Println("⚠️  Scanning Disabled (this run only)")
@@ -185,13 +207,35 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	//   --fire         → streaming TUI (repos appear as discovered)
 	//   --dry-run      → batch collect then plan summary (no changes made)
 	//   default        → streaming backup pipeline
+	var runErr error
 	if fireMode {
-		return runFireStream(cfg, reg, regPath, opts)
+		runErr = runFireStream(cfg, reg, regPath, opts)
+	} else if dryRun {
+		runErr = runBatch(cfg, reg, regPath, opts)
+	} else {
+		runErr = runStream(cfg, reg, regPath, opts)
 	}
-	if dryRun {
-		return runBatch(cfg, reg, regPath, opts)
+
+	if errors.Is(runErr, errRunAborted) {
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
+		return nil
 	}
-	return runStream(cfg, reg, regPath, opts)
+	if errors.Is(runErr, errRunNoop) {
+		return nil
+	}
+	if runErr != nil {
+		if FlavorQuotesEnabled(cfg) {
+			printFailedRunEmberMessage()
+		}
+		return runErr
+	}
+
+	if FlavorQuotesEnabled(cfg) {
+		printExtinguishWaterMessage()
+	}
+	return nil
 }
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
@@ -265,7 +309,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if len(repos) == 0 {
 		fmt.Println("No git repositories found.")
-		return nil
+		return errRunNoop
 	}
 
 	// Repo selection: auto-select all (dry-run path only — fireMode uses streaming).
@@ -301,7 +345,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	if dryRun {
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
-		return nil
+		return errRunNoop
 	}
 
 	// Setup logging
@@ -382,13 +426,14 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		saveRegistry(reg, regPath)
 	}()
 
+	userCfgDir, _ := config.UserGitFireDir()
 	selected, err := ui.RunRepoSelectorStream(
 		tuiRepoChan,
 		folderProgress,
 		cfg.Global.DisableScan,
 		noScan,
 		cfg,
-		config.DefaultConfigPath(),
+		filepath.Join(userCfgDir, "config.toml"),
 		reg,
 		regPath,
 	)
@@ -409,17 +454,23 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if err != nil {
 		if errors.Is(err, ui.ErrCancelled) {
 			fmt.Println("Aborted.")
-			return nil
+			return errRunAborted
 		}
 		return fmt.Errorf("repo selection failed: %w", err)
 	}
 	if len(selected) == 0 {
 		fmt.Println("No repositories selected.")
-		return nil
+		return errRunNoop
 	}
 
 	if scanErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: scan error: %s\n", safety.SanitizeText(scanErr.Error()))
+	}
+
+	// Back on the normal screen buffer: surface the flavor line here so it is
+	// visible after the alt-screen TUI (pre-run stdout is easy to miss).
+	if FlavorQuotesEnabled(cfg) {
+		printStartupFireQuote()
 	}
 
 	// Show selected repos
@@ -727,14 +778,27 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 
 // truncateScanProgressPath shortens a filesystem path for one-line CLI output.
 func truncateScanProgressPath(path string, maxLen int) string {
-	if maxLen <= 0 || len(path) <= maxLen {
+	if maxLen <= 0 || runewidth.StringWidth(path) <= maxLen {
 		return path
 	}
 	ellipsis := "..."
-	if maxLen <= len(ellipsis) {
-		return path[:maxLen]
+	ellipsisWidth := runewidth.StringWidth(ellipsis)
+	if maxLen <= ellipsisWidth {
+		return runewidth.Truncate(path, maxLen, "")
 	}
-	return ellipsis + path[len(path)-(maxLen-len(ellipsis)):]
+	remaining := maxLen - ellipsisWidth
+	runes := []rune(path)
+	start := len(runes)
+	width := 0
+	for i := len(runes) - 1; i >= 0; i-- {
+		rw := runewidth.RuneWidth(runes[i])
+		if width+rw > remaining {
+			break
+		}
+		width += rw
+		start = i
+	}
+	return ellipsis + string(runes[start:])
 }
 
 func scanProgressPathMaxLen(prefix string) int {
@@ -782,6 +846,9 @@ func printResult(result *executor.ExecutionResult, logPath string) {
 
 func handleInit() error {
 	configPath := config.DefaultConfigPath()
+	if configFile != "" {
+		configPath = configFile
+	}
 
 	// Check if config already exists
 	if _, err := os.Stat(configPath); err == nil {

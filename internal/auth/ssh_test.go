@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -308,11 +310,51 @@ func TestWriteAskpassScript_UsesUserCacheDir(t *testing.T) {
 	}
 	defer cleanup()
 
-	if filepath.Dir(scriptPath) != filepath.Join(xdgCache, "git-fire") {
-		t.Fatalf("expected script dir under %q, got %q", filepath.Join(xdgCache, "git-fire"), filepath.Dir(scriptPath))
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatalf("os.UserCacheDir() error = %v", err)
+	}
+	want := filepath.Join(cacheDir, "git-fire")
+	if filepath.Dir(scriptPath) != want {
+		t.Fatalf("expected script dir under %q, got %q", want, filepath.Dir(scriptPath))
+	}
+	if runtime.GOOS == "windows" {
+		if !strings.HasSuffix(strings.ToLower(scriptPath), ".cmd") {
+			t.Fatalf("expected windows askpass helper to end with .cmd, got %q", scriptPath)
+		}
+	} else if !strings.HasSuffix(scriptPath, ".sh") {
+		t.Fatalf("expected unix askpass helper to end with .sh, got %q", scriptPath)
 	}
 	if _, err := os.Stat(scriptPath); err != nil {
 		t.Fatalf("expected script to exist: %v", err)
+	}
+}
+
+func TestEscapeForCmdSetP(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "exclamation remains literal",
+			in:   "p@ss!",
+			want: "p@ss!",
+		},
+		{
+			name: "quote escaped before metacharacter",
+			in:   `p"&x`,
+			want: `p^"^&x`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeForCmdSetP(tt.in)
+			if got != tt.want {
+				t.Fatalf("escapeForCmdSetP(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
+	"github.com/mattn/go-runewidth"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -191,6 +193,28 @@ func TestHandleInit(t *testing.T) {
 	}
 }
 
+func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	resetFlags()
+	customPath := filepath.Join(tmpHome, "custom", "my-git-fire.toml")
+	configFile = customPath
+	defer func() { configFile = "" }()
+
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with explicit config: %v", err)
+	}
+	if _, err := os.Stat(customPath); os.IsNotExist(err) {
+		t.Fatalf("expected config at %s", customPath)
+	}
+	// Default user path must not be created when using --config
+	defaultPath := config.DefaultConfigPath()
+	if _, err := os.Stat(defaultPath); err == nil {
+		t.Fatalf("did not expect default config at %s when --config was set", defaultPath)
+	}
+}
+
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
@@ -261,6 +285,43 @@ func TestRunGitFire_DryRun(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
+	// Isolate registry from the user's real one
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	// Create a test scenario with repos
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("test").
+		WithRemote("origin", remote).
+		AddFile("test.txt", "content\n").
+		Commit("Initial commit")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	resetFlags()
+	dryRun = true
+	scanPath = filepath.Dir(repo.Path())
+
+	var runErr error
+	output := captureStdoutFlavor(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() in dry-run mode error = %v", runErr)
+	}
+	if !strings.Contains(output, "No changes were made") {
+		t.Fatalf("expected dry-run completion message, got: %q", output)
+	}
+	if strings.Contains(output, "💧 ") {
+		t.Fatalf("did not expect water success message for dry-run output: %q", output)
+	}
+}
+
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
@@ -281,6 +342,35 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 	// Should not error when no repos found
 	if err != nil {
 		t.Errorf("runGitFire() with no repos error = %v", err)
+	}
+}
+
+func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
+	// Isolate registry from the user's real one
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	emptyDir := t.TempDir()
+
+	resetFlags()
+	scanPath = emptyDir
+	dryRun = true
+
+	var runErr error
+	output := captureStdoutFlavor(t, func() {
+		runErr = runGitFire(rootCmd, []string{})
+	})
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() with no repos error = %v", runErr)
+	}
+	if !strings.Contains(output, "No git repositories found.") {
+		t.Fatalf("expected no-repos message, got: %q", output)
+	}
+	if strings.Contains(output, "💧 ") {
+		t.Fatalf("did not expect water success message when no repos were found: %q", output)
 	}
 }
 
@@ -562,6 +652,7 @@ func TestTruncateScanProgressPath(t *testing.T) {
 		wantEqual string
 		wantLen   int
 		wantPref  string
+		checkUTF8 bool
 	}{
 		{
 			name:      "short path unchanged",
@@ -576,6 +667,13 @@ func TestTruncateScanProgressPath(t *testing.T) {
 			wantLen:  20,
 			wantPref: "...",
 		},
+		{
+			name:      "multibyte path truncated safely",
+			path:      "/tmp/" + strings.Repeat("世界", 20),
+			maxLen:    14,
+			wantPref:  "...",
+			checkUTF8: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -589,6 +687,12 @@ func TestTruncateScanProgressPath(t *testing.T) {
 			}
 			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
 				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+			if runewidth.StringWidth(got) > tt.maxLen {
+				t.Fatalf("display width=%d exceeds max=%d for %q", runewidth.StringWidth(got), tt.maxLen, got)
+			}
+			if tt.checkUTF8 && !utf8.ValidString(got) {
+				t.Fatalf("expected valid UTF-8 output, got %q", got)
 			}
 		})
 	}

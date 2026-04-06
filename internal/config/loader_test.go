@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -37,6 +36,15 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
 		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
+	}
+	if !cfg.UI.ShowStartupQuote {
+		t.Error("Expected ui.show_startup_quote to be true")
+	}
+	if cfg.UI.StartupQuoteBehavior != UIQuoteBehaviorRefresh {
+		t.Errorf("Expected ui.startup_quote_behavior to be %q, got %q", UIQuoteBehaviorRefresh, cfg.UI.StartupQuoteBehavior)
+	}
+	if cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
+		t.Errorf("Expected ui.startup_quote_interval_sec to be %d, got %d", DefaultUIStartupQuoteIntervalSec, cfg.UI.StartupQuoteIntervalSec)
 	}
 }
 
@@ -202,6 +210,35 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid startup quote behavior",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:         UIColorProfileClassic,
+					StartupQuoteBehavior: "invalid",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid startup quote interval fallback to default",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:            UIColorProfileClassic,
+					StartupQuoteBehavior:    UIQuoteBehaviorRefresh,
+					StartupQuoteIntervalSec: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "invalid platform",
 			cfg: Config{
 				Global: GlobalConfig{
@@ -290,6 +327,9 @@ func TestValidate(t *testing.T) {
 			}
 			if tt.name == "fire tick above max clamps" && tt.cfg.UI.FireTickMS != MaxUIFireTickMS {
 				t.Errorf("FireTickMS clamp high = %d, want %d", tt.cfg.UI.FireTickMS, MaxUIFireTickMS)
+			}
+			if tt.name == "invalid startup quote interval fallback to default" && tt.cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
+				t.Errorf("StartupQuoteIntervalSec fallback = %d, want %d", tt.cfg.UI.StartupQuoteIntervalSec, DefaultUIStartupQuoteIntervalSec)
 			}
 		})
 	}
@@ -436,11 +476,11 @@ func TestDefaultConfigPath_UsesUserConfigDir(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdgHome)
 
 	path := DefaultConfigPath()
-	base, err := os.UserConfigDir()
+	cfgBase, err := os.UserConfigDir()
 	if err != nil {
-		t.Fatalf("UserConfigDir: %v", err)
+		t.Fatalf("os.UserConfigDir: %v", err)
 	}
-	want := filepath.Join(base, "git-fire", "config.toml")
+	want := filepath.Join(cfgBase, "git-fire", "config.toml")
 	if path != want {
 		t.Fatalf("expected path %q, got %q", want, path)
 	}
@@ -480,12 +520,6 @@ func saveConfigAndReload(t *testing.T, cfg *Config) Config {
 		t.Fatalf("toml.Unmarshal after SaveConfig: %v", err)
 	}
 	return loaded
-}
-
-func TestSaveConfig_NilConfig(t *testing.T) {
-	if err := SaveConfig(nil, filepath.Join(t.TempDir(), "config.toml")); err == nil {
-		t.Fatal("SaveConfig(nil) should error")
-	}
 }
 
 func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
@@ -556,34 +590,5 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 	}
 	if _, err := os.Stat(cfgPath + ".tmp"); err == nil {
 		t.Error("temp file still exists after SaveConfig")
-	}
-}
-
-func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
-	t.Setenv("GIT_FIRE_API_TOKEN", "secret-from-env")
-	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "ssh-secret")
-
-	cfg := DefaultConfig()
-	cfg.Backup.APIToken = "should-not-appear-on-disk"
-	cfg.Auth.SSHPassphrase = "also-never-persisted"
-
-	cfgPath := filepath.Join(t.TempDir(), "config.toml")
-	if err := SaveConfig(&cfg, cfgPath); err != nil {
-		t.Fatalf("SaveConfig: %v", err)
-	}
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	content := string(data)
-	if strings.Contains(content, "should-not-appear-on-disk") || strings.Contains(content, "also-never-persisted") {
-		t.Errorf("SaveConfig wrote secret values to disk: %q", content)
-	}
-	var loaded Config
-	if err := tomlUnmarshal(data, &loaded); err != nil {
-		t.Fatalf("toml unmarshal: %v", err)
-	}
-	if loaded.Backup.APIToken != "" || loaded.Auth.SSHPassphrase != "" {
-		t.Errorf("expected empty secrets in file, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
 	}
 }

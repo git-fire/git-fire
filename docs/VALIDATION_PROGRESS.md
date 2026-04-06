@@ -3,7 +3,6 @@
 This document is intentionally brief for OSS readability.
 
 - Canonical status lives in `docs/REQUIREMENTS_VALIDATION.md`.
-- Final run evidence is in `docs/validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md`.
 - Detailed bug history is in `docs/UAT_BUGS.md`.
 
 ## Snapshot
@@ -23,7 +22,6 @@ This document is intentionally brief for OSS readability.
 The previous version duplicated data from multiple sources and mixed planning history with final outcomes.
 For OSS release, this file remains as an audit breadcrumb while deferring authoritative details to:
 
-1. `docs/REQUIREMENTS_VALIDATION.md` (active status)
-2. `docs/validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md` (run evidence)
-3. `docs/UAT_BUGS.md` (issue and remediation history)
+1. `docs/REQUIREMENTS_VALIDATION.md` (matrix / status snapshot)
+2. `docs/UAT_BUGS.md` (issue and remediation history)
 

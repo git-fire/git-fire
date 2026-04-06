@@ -76,15 +76,19 @@ func firstRemoteURL(repo git.Repository) string {
 	return repo.Remotes[0].URL
 }
 
-func (p *Planner) resolveRepoMode(repo git.Repository) git.RepoMode {
+func (p *Planner) resolveRepoOverride(repo git.Repository) *config.RepoOverride {
 	if p.config == nil {
-		return repo.Mode
+		return nil
 	}
 	absPath, err := filepath.Abs(repo.Path)
 	if err != nil {
-		return repo.Mode
+		return nil
 	}
-	if o := p.config.FindRepoOverride(absPath, firstRemoteURL(repo)); o != nil && o.Mode != "" {
+	return p.config.FindRepoOverride(absPath, firstRemoteURL(repo))
+}
+
+func (p *Planner) resolveRepoMode(repo git.Repository) git.RepoMode {
+	if o := p.resolveRepoOverride(repo); o != nil && o.Mode != "" {
 		return git.ParseMode(o.Mode)
 	}
 	return repo.Mode
@@ -94,11 +98,7 @@ func (p *Planner) effectiveAutoCommitDirty(repo git.Repository) bool {
 	if p.config == nil || !p.config.Global.AutoCommitDirty {
 		return false
 	}
-	absPath, err := filepath.Abs(repo.Path)
-	if err != nil {
-		return p.config.Global.AutoCommitDirty
-	}
-	if o := p.config.FindRepoOverride(absPath, firstRemoteURL(repo)); o != nil && o.SkipAutoCommit {
+	if o := p.resolveRepoOverride(repo); o != nil && o.SkipAutoCommit {
 		return false
 	}
 	return true

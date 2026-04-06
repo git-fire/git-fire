@@ -37,12 +37,11 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 
-	// Add config paths
-	if userCfgDir, err := userConfigDir(); err == nil {
-		v.AddConfigPath(userCfgDir) // User config
-	} else {
-		// Match DefaultConfigPath() home fallback so writes are discoverable on read.
-		v.AddConfigPath(filepath.Dir(DefaultConfigPath()))
+	// Add user config path via a shared resolver so read/write behavior stays aligned.
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	v.AddConfigPath(userCfgDir)
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
 	}
 	v.AddConfigPath("/etc/git-fire") // System config
 	if opts.ConfigFile != "" {
@@ -127,6 +126,9 @@ func setDefaults(v *viper.Viper) {
 
 	// UI defaults
 	v.SetDefault("ui.show_fire_animation", defaults.UI.ShowFireAnimation)
+	v.SetDefault("ui.show_startup_quote", defaults.UI.ShowStartupQuote)
+	v.SetDefault("ui.startup_quote_behavior", defaults.UI.StartupQuoteBehavior)
+	v.SetDefault("ui.startup_quote_interval_sec", defaults.UI.StartupQuoteIntervalSec)
 	v.SetDefault("ui.fire_tick_ms", defaults.UI.FireTickMS)
 	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
 }
@@ -172,6 +174,21 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+
+	// Validate/normalize startup quote behavior.
+	if c.UI.StartupQuoteBehavior == "" {
+		c.UI.StartupQuoteBehavior = UIQuoteBehaviorRefresh
+	}
+	switch c.UI.StartupQuoteBehavior {
+	case UIQuoteBehaviorRefresh, UIQuoteBehaviorHide:
+	default:
+		return fmt.Errorf("invalid ui.startup_quote_behavior: %s (must be %s or %s)", c.UI.StartupQuoteBehavior, UIQuoteBehaviorRefresh, UIQuoteBehaviorHide)
+	}
+
+	// Normalize startup quote interval.
+	if c.UI.StartupQuoteIntervalSec <= 0 {
+		c.UI.StartupQuoteIntervalSec = DefaultUIStartupQuoteIntervalSec
 	}
 
 	// ui.fire_tick_ms: normalize and clamp before any time.Duration conversion.
@@ -235,10 +252,9 @@ func WriteExampleConfig(path string) error {
 
 // DefaultConfigPath returns the default user config file path.
 func DefaultConfigPath() string {
-	userCfgDir, err := userConfigDir()
-	if err != nil {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".config", "git-fire", "config.toml")
+	userCfgDir, cfgWarning := resolvedUserConfigDir()
+	if cfgWarning != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", cfgWarning)
 	}
 	return filepath.Join(userCfgDir, "config.toml")
 }
@@ -249,6 +265,66 @@ func userConfigDir() (string, error) {
 		return "", fmt.Errorf("could not determine user config directory: %w", err)
 	}
 	return filepath.Join(base, "git-fire"), nil
+}
+
+func fallbackUserConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine home directory for fallback: %w", err)
+	}
+	if !filepath.IsAbs(home) {
+		abs, absErr := filepath.Abs(home)
+		if absErr != nil {
+			return "", fmt.Errorf("fallback home directory is not absolute (%q): %w", home, absErr)
+		}
+		home = abs
+	}
+	return filepath.Join(home, ".config", "git-fire"), nil
+}
+
+func resolvedUserConfigDir() (string, string) {
+	if dir, err := userConfigDir(); err == nil {
+		return dir, ""
+	}
+	if dir, err := fallbackUserConfigDir(); err == nil {
+		return dir, fmt.Sprintf("using fallback user config directory %q", dir)
+	}
+	if wd, err := os.Getwd(); err == nil {
+		if !filepath.IsAbs(wd) {
+			if abs, absErr := filepath.Abs(wd); absErr == nil {
+				wd = abs
+			}
+		}
+		if filepath.IsAbs(wd) {
+			dir := filepath.Join(wd, "git-fire")
+			return dir, fmt.Sprintf("using working-directory config fallback %q", dir)
+		}
+	}
+	tempBase := os.TempDir()
+	if !filepath.IsAbs(tempBase) {
+		if abs, absErr := filepath.Abs(tempBase); absErr == nil {
+			tempBase = abs
+		}
+	}
+	dir := filepath.Join(tempBase, "git-fire")
+	return dir, fmt.Sprintf("using temporary config fallback %q; this path may not persist across reboots", dir)
+}
+
+// UserGitFireDir returns the per-user git-fire application directory (the parent
+// of config.toml and repos.toml). The warning string is non-empty when a
+// non-primary fallback from resolvedUserConfigDir is in use.
+func UserGitFireDir() (dir string, warning string) {
+	return resolvedUserConfigDir()
+}
+
+// WarnIfFallbackUserGitFireDir prints a stderr warning when UserGitFireDir used
+// a fallback. Call from code paths that resolve the registry without loading
+// config (so LoadWithOptions has not already emitted the same warning).
+func WarnIfFallbackUserGitFireDir() {
+	_, w := resolvedUserConfigDir()
+	if w != "" {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
 }
 
 // ParseDuration parses duration strings (supports Viper's format)
@@ -262,34 +338,16 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 	return toml.Unmarshal(data, v)
 }
 
-// sanitizeSecretsForSave clears secret fields that may be sourced from the
-// environment so they are never written to disk (avoids persisting GIT_FIRE_*
-// credentials into config.toml).
-func sanitizeSecretsForSave(cfg *Config) {
-	if os.Getenv("GIT_FIRE_API_TOKEN") != "" || os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != "" {
-		cfg.Backup.APIToken = ""
-	}
-	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" || os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != "" {
-		cfg.Auth.SSHPassphrase = ""
-	}
-}
-
 // SaveConfig marshals cfg to TOML and atomically writes it to path.
 // It creates the parent directory if necessary.
 func SaveConfig(cfg *Config, path string) error {
-	if cfg == nil {
-		return fmt.Errorf("nil config")
-	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	toSave := *cfg
-	sanitizeSecretsForSave(&toSave)
-
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(&toSave); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
 
