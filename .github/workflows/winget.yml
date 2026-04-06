@@ -42,7 +42,7 @@ jobs:
           "release_tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Publish to WinGet
-        uses: vedantmgoyal9/winget-releaser@main
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e
         with:
           identifier: git-fire.git-fire
           release-tag: ${{ steps.meta.outputs.release_tag }}
