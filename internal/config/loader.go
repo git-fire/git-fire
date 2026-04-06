@@ -366,10 +366,22 @@ func SaveConfig(cfg *Config, path string) error {
 }
 
 func sanitizeSecretsForSave(cfg *Config) {
-	if os.Getenv("GIT_FIRE_API_TOKEN") != "" {
+	// Never persist values that may have been supplied via environment. Viper maps
+	// nested keys to GIT_FIRE_<SECTION>_<KEY> as well as the explicit overrides in Load.
+	if envAPISecretSet() {
 		cfg.Backup.APIToken = ""
 	}
-	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" {
+	if envSSHPassphraseSet() {
 		cfg.Auth.SSHPassphrase = ""
 	}
+}
+
+func envAPISecretSet() bool {
+	return os.Getenv("GIT_FIRE_API_TOKEN") != "" ||
+		os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != ""
+}
+
+func envSSHPassphraseSet() bool {
+	return os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" ||
+		os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != ""
 }

@@ -615,6 +615,36 @@ func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
 	}
 }
 
+func TestSaveConfig_StripsSecretsWhenViperStyleEnvSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+
+	t.Setenv("GIT_FIRE_BACKUP_API_TOKEN", "viper-style-token")
+	t.Setenv("GIT_FIRE_AUTH_SSH_PASSPHRASE", "viper-style-pass")
+	// Ensure the short names are unset so we only exercise nested Viper keys.
+	t.Setenv("GIT_FIRE_API_TOKEN", "")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "")
+
+	cfg := DefaultConfig()
+	cfg.Backup.APIToken = "viper-style-token"
+	cfg.Auth.SSHPassphrase = "viper-style-pass"
+
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(raw), "viper-style-token") {
+		t.Fatal("saved config contains API token when GIT_FIRE_BACKUP_API_TOKEN is set")
+	}
+	if strings.Contains(string(raw), "viper-style-pass") {
+		t.Fatal("saved config contains SSH passphrase when GIT_FIRE_AUTH_SSH_PASSPHRASE is set")
+	}
+}
+
 func TestSaveConfig_AtomicWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.toml")
