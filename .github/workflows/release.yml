@@ -91,9 +91,12 @@ jobs:
     name: GoReleaser
     needs: tag
     # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
-    # (the tag job is skipped on push; skipped needs are OK with this if:).
+    # (the tag job is skipped on push; skipped needs require always() so this if is evaluated).
+    # always() && !cancelled(): respect workflow cancellation (Bugbot).
+    # Push path: only initial tag creation, not delete/force-push (CodeRabbit).
     if: |
-      !cancelled() &&
+      always() && !cancelled() &&
+      (github.event_name != 'push' || (github.event.created && !github.event.deleted && !github.event.forced)) &&
       (needs.tag.result == 'success' ||
         (github.event_name == 'push' && needs.tag.result == 'skipped'))
     runs-on: ubuntu-latest
@@ -110,6 +113,17 @@ jobs:
               && needs.tag.outputs.tag
               || github.ref
             }}
+
+      - name: Require pushed tag to target mainline
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          TAG_COMMIT="$(git rev-parse HEAD)"
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" "origin/main"; then
+            echo "Release tag must point to a commit reachable from origin/main (not a feature-branch-only SHA)."
+            exit 1
+          fi
 
       - uses: actions/setup-go@v5
         with:
