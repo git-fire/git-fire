@@ -516,7 +516,7 @@ func TestBackupToExecuteError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected --backup-to execute path to return an error")
 	}
-	if !strings.Contains(err.Error(), "--backup-to is not implemented yet") {
+	if !strings.Contains(err.Error(), "--backup-to is not yet implemented") {
 		t.Fatalf("unexpected error for --backup-to: %v", err)
 	}
 }

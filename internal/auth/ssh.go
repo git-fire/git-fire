@@ -199,6 +199,9 @@ func writeAskpassScript(passphrase string) (name string, cleanup func(), err err
 		if homeErr != nil {
 			return "", func() {}, err
 		}
+		if home == "" {
+			return "", func() {}, fmt.Errorf("user home directory is empty")
+		}
 		base = filepath.Join(home, ".cache")
 	}
 	dir := filepath.Join(base, "git-fire")
