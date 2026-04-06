@@ -58,6 +58,7 @@ Homebrew/Scoop publishing will be enabled in a later stable release.
 #### WinGet automation (maintainers)
 
 This repo includes `.github/workflows/winget.yml` to submit/update `git-fire.git-fire` in `microsoft/winget-pkgs` when a release is published.
+Human runbook: [`docs/WINGET_RELEASE_RUNBOOK.md`](docs/WINGET_RELEASE_RUNBOOK.md).
 
 Required setup:
 - Fork `microsoft/winget-pkgs` under the `git-fire` account.
