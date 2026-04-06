@@ -17,21 +17,11 @@ jobs:
   publish:
     runs-on: ubuntu-slim
     steps:
-      - name: Publish release to WinGet (release event)
-        if: github.event_name == 'release'
+      - name: Publish release to WinGet
         uses: vedantmgoyal9/winget-releaser@main
         with:
           identifier: git-fire.git-fire
           installers-regex: '_windows_(386|amd64|arm64)\.zip$'
-          fork-user: git-fire
-          token: ${{ secrets.WINGET_TOKEN }}
-
-      - name: Publish release to WinGet (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        uses: vedantmgoyal9/winget-releaser@main
-        with:
-          identifier: git-fire.git-fire
-          installers-regex: '_windows_(386|amd64|arm64)\.zip$'
-          release-tag: ${{ inputs.release_tag }}
+          release-tag: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
           fork-user: git-fire
           token: ${{ secrets.WINGET_TOKEN }}
