@@ -130,10 +130,24 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Select GoReleaser args
+        id: goreleaser-args
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -n "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "Homebrew token detected: enabling Homebrew publishing."
+            echo "args=release --clean" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Homebrew token found: skipping Homebrew publishing."
+            echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: ${{ steps.goreleaser-args.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

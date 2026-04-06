@@ -52,8 +52,13 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scri
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
 | Binary | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
 
-For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries only.
-Homebrew/Scoop publishing will be enabled in a later stable release.
+For the alpha phase, `git-fire` is distributed via Go install and GitHub release binaries.
+Homebrew publishing can be enabled by maintainers once tap/token setup is complete.
+
+#### Homebrew automation (maintainers)
+
+Homebrew formula publishing is configured through GoReleaser and the release workflow.
+Human runbook: [`docs/HOMEBREW_RELEASE_RUNBOOK.md`](docs/HOMEBREW_RELEASE_RUNBOOK.md).
 
 #### PATH setup (required)
 

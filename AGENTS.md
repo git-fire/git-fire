@@ -32,3 +32,8 @@ All standard dev commands are in the `Makefile` and documented in `CLAUDE.md`:
 - The repo registry at `~/.config/git-fire/repos.toml` persists discovered repos across runs. This file is auto-created on first run.
 - `internal/ui` has no tests by design (Bubble Tea TUI testing is deferred).
 - golangci-lint v2 migration is in progress — do not enable it in CI without checking compatibility first.
+
+### Release automation caveat
+
+- Homebrew automation is configured via `.goreleaser.yaml` and `.github/workflows/release.yml`, using `HOMEBREW_TAP_TOKEN` for writes to `git-fire/homebrew-tap`.
+- If `HOMEBREW_TAP_TOKEN` is missing, release automation intentionally skips Homebrew with `--skip=homebrew` so release publishing still succeeds.

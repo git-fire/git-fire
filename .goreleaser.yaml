@@ -77,25 +77,24 @@ changelog:
     - title: Other
       order: 999
 
-# Disabled for alpha release (v0.1.0-alpha): no package manager publishing.
-# brews:
-#   - name: git-fire
-#     repository:
-#       owner: git-fire
-#       name: homebrew-tap
-#       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-#       pull_request:
-#         enabled: false
-#     directory: Formula
-#     commit_author:
-#       name: goreleaserbot
-#       email: bot@goreleaser.com
-#     commit_msg_template: "chore: update git-fire to {{ .Tag }}"
-#     homepage: "https://github.com/git-fire/git-fire"
-#     description: "Emergency git backup - commit and push all repos when disaster strikes"
-#     license: MIT
-#     install: bin.install "git-fire"
-#     test: system "#{bin}/git-fire", "--version"
+brews:
+  - name: git-fire
+    repository:
+      owner: git-fire
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      pull_request:
+        enabled: false
+    directory: Formula
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+    homepage: "https://github.com/git-fire/git-fire"
+    description: "Multi-repo checkpoint CLI for Git."
+    license: MIT
+    install: bin.install "git-fire"
+    test: system "#{bin}/git-fire", "--version"
 
 # scoops:
 #   - name: git-fire
