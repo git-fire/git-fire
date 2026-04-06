@@ -196,6 +196,30 @@ func TestHandleInit(t *testing.T) {
 	}
 }
 
+func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpHome)
+
+	resetFlags()
+	customPath := filepath.Join(tmpHome, "custom", "my-git-fire.toml")
+	configFile = customPath
+	defer func() { configFile = "" }()
+
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with explicit config: %v", err)
+	}
+	if _, err := os.Stat(customPath); os.IsNotExist(err) {
+		t.Fatalf("expected config at %s", customPath)
+	}
+	// Default user path must not be created when using --config
+	defaultPath := config.DefaultConfigPath()
+	if _, err := os.Stat(defaultPath); err == nil {
+		t.Fatalf("did not expect default config at %s when --config was set", defaultPath)
+	}
+}
+
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
