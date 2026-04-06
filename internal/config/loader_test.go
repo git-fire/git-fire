@@ -672,3 +672,51 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 		t.Error("temp file still exists after SaveConfig")
 	}
 }
+
+func TestSaveConfig_PreservesFileSecretsWhenEnvOverridesLoad(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	seed := `
+[backup]
+api_token = "token-from-file"
+
+[auth]
+ssh_passphrase = "passphrase-from-file"
+`
+	if err := os.WriteFile(cfgPath, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	t.Setenv("GIT_FIRE_API_TOKEN", "token-from-env")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "passphrase-from-env")
+
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions: %v", err)
+	}
+	if cfg.Backup.APIToken != "token-from-env" || cfg.Auth.SSHPassphrase != "passphrase-from-env" {
+		t.Fatalf("expected env overrides after load, got api_token=%q passphrase=%q", cfg.Backup.APIToken, cfg.Auth.SSHPassphrase)
+	}
+
+	// Simulate saving unrelated config changes while env overrides are active.
+	cfg.UI.ShowFireAnimation = !cfg.UI.ShowFireAnimation
+	if err := SaveConfig(cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "token-from-env") || strings.Contains(content, "passphrase-from-env") {
+		t.Fatalf("env secret should not be written to disk: %q", content)
+	}
+
+	var loaded Config
+	if err := tomlUnmarshal(data, &loaded); err != nil {
+		t.Fatalf("toml unmarshal: %v", err)
+	}
+	if loaded.Backup.APIToken != "token-from-file" || loaded.Auth.SSHPassphrase != "passphrase-from-file" {
+		t.Fatalf("expected file secrets preserved, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
+	}
+}

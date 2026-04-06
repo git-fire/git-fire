@@ -70,6 +70,10 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	cfg.fileBackupAPIToken = cfg.Backup.APIToken
+	cfg.fileSSHPassphrase = cfg.Auth.SSHPassphrase
+	cfg.hasFileBackupAPIToken = cfg.Backup.APIToken != ""
+	cfg.hasFileSSHPassphrase = cfg.Auth.SSHPassphrase != ""
 
 	// Override with env vars for sensitive data
 	if token := os.Getenv("GIT_FIRE_API_TOKEN"); token != "" {
@@ -338,6 +342,27 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 	return toml.Unmarshal(data, v)
 }
 
+// sanitizeSecretsForSave clears secret fields that may be sourced from the
+// environment so they are never written to disk (avoids persisting GIT_FIRE_*
+// credentials into config.toml). When secrets were loaded from the file,
+// restores the file-backed snapshot so unrelated edits do not erase them.
+func sanitizeSecretsForSave(cfg *Config) {
+	if os.Getenv("GIT_FIRE_API_TOKEN") != "" || os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != "" {
+		if cfg.hasFileBackupAPIToken {
+			cfg.Backup.APIToken = cfg.fileBackupAPIToken
+		} else {
+			cfg.Backup.APIToken = ""
+		}
+	}
+	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" || os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != "" {
+		if cfg.hasFileSSHPassphrase {
+			cfg.Auth.SSHPassphrase = cfg.fileSSHPassphrase
+		} else {
+			cfg.Auth.SSHPassphrase = ""
+		}
+	}
+}
+
 // SaveConfig marshals cfg to TOML and atomically writes it to path.
 // It creates the parent directory if necessary.
 func SaveConfig(cfg *Config, path string) error {
@@ -367,25 +392,4 @@ func SaveConfig(cfg *Config, path string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	return nil
-}
-
-func sanitizeSecretsForSave(cfg *Config) {
-	// Never persist values that may have been supplied via environment. Viper maps
-	// nested keys to GIT_FIRE_<SECTION>_<KEY> as well as the explicit overrides in Load.
-	if envAPISecretSet() {
-		cfg.Backup.APIToken = ""
-	}
-	if envSSHPassphraseSet() {
-		cfg.Auth.SSHPassphrase = ""
-	}
-}
-
-func envAPISecretSet() bool {
-	return os.Getenv("GIT_FIRE_API_TOKEN") != "" ||
-		os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != ""
-}
-
-func envSSHPassphraseSet() bool {
-	return os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" ||
-		os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != ""
 }
