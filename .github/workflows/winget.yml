@@ -12,35 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  authorize:
-    name: Authorize runner
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Allow admins only
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const username = context.actor;
-            const { owner, repo } = context.repo;
-            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner,
-              repo,
-              username,
-            });
-            const permission = data.permission;
-            core.info(`Actor "${username}" has "${permission}" permission.`);
-            if (permission !== "admin") {
-              core.setFailed(`Only repository admins can run publishing workflows. Actor "${username}" has "${permission}".`);
-            }
-
   winget:
     name: Update winget-pkgs
-    needs: authorize
     runs-on: windows-latest
-    env:
-      WINGET_PAT: ${{ secrets.WINGET_PAT }}
     steps:
       - name: Resolve target tag
         id: meta
@@ -56,17 +30,10 @@ jobs:
 
           "release_tag=$tag" >> $env:GITHUB_OUTPUT
 
-      - name: Require WinGet PAT
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINGET_PAT)) {
-            throw "Missing WINGET_PAT secret. Configure it in repo secrets before publishing WinGet manifests."
-          }
-
       - name: Publish to WinGet
         uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
           identifier: git-fire.git-fire
           release-tag: ${{ steps.meta.outputs.release_tag }}
           installers-regex: '_windows_(amd64|arm64|386)\.zip$'
-          token: ${{ env.WINGET_PAT }}
+          token: ${{ secrets.WINGET_PAT }}
