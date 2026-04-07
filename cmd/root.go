@@ -236,13 +236,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if isFailure {
 			trigger = plugins.TriggerOnFailure
 		}
-		allPlugins := plugins.List()
-		for _, p := range plugins.FilterPluginsByTrigger(allPlugins, trigger) {
-			if pErr := p.Execute(pluginCtx); pErr != nil {
-				fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.Name(), pErr)
-			}
-		}
-		for _, p := range plugins.FilterPluginsByTrigger(allPlugins, plugins.TriggerAlways) {
+		for _, p := range plugins.FilterPluginsByTrigger(plugins.List(), trigger) {
 			if pErr := p.Execute(pluginCtx); pErr != nil {
 				fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.Name(), pErr)
 			}
