@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: git-fire
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: git-fire
+    main: .
+    binary: git-fire
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/git-fire/git-fire/cmd.Version={{ .Tag }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - "386"
+    goarm:
+      - "6"
+    ignore:
+      - { goos: darwin,  goarch: arm   }
+      - { goos: darwin,  goarch: "386" }
+      - { goos: windows, goarch: arm   }
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    # Produces: git-fire_1.2.3_linux_amd64.tar.gz (or .zip for Windows)
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+nfpms:
+  - id: git-fire-linux-packages
+    package_name: git-fire
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
+    homepage: "https://github.com/git-fire/git-fire"
+    maintainer: "git-fire maintainers"
+    description: "Emergency git backup - commit and push all repos when disaster strikes"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/git-fire/README.md
+      - src: ./LICENSE
+        dst: /usr/share/doc/git-fire/LICENSE
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "New Features"
+      regexp: "^feat"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^fix"
+      order: 1
+    - title: Other
+      order: 999
+
+brews:
+  - name: git-fire
+    repository:
+      owner: git-fire
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      pull_request:
+        enabled: false
+    directory: Formula
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore: update git-fire to {{ .Tag }}"
+    homepage: "https://github.com/git-fire/git-fire"
+    description: "Emergency git backup - commit and push all repos when disaster strikes"
+    license: MIT
+    install: bin.install "git-fire"
+    test: system "#{bin}/git-fire", "--version"
+
+release:
+  github:
+    owner: git-fire
+    name: git-fire
+  draft: false
+  prerelease: false
+  make_latest: true
+  name_template: "{{ .Tag }}"
+  footer: |
+    ## Install
+
+    **Go**
+    ```sh
+    go install github.com/git-fire/git-fire@{{ .Tag }}
+    ```
+
+    **Homebrew (macOS/Linuxbrew)**
+    ```sh
+    brew install git-fire/tap/git-fire
+    ```
+
+    **Windows (WinGet)**
+    The package is available in WinGet only after the `microsoft/winget-pkgs` update PR for this version is merged.
+    Until then, install from the Windows `.zip` asset attached to this release.
+    ```powershell
+    winget install git-fire.git-fire
+    ```
+
+    **Linux packages**
+    Download and install `.deb` or `.rpm` assets from this release.
+
+    Full instructions: [README -> Install](https://github.com/git-fire/git-fire/blob/{{ .Tag }}/README.md#install)

@@ -1,0 +1,39 @@
+name: Publish WinGet Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Stable release tag to publish (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  winget:
+    name: Update winget-pkgs
+    runs-on: windows-latest
+    steps:
+      - name: Resolve target tag
+        id: meta
+        shell: pwsh
+        env:
+          DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $tag = $env:DISPATCH_RELEASE_TAG
+
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "WinGet publishing only supports stable tags (vMAJOR.MINOR.PATCH). Got: $tag"
+          }
+
+          "release_tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Publish to WinGet
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
+        with:
+          identifier: git-fire.git-fire
+          release-tag: ${{ steps.meta.outputs.release_tag }}
+          installers-regex: '_windows_(amd64|arm64|386)\.zip$'
+          token: ${{ secrets.WINGET_PAT }}
