@@ -738,6 +738,35 @@ func TestBuildPlan_RepoOverrideMode(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_RepoOverrideModeBySecondaryRemote(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Repos = []config.RepoOverride{
+		{RemotePattern: "gitlab.com", Mode: "leave-untouched"},
+	}
+	planner := NewPlanner(&cfg)
+
+	repo := git.Repository{
+		Path:     "/override/repo/by-remote",
+		Name:     "remote-override",
+		Selected: true,
+		Mode:     git.ModePushAll,
+		Remotes: []git.Remote{
+			{Name: "origin", URL: "git@github.com:acme/project.git"},
+			{Name: "backup", URL: "git@gitlab.com:acme/project.git"},
+		},
+	}
+	plan, err := planner.BuildPlan([]git.Repository{repo}, false)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("want 1 repo plan, got %d", len(plan.Repos))
+	}
+	if !plan.Repos[0].Skip || plan.Repos[0].SkipReason == "" {
+		t.Fatalf("remote override on non-first remote should apply, got Skip=%v reason=%q", plan.Repos[0].Skip, plan.Repos[0].SkipReason)
+	}
+}
+
 func TestBuildPlan_RepoOverrideSkipAutoCommit(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Global.AutoCommitDirty = true
@@ -767,5 +796,72 @@ func TestBuildPlan_RepoOverrideSkipAutoCommit(t *testing.T) {
 		if a.Type == ActionAutoCommit {
 			t.Fatal("SkipAutoCommit override should omit auto-commit action")
 		}
+	}
+}
+
+func TestBuildPlan_InvalidRepoOverrideModeFallsBackToRepoMode(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Repos = []config.RepoOverride{
+		{PathPattern: "/fallback/repo/*", Mode: "push-current-branch-typo"},
+	}
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildPlan([]git.Repository{{
+		Path:     "/fallback/repo/r",
+		Name:     "r",
+		Selected: true,
+		Mode:     git.ModePushAll,
+		Remotes:  []git.Remote{{Name: "origin", URL: "git@example.com/r.git"}},
+	}}, false)
+	if err != nil {
+		t.Fatalf("BuildPlan: %v", err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("expected 1 repo plan, got %d", len(plan.Repos))
+	}
+	if plan.Repos[0].Skip {
+		t.Fatalf("invalid override mode should not force leave-untouched; reason=%q", plan.Repos[0].SkipReason)
+	}
+	var sawPushAll bool
+	for _, a := range plan.Repos[0].Actions {
+		if a.Type == ActionPushAll {
+			sawPushAll = true
+			break
+		}
+	}
+	if !sawPushAll {
+		t.Fatalf("expected fallback to discovered push-all mode, got actions %#v", plan.Repos[0].Actions)
+	}
+}
+
+func TestBuildRepoPlan_UnknownConflictStrategyDefaultsToNewBranch(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "typo-strategy"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict detection to run for unknown strategy via safe default")
+	}
+	var sawCreateFireBranch bool
+	for _, action := range plan.Actions {
+		if action.Type == ActionCreateFireBranch {
+			sawCreateFireBranch = true
+			break
+		}
+	}
+	if !sawCreateFireBranch {
+		t.Fatalf("expected unknown strategy to default to new-branch behavior, got %#v", plan.Actions)
 	}
 }

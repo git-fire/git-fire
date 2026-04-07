@@ -69,13 +69,6 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 	return p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: true})
 }
 
-func firstRemoteURL(repo git.Repository) string {
-	if len(repo.Remotes) == 0 {
-		return ""
-	}
-	return repo.Remotes[0].URL
-}
-
 func (p *Planner) resolveRepoOverride(repo git.Repository) *config.RepoOverride {
 	if p.config == nil {
 		return nil
@@ -84,11 +77,29 @@ func (p *Planner) resolveRepoOverride(repo git.Repository) *config.RepoOverride 
 	if err != nil {
 		return nil
 	}
-	return p.config.FindRepoOverride(absPath, firstRemoteURL(repo))
+	// Match path-only overrides first.
+	if o := p.config.FindRepoOverride(absPath, ""); o != nil {
+		return o
+	}
+
+	// Then match remote-pattern overrides across every configured remote.
+	for _, remote := range repo.Remotes {
+		if remote.URL == "" {
+			continue
+		}
+		if o := p.config.FindRepoOverride(absPath, remote.URL); o != nil {
+			return o
+		}
+	}
+	return nil
 }
 
 func (p *Planner) resolveRepoMode(repo git.Repository) git.RepoMode {
 	if o := p.resolveRepoOverride(repo); o != nil && o.Mode != "" {
+		if !isKnownRepoMode(o.Mode) {
+			// Keep discovered mode for invalid override values.
+			return repo.Mode
+		}
 		return git.ParseMode(o.Mode)
 	}
 	return repo.Mode
@@ -180,10 +191,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 			})
 
 		case git.ModePushCurrentBranch:
-			strategy := "new-branch"
-			if p.config != nil && p.config.Global.ConflictStrategy != "" {
-				strategy = p.config.Global.ConflictStrategy
-			}
+			strategy := normalizeConflictStrategy(p.config)
 			if opts.DetectConflicts && (strategy == "new-branch" || strategy == "abort") {
 				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
@@ -263,6 +271,30 @@ func repoPlanHasPushAction(actions []Action) bool {
 		}
 	}
 	return false
+}
+
+func normalizeConflictStrategy(cfg *config.Config) string {
+	if cfg == nil {
+		return "new-branch"
+	}
+	switch cfg.Global.ConflictStrategy {
+	case "", "new-branch":
+		return "new-branch"
+	case "abort":
+		return "abort"
+	default:
+		// Fail closed to safe conflict detection behavior.
+		return "new-branch"
+	}
+}
+
+func isKnownRepoMode(mode string) bool {
+	switch mode {
+	case "leave-untouched", "push-known-branches", "push-all", "push-current-branch":
+		return true
+	default:
+		return false
+	}
 }
 
 // Summary returns a human-readable summary of the plan

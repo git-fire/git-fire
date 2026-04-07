@@ -131,6 +131,7 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	// Execute each action. Continue past failures so every remote gets a
 	// best-effort push — collecting the first error to surface to the caller.
 	var firstErr error
+	var executedNonSkip bool
 	for i := 0; i < len(actions); i++ {
 		action := actions[i]
 		if action.Type == ActionAutoCommit && !repoPlanHasPushAction(actions[i+1:]) {
@@ -141,6 +142,9 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 
 		executedAction := r.executeAction(repoPlan.Repo, action, current, total)
 		result.Actions = append(result.Actions, executedAction)
+		if action.Type != ActionSkip {
+			executedNonSkip = true
+		}
 
 		if executedAction.Error != nil {
 			if firstErr == nil {
@@ -216,7 +220,7 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		}
 	}
 
-	result.Success = firstErr == nil
+	result.Success = firstErr == nil && executedNonSkip
 	if firstErr != nil {
 		result.Error = firstErr
 	}
@@ -225,6 +229,8 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	finalStatus := StatusSuccess
 	if firstErr != nil {
 		finalStatus = StatusFailed
+	} else if !executedNonSkip {
+		finalStatus = StatusSkipped
 	}
 	r.sendProgress(Progress{
 		CurrentRepo: current,

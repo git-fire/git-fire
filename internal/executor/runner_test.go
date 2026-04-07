@@ -430,8 +430,14 @@ func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushe
 	if len(result.RepoResults) != 1 {
 		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
 	}
+	if result.Success != 0 || result.Skipped != 1 {
+		t.Fatalf("expected skip classification when only skip actions remain, got success=%d skipped=%d", result.Success, result.Skipped)
+	}
 
 	rr := result.RepoResults[0]
+	if rr.Success {
+		t.Fatalf("repo result should not be marked success when no executable actions remain: %#v", rr)
+	}
 	for _, action := range rr.Actions {
 		if action.Type == ActionAutoCommit {
 			t.Fatalf("expected auto-commit to be skipped when no push actions remain, got actions=%#v", rr.Actions)
@@ -501,6 +507,42 @@ func TestRunner_Execute_AutoCommitReplacesPushAllAndPushKnown(t *testing.T) {
 	}
 	if pushBranchCount == 0 {
 		t.Fatalf("expected replacement backup branch pushes, got %#v", rr.Actions)
+	}
+}
+
+func TestRunner_Execute_AllSkipActionsCountAsSkipped(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: "/tmp/skip-only",
+					Name: "skip-only",
+				},
+				Actions: []Action{
+					{Type: ActionSkip, Description: "Skip push to origin due to conflict_strategy=abort"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Success != 0 || result.Skipped != 1 || result.Failed != 0 {
+		t.Fatalf("expected success=0 skipped=1 failed=0, got success=%d skipped=%d failed=%d", result.Success, result.Skipped, result.Failed)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("expected 1 repo result, got %d", len(result.RepoResults))
+	}
+	if result.RepoResults[0].Success {
+		t.Fatalf("skip-only repo should not be marked successful: %#v", result.RepoResults[0])
+	}
+	if result.RepoResults[0].Error != nil {
+		t.Fatalf("skip-only repo should not have error: %#v", result.RepoResults[0])
 	}
 }
 

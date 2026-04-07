@@ -303,7 +303,13 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Printf("✓ Found %d repositories\n", len(repos))
 	fmt.Printf("✓ SSH Status: %d keys available", len(sshStatus.AvailableKeys))
 	if sshStatus.Agent.Running {
-		fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		if sshStatus.Agent.KeysKnown {
+			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		} else if sshStatus.Agent.Error != "" {
+			fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+		} else {
+			fmt.Printf(" (agent key status unknown)")
+		}
 	}
 	fmt.Println()
 	fmt.Println()
@@ -714,7 +720,13 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	case sshStatus := <-sshChan:
 		fmt.Printf("\n✓ SSH: %d keys available", len(sshStatus.AvailableKeys))
 		if sshStatus.Agent.Running {
-			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			if sshStatus.Agent.KeysKnown {
+				fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			} else if sshStatus.Agent.Error != "" {
+				fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+			} else {
+				fmt.Printf(" (agent key status unknown)")
+			}
 		}
 		fmt.Println()
 	case sshErr := <-sshErrChan:
