@@ -20,7 +20,7 @@ jobs:
           cache: false
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: v2.11.4
           args: --timeout=5m
 
   test:
