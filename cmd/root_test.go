@@ -322,6 +322,58 @@ func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_DryRun_EmitsSecretWarningStderr(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("secret-repo").
+		WithRemote("origin", remote).
+		AddFile("test.txt", "content\n").
+		Commit("Initial commit")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	secretFile := filepath.Join(repo.Path(), "token.env")
+	if err := os.WriteFile(secretFile, []byte("GITLAB_TOKEN=glpat-abcdefghij1234567890\n"), 0644); err != nil {
+		t.Fatalf("write secret file: %v", err)
+	}
+
+	resetFlags()
+	dryRun = true
+	scanPath = filepath.Dir(repo.Path())
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	runErr := runGitFire(rootCmd, []string{})
+
+	os.Stderr = oldStderr
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	stderr := string(stderrBytes)
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() dry-run: %v", runErr)
+	}
+	if !strings.Contains(stderr, "Potential secrets detected") {
+		t.Fatalf("expected secret warning on stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "GitLab") {
+		t.Fatalf("expected GitLab pattern in stderr, got: %q", stderr)
+	}
+}
+
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
