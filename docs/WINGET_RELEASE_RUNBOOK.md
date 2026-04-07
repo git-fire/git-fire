@@ -18,9 +18,10 @@ This runbook documents the maintainer workflow for publishing `git-fire` to WinG
 ## Normal release flow
 
 1. Publish a stable GitHub release tag (for example `v0.2.0`).
-2. `Publish WinGet Manifest` workflow runs for `release.published`.
-3. The workflow opens/updates a PR against `microsoft/winget-pkgs`.
-4. Merge proceeds after WinGet maintainers review and approve.
+2. Run `.github/workflows/winget.yml` via `workflow_dispatch`.
+3. Set `release_tag` to the stable tag (example: `v0.2.0`).
+4. The workflow opens/updates a PR against `microsoft/winget-pkgs`.
+5. Merge proceeds after WinGet maintainers review and approve.
 
 ## Manual recovery flow
 

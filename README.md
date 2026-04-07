@@ -84,8 +84,8 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/inst
 Optional environment overrides:
 
 ```bash
-VERSION=v0.2.0 INSTALL_DIR="$HOME/.local/bin" \
-  curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | \
+  VERSION=v0.2.0 INSTALL_DIR="$HOME/.local/bin" bash
 ```
 
 #### Linux native packages (`.deb` / `.rpm`)

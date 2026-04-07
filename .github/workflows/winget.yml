@@ -1,8 +1,6 @@
 name: Publish WinGet Manifest
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -16,24 +14,15 @@ permissions:
 jobs:
   winget:
     name: Update winget-pkgs
-    if: |
-      (github.event_name == 'release' && !github.event.release.prerelease) ||
-      github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - name: Resolve target tag
         id: meta
         shell: pwsh
         env:
-          EVENT_NAME: ${{ github.event_name }}
           DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if ($env:EVENT_NAME -eq "workflow_dispatch") {
-            $tag = $env:DISPATCH_RELEASE_TAG
-          } else {
-            $tag = $env:RELEASE_TAG
-          }
+          $tag = $env:DISPATCH_RELEASE_TAG
 
           if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
             throw "WinGet publishing only supports stable tags (vMAJOR.MINOR.PATCH). Got: $tag"
