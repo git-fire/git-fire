@@ -184,6 +184,38 @@ func TestCommandPlugin_VariableExpansion(t *testing.T) {
 	}
 }
 
+func TestCommandPlugin_VariableExpansion_PreservesUnknownRepoVars(t *testing.T) {
+	plugin := NewCommandPlugin("test", "echo", []string{
+		"{repo_path}",
+		"{repo_name}",
+		"{branch}",
+		"{commit_sha}",
+	})
+
+	ctx := Context{
+		// Timestamp still expands, but run-level contexts may not have repo fields.
+		Timestamp: time.Date(2026, 2, 12, 15, 30, 0, 0, time.UTC),
+	}
+
+	expanded := plugin.expandVars("{repo_path}-{repo_name}-{branch}-{commit_sha}-{timestamp}", ctx)
+
+	if !contains(expanded, "{repo_path}") {
+		t.Error("Expected missing repo_path to remain as placeholder")
+	}
+	if !contains(expanded, "{repo_name}") {
+		t.Error("Expected missing repo_name to remain as placeholder")
+	}
+	if !contains(expanded, "{branch}") {
+		t.Error("Expected missing branch to remain as placeholder")
+	}
+	if !contains(expanded, "{commit_sha}") {
+		t.Error("Expected missing commit_sha to remain as placeholder")
+	}
+	if !contains(expanded, "20260212") {
+		t.Error("Expected timestamp to still be expanded")
+	}
+}
+
 func TestCommandPlugin_Timeout(t *testing.T) {
 	logger := &testLogger{}
 

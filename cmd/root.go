@@ -223,8 +223,8 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		runErr = runStream(cfg, reg, regPath, opts)
 	}
 
-	// Fire post-run plugins (non-fatal, skipped on dry-run and user abort)
-	if !dryRun && !errors.Is(runErr, errRunAborted) {
+	// Fire post-run plugins (non-fatal, skipped on dry-run, user abort, and no-op runs)
+	if shouldRunPostRunPlugins(dryRun, runErr) {
 		pluginCtx := plugins.Context{
 			Timestamp: time.Now(),
 			DryRun:    dryRun,
@@ -1002,6 +1002,15 @@ type cmdPluginLogger struct{}
 func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", msg) }
 func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", msg) }
 func (l *cmdPluginLogger) Error(msg string, err error) {
-	fmt.Fprintf(os.Stderr, "  %s: %v\n", msg, err)
+	safeMsg := safety.SanitizeText(msg)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "  %s\n", safeMsg)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "  %s: %s\n", safeMsg, safety.SanitizeText(err.Error()))
 }
 func (l *cmdPluginLogger) Debug(_ string) {}
+
+func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
+	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
+}

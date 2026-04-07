@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -689,6 +691,64 @@ func TestTruncateScanProgressPath(t *testing.T) {
 			}
 			if tt.checkUTF8 && !utf8.ValidString(got) {
 				t.Fatalf("expected valid UTF-8 output, got %q", got)
+			}
+		})
+	}
+}
+
+func TestCmdPluginLoggerError_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStderr := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = oldStderr }()
+
+	logger := &cmdPluginLogger{}
+	logger.Error(
+		"plugin failed for https://user:supersecret@github.com/org/repo.git",
+		errors.New("fatal: could not read from https://user:supersecret@github.com/org/repo.git"),
+	)
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stderr pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
+func TestShouldRunPostRunPlugins(t *testing.T) {
+	tests := []struct {
+		name     string
+		dryRun   bool
+		runErr   error
+		expected bool
+	}{
+		{name: "success run", dryRun: false, runErr: nil, expected: true},
+		{name: "dry run", dryRun: true, runErr: nil, expected: false},
+		{name: "aborted run", dryRun: false, runErr: errRunAborted, expected: false},
+		{name: "noop run", dryRun: false, runErr: errRunNoop, expected: false},
+		{name: "failed run", dryRun: false, runErr: errors.New("boom"), expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldRunPostRunPlugins(tt.dryRun, tt.runErr)
+			if got != tt.expected {
+				t.Fatalf("shouldRunPostRunPlugins(%v, %v) = %v, want %v", tt.dryRun, tt.runErr, got, tt.expected)
 			}
 		})
 	}
