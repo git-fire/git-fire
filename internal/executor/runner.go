@@ -153,10 +153,24 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		if action.Type == ActionAutoCommit && executedAction.Error == nil && executedAction.Branch != "" {
 			createdBranches := strings.Split(executedAction.Branch, ",")
 			var remotes []string
+			seenRemotes := make(map[string]struct{})
 			for _, pending := range actions[i+1:] {
-				if pending.Type == ActionPushBranch && pending.Remote != "" {
+				if pending.Type != ActionPushBranch && pending.Type != ActionPushAll && pending.Type != ActionPushKnown {
+					continue
+				}
+				if pending.Remote != "" {
+					if _, exists := seenRemotes[pending.Remote]; exists {
+						continue
+					}
+					seenRemotes[pending.Remote] = struct{}{}
 					remotes = append(remotes, pending.Remote)
 				}
+			}
+			if len(remotes) == 0 {
+				// No push actions remain for this repo (e.g. all remotes were
+				// skipped by conflict_strategy=abort), so don't inject fallback
+				// backup pushes.
+				continue
 			}
 
 			replacementPushes := make([]Action, 0, len(remotes)*len(createdBranches))

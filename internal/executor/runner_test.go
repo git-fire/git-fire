@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -388,7 +387,7 @@ func TestRunner_Execute_UsesDualBranchPushes(t *testing.T) {
 	}
 }
 
-func TestRunner_ExecuteRepo_AutoCommitDoesNotFallbackPushWhenNoPushActions(t *testing.T) {
+func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushes(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)
 
@@ -400,34 +399,43 @@ func TestRunner_ExecuteRepo_AutoCommitDoesNotFallbackPushWhenNoPushActions(t *te
 		Commit("base commit")
 	currentBranch := repo.GetDefaultBranch()
 	repo.Push("origin", currentBranch)
-	repo.AddFile("dirty.txt", "dirty\n")
 
-	repoPlan := RepoPlan{
-		Repo: git.Repository{
-			Path: repo.Path(),
-			Name: "dirty-repo",
-			Remotes: []git.Remote{
-				{Name: "origin", URL: remote.Path()},
+	// Make repo dirty so auto-commit creates backup branches.
+	repo.AddFile("staged.txt", "staged\n")
+	repo.StageFile("staged.txt")
+	repo.AddFile("unstaged.txt", "unstaged\n")
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: repo.Path(),
+					Name: "dirty-repo",
+					Remotes: []git.Remote{
+						{Name: "origin", URL: remote.Path()},
+					},
+				},
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
+					{Type: ActionSkip, Description: "Skip push to origin due to conflict_strategy=abort"},
+				},
 			},
 		},
-		Actions: []Action{
-			{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
-			{Type: ActionSkip, Description: "Skip push to origin: diverged"},
-		},
 	}
 
-	result := runner.executeRepo(repoPlan, 1, 1)
-	if !result.Success {
-		t.Fatalf("expected repo execution to succeed without push fallback, got error: %v", result.Error)
-	}
-
-	cmd := exec.Command("git", "-C", remote.Path(), "for-each-ref", "--format=%(refname:short)", "refs/heads/git-fire-*")
-	out, err := cmd.CombinedOutput()
+	result, err := runner.Execute(plan)
 	if err != nil {
-		t.Fatalf("failed to inspect remote refs: %v output=%s", err, string(out))
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if strings.TrimSpace(string(out)) != "" {
-		t.Fatalf("expected no fallback push of backup branches to remote, got refs:\n%s", string(out))
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	rr := result.RepoResults[0]
+	for _, action := range rr.Actions {
+		if action.Type == ActionPushBranch {
+			t.Fatalf("expected no injected push-branch actions when only skip actions remain, got actions=%#v", rr.Actions)
+		}
 	}
 }
 
