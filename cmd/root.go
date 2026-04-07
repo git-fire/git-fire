@@ -225,12 +225,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Fire post-run plugins (non-fatal, skipped on dry-run, user abort, and no-op runs)
 	if shouldRunPostRunPlugins(dryRun, runErr) {
-		pluginCtx := plugins.Context{
-			Timestamp: time.Now(),
-			DryRun:    dryRun,
-			Emergency: fireMode,
-			Logger:    &cmdPluginLogger{},
-		}
+		pluginCtx := buildPostRunPluginContext(cfg, dryRun, fireMode)
 		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
 		if enabledErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
@@ -1013,4 +1008,31 @@ func (l *cmdPluginLogger) Debug(_ string) {}
 
 func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
 	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
+}
+
+func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) plugins.Context {
+	ctx := plugins.Context{
+		Timestamp: time.Now(),
+		DryRun:    isDryRun,
+		Emergency: isEmergency,
+		Logger:    &cmdPluginLogger{},
+	}
+
+	// Post-run hooks execute at the run level, so we seed repo vars from the
+	// configured scan root as a best-effort context instead of leaving them blank.
+	scanRoot, err := filepath.Abs(cfg.Global.ScanPath)
+	if err != nil {
+		return ctx
+	}
+	ctx.RepoPath = scanRoot
+	ctx.RepoName = filepath.Base(scanRoot)
+
+	if branchOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
+		ctx.Branch = strings.TrimSpace(string(branchOut))
+	}
+	if commitOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "HEAD").Output(); err == nil {
+		ctx.CommitSHA = strings.TrimSpace(string(commitOut))
+	}
+
+	return ctx
 }
