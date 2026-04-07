@@ -79,8 +79,9 @@ func (p *CommandPlugin) Validate() error {
 // Execute runs the command
 func (p *CommandPlugin) Execute(ctx Context) error {
 	if ctx.DryRun {
-		ctx.Logger.Info(fmt.Sprintf("[DRY RUN] Would execute: %s %s",
-			p.command, strings.Join(p.args, " ")))
+		dryLine := fmt.Sprintf("[DRY RUN] Would execute: %s %s",
+			p.command, strings.Join(p.args, " "))
+		ctx.Logger.Info(safety.SanitizeText(dryLine))
 		return nil
 	}
 

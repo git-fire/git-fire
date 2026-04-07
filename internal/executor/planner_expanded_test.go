@@ -424,7 +424,10 @@ func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
 	if !plan.Skip {
 		t.Fatal("Expected plan to skip repo when strategy is abort")
 	}
-	if len(plan.Actions) == 0 || plan.Actions[len(plan.Actions)-1].Type != ActionSkip {
-		t.Fatalf("Expected final action to be skip, got %#v", plan.Actions)
+	if len(plan.Actions) != 1 || plan.Actions[0].Type != ActionSkip {
+		t.Fatalf("Expected exactly one skip action for abort strategy, got %#v", plan.Actions)
+	}
+	if plan.FireBranch != "" {
+		t.Fatalf("Expected FireBranch cleared on abort, got %q", plan.FireBranch)
 	}
 }

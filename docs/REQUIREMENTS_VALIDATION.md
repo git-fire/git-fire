@@ -7,7 +7,7 @@
 > For current behavior and docs source-of-truth, use:
 > - [../README.md](../README.md)
 > - [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
-> - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md)
+> - [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md) (written spec and validation target; prefer README and shipped code when they disagree during alpha)
 
 **Last Updated:** 2026-03-29 (UAT backlog + spec/doc realignment pass)
 **Validation Scope:** MVP Feature Completeness vs. GIT_FIRE_SPEC.md

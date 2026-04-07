@@ -132,6 +132,30 @@ func TestCommandPlugin_DryRun(t *testing.T) {
 	}
 }
 
+func TestCommandPlugin_DryRun_SanitizesArgs(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   true,
+	}
+
+	plugin := NewCommandPlugin("test", "git", []string{"clone", "https://user:leakme@github.com/org/repo.git"})
+
+	err := plugin.Execute(ctx)
+	if err != nil {
+		t.Errorf("Execute() failed: %v", err)
+	}
+
+	if len(logger.messages) != 1 {
+		t.Fatalf("Expected 1 log message, got %d", len(logger.messages))
+	}
+	if contains(logger.messages[0], "leakme") {
+		t.Errorf("Dry-run log should not contain raw URL credentials, got %q", logger.messages[0])
+	}
+}
+
 func TestCommandPlugin_VariableExpansion(t *testing.T) {
 	plugin := NewCommandPlugin("test", "echo", []string{
 		"{repo_name}",

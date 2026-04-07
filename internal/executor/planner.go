@@ -154,10 +154,11 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 					if p.config.Global.ConflictStrategy == "abort" {
 						repoPlan.Skip = true
 						repoPlan.SkipReason = fmt.Sprintf("conflict detected on %s; strategy=abort", remote.Name)
-						repoPlan.Actions = append(repoPlan.Actions, Action{
+						repoPlan.Actions = []Action{{
 							Type:        ActionSkip,
 							Description: repoPlan.SkipReason,
-						})
+						}}
+						repoPlan.FireBranch = ""
 						return repoPlan, nil
 					}
 					if !repoPlanHasFireCreateAction(repoPlan.Actions) {

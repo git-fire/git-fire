@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing!
 
-For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Historical behavior/design notes and edge-case context live in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
+For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Detailed behavior expectations, edge cases, and validation targets are documented in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md); user-facing summaries and shipped code on `main` are the practical source of truth when wording drifts during alpha.
 
 ## Prerequisites
 
