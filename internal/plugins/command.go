@@ -160,6 +160,9 @@ func (p *CommandPlugin) expandVars(s string, ctx Context) string {
 
 	result := s
 	for key, value := range replacements {
+		if value == "" {
+			continue
+		}
 		result = strings.ReplaceAll(result, key, value)
 	}
 

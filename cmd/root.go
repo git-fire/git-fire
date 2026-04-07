@@ -23,6 +23,7 @@ import (
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/executor"
 	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/plugins"
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-fire/internal/safety"
 	"github.com/git-fire/git-fire/internal/ui"
@@ -79,7 +80,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip filesystem scan; back up only known (registry) repos this run")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
-	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
+	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (not yet implemented)")
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 }
@@ -150,6 +151,11 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		cfg.Global.DisableScan = true
 	}
 
+	// Load plugins from config (non-fatal: warn and continue on failure)
+	if loadErr := plugins.LoadFromConfig(cfg); loadErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to load plugins from config: %s\n", safety.SanitizeText(loadErr.Error()))
+	}
+
 	// Show security notice
 	if !dryRun {
 		fmt.Println(safety.SecurityNotice())
@@ -215,6 +221,39 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		runErr = runBatch(cfg, reg, regPath, opts)
 	} else {
 		runErr = runStream(cfg, reg, regPath, opts)
+	}
+
+	// Fire post-run plugins (non-fatal, skipped on dry-run, user abort, and no-op runs)
+	if shouldRunPostRunPlugins(dryRun, runErr) {
+		pluginCtx := plugins.Context{
+			Timestamp: time.Now(),
+			DryRun:    dryRun,
+			Emergency: fireMode,
+			Logger:    &cmdPluginLogger{},
+		}
+		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
+		if enabledErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
+		} else {
+			runPlugins := func(trigger plugins.Trigger) {
+				for _, p := range plugins.FilterPluginsByTrigger(enabledPlugins, trigger) {
+					if pErr := p.Execute(pluginCtx); pErr != nil {
+						fmt.Fprintf(os.Stderr, "plugin %s: %s\n", p.Name(), safety.SanitizeText(pErr.Error()))
+					}
+				}
+			}
+
+			// after-push is the default trigger for command plugins.
+			runPlugins(plugins.TriggerAfterPush)
+
+			if runErr != nil && !errors.Is(runErr, errRunNoop) {
+				runPlugins(plugins.TriggerOnFailure)
+			} else {
+				runPlugins(plugins.TriggerOnSuccess)
+			}
+
+			runPlugins(plugins.TriggerAlways)
+		}
 	}
 
 	if errors.Is(runErr, errRunAborted) {
@@ -955,4 +994,23 @@ func handleStatus() error {
 	fmt.Printf("Dirty repositories: %d\n", dirtyCount)
 
 	return nil
+}
+
+// cmdPluginLogger satisfies plugins.Logger for post-run plugin execution.
+type cmdPluginLogger struct{}
+
+func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", safety.SanitizeText(msg)) }
+func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", safety.SanitizeText(msg)) }
+func (l *cmdPluginLogger) Error(msg string, err error) {
+	safeMsg := safety.SanitizeText(msg)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "  %s\n", safeMsg)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "  %s: %s\n", safeMsg, safety.SanitizeText(err.Error()))
+}
+func (l *cmdPluginLogger) Debug(_ string) {}
+
+func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
+	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
 }

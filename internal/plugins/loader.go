@@ -105,7 +105,7 @@ func FilterPluginsByTrigger(plugins []Plugin, trigger Trigger) []Plugin {
 	for _, p := range plugins {
 		// Check if plugin is a command plugin (has trigger)
 		if cmd, ok := p.(*CommandPlugin); ok {
-			if cmd.when == trigger || cmd.when == TriggerAlways {
+			if cmd.when == trigger {
 				filtered = append(filtered, p)
 			}
 		}
