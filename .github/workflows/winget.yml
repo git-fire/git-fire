@@ -12,8 +12,32 @@ permissions:
   contents: read
 
 jobs:
+  authorize:
+    name: Authorize runner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Allow admins only
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const username = context.actor;
+            const { owner, repo } = context.repo;
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner,
+              repo,
+              username,
+            });
+            const permission = data.permission;
+            core.info(`Actor "${username}" has "${permission}" permission.`);
+            if (permission !== "admin") {
+              core.setFailed(`Only repository admins can run publishing workflows. Actor "${username}" has "${permission}".`);
+            }
+
   winget:
     name: Update winget-pkgs
+    needs: authorize
     runs-on: windows-latest
     env:
       WINGET_PAT: ${{ secrets.WINGET_PAT }}

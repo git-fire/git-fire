@@ -18,8 +18,32 @@ permissions:
   contents: read
 
 jobs:
+  authorize:
+    name: Authorize runner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Allow admins only
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const username = context.actor;
+            const { owner, repo } = context.repo;
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner,
+              repo,
+              username,
+            });
+            const permission = data.permission;
+            core.info(`Actor "${username}" has "${permission}" permission.`);
+            if (permission !== "admin") {
+              core.setFailed(`Only repository admins can run release workflows. Actor "${username}" has "${permission}".`);
+            }
+
   tag:
     name: Create tag
+    needs: authorize
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
@@ -76,6 +100,7 @@ jobs:
   goreleaser:
     name: GoReleaser
     needs:
+      - authorize
       - tag
     # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
     # (the tag job is skipped on push; skipped needs require always() so this if is evaluated).
@@ -83,6 +108,7 @@ jobs:
     # Push path: only initial tag creation, not delete/force-push (CodeRabbit).
     if: |
       always() && !cancelled() &&
+      needs.authorize.result == 'success' &&
       (github.event_name != 'push' || (github.event.created && !github.event.deleted && !github.event.forced)) &&
       (needs.tag.result == 'success' ||
         (github.event_name == 'push' && needs.tag.result == 'skipped'))
