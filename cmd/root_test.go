@@ -911,6 +911,93 @@ func TestShouldRunPostRunPlugins(t *testing.T) {
 	}
 }
 
+func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scanRoot := t.TempDir()
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = scanRoot
+
+	ctx := buildPostRunPluginContext(cfg, false, true)
+
+	if ctx.RepoPath != scanRoot {
+		t.Fatalf("expected RepoPath %q, got %q", scanRoot, ctx.RepoPath)
+	}
+	if ctx.RepoName != filepath.Base(scanRoot) {
+		t.Fatalf("expected RepoName %q, got %q", filepath.Base(scanRoot), ctx.RepoName)
+	}
+	if !ctx.Emergency {
+		t.Fatalf("expected Emergency=true")
+	}
+	if ctx.DryRun {
+		t.Fatalf("expected DryRun=false")
+	}
+}
+
+func TestBuildPostRunPluginContext_ReadsGitBranchAndCommitWhenScanRootIsRepo(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("scan-root-repo").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = repo.Path()
+
+	ctx := buildPostRunPluginContext(cfg, false, false)
+
+	if ctx.Branch == "" {
+		t.Fatalf("expected Branch to be populated for git scan root")
+	}
+	if ctx.CommitSHA == "" {
+		t.Fatalf("expected CommitSHA to be populated for git scan root")
+	}
+}
+
+func TestBuildPostRunPluginContext_DoesNotReadParentRepoMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	parentRepo := scenario.CreateRepo("parent-repo").
+		WithRemote("origin", remote).
+		AddFile("README.md", "parent\n").
+		Commit("init")
+	defaultBranch := parentRepo.GetDefaultBranch()
+	parentRepo.Push("origin", defaultBranch)
+
+	scanRoot := filepath.Join(parentRepo.Path(), "projects")
+	if err := os.MkdirAll(scanRoot, 0o755); err != nil {
+		t.Fatalf("mkdir scan root: %v", err)
+	}
+
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = scanRoot
+
+	ctx := buildPostRunPluginContext(cfg, false, false)
+
+	if ctx.RepoPath != scanRoot {
+		t.Fatalf("expected RepoPath %q, got %q", scanRoot, ctx.RepoPath)
+	}
+	if ctx.RepoName != filepath.Base(scanRoot) {
+		t.Fatalf("expected RepoName %q, got %q", filepath.Base(scanRoot), ctx.RepoName)
+	}
+	if ctx.Branch != "" {
+		t.Fatalf("expected Branch to be empty when scan root is not a git repo, got %q", ctx.Branch)
+	}
+	if ctx.CommitSHA != "" {
+		t.Fatalf("expected CommitSHA to be empty when scan root is not a git repo, got %q", ctx.CommitSHA)
+	}
+}
+
 // Helper function to reset flags between tests
 func resetFlags() {
 	dryRun = false
