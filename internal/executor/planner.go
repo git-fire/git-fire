@@ -54,7 +54,7 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 		if repoPlan.HasConflict {
 			plan.Conflicts++
 		}
-		if repoPlan.FireBranch != "" {
+		if repoPlanHasFireCreateAction(repoPlan.Actions) {
 			plan.FireBranches++
 		}
 	}
@@ -144,13 +144,23 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 			})
 
 		case git.ModePushCurrentBranch:
-			if opts.DetectConflicts && p.config.Global.ConflictStrategy == "new-branch" {
+			if opts.DetectConflicts && (p.config.Global.ConflictStrategy == "new-branch" || p.config.Global.ConflictStrategy == "abort") {
 				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
 					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
 				}
 				if hasConflict {
 					repoPlan.HasConflict = true
+					if p.config.Global.ConflictStrategy == "abort" {
+						repoPlan.Skip = true
+						repoPlan.SkipReason = fmt.Sprintf("conflict detected on %s; strategy=abort", remote.Name)
+						repoPlan.Actions = []Action{{
+							Type:        ActionSkip,
+							Description: repoPlan.SkipReason,
+						}}
+						repoPlan.FireBranch = ""
+						return repoPlan, nil
+					}
 					if !repoPlanHasFireCreateAction(repoPlan.Actions) {
 						repoPlan.Actions = append(repoPlan.Actions, Action{
 							Type:        ActionCreateFireBranch,
@@ -158,6 +168,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 							Branch:      currentBranch,
 						})
 					}
+					repoPlan.FireBranch = fireBranchPlaceholder
 					repoPlan.Actions = append(repoPlan.Actions, Action{
 						Type:        ActionPushBranch,
 						Description: fmt.Sprintf("Push fire backup branch for %s (%s)", currentBranch, remote.Name),
@@ -233,7 +244,13 @@ func (p *PushPlan) Summary() string {
 		}
 
 		if repo.HasConflict {
-			summary += fmt.Sprintf("   ⚠️  Conflict: Will create fire branch: %s\n", repo.FireBranch)
+			if repo.FireBranch != "" && repo.FireBranch != fireBranchPlaceholder {
+				summary += fmt.Sprintf("   ⚠️  Conflict: Will create fire branch: %s\n", repo.FireBranch)
+			} else if repoPlanHasFireCreateAction(repo.Actions) {
+				summary += "   ⚠️  Conflict: Will create a fire backup branch at execution time\n"
+			} else {
+				summary += "   ⚠️  Conflict detected\n"
+			}
 		}
 	}
 

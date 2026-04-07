@@ -1,7 +1,8 @@
 # Git Fire - Emergency Git Repository Backup CLI
 
-This document is a legacy design reference and contains roadmap/proposed behavior.
-For alpha release truth, treat `README.md` and current code as canonical.
+This document is the written behavior specification: intended semantics, edge cases, and material used for requirements validation. It also includes roadmap and exploratory sections (clearly labeled where applicable).
+
+For day-to-day alpha releases, treat `README.md` and shipped code on `main` as the practical source of truth when this spec lags or conflicts.
 
 Related docs:
 - onboarding and command quickstart: [README.md](README.md)

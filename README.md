@@ -17,23 +17,60 @@
 > 1. `git-fire`
 > 2. Leave building
 
-`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails. It helps automate multi-repo push/checkpoint cycles for anyone who uses Git, from daily development to docs, data, and ops workflows.
+`git-fire` is one command to checkpoint many repositories: discover, auto-commit dirty work (optional), and push backup branches/remotes with safety rails.
 
-Manual push loops can fail silently in real life (network drops, auth problems, or tool hiccups). `git-fire` gives you an auditable recovery path and more peace of mind when you need consistency across many repos.
+Manual push loops fail more often than we admit (network drops, auth hiccups, shell mistakes). `git-fire` provides an auditable recovery path when you need one consistent move across many repos.
 
 Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
 
-### TUI screenshot
+*Maintainer note: this project is built for high-stress moments and everyday discipline. Keep it simple, keep it safe, keep moving.*
 
-Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
+## Table of Contents
 
-![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
+- [Alpha Status](#alpha-status)
+- [Quick Start](#quick-start)
+  - [First run](#first-run)
+  - [One-line emergency mode](#one-line-emergency-mode)
+- [Install](#install)
+  - [Homebrew (macOS/Linuxbrew)](#homebrew-macoslinuxbrew)
+  - [WinGet (Windows)](#winget-windows)
+  - [Linux quick install script](#linux-quick-install-script)
+  - [Linux native packages (`.deb` / `.rpm`)](#linux-native-packages-deb--rpm)
+  - [Go install](#go-install)
+  - [Binary archive (manual)](#binary-archive-manual)
+  - [PATH setup (required)](#path-setup-required)
+  - [Verify install](#verify-install)
+  - [Build from source](#build-from-source)
+- [Who Is This For](#who-is-this-for)
+- [Use Cases](#use-cases)
+- [Key Features](#key-features)
+- [Core Commands](#core-commands)
+- [Configuration and Behaviors](#configuration-and-behaviors)
+- [TUI](#tui)
+  - [TUI screenshot](#tui-screenshot)
+  - [TUI color profiles](#tui-color-profiles)
+- [Roadmap and Coming Soon](#roadmap-and-coming-soon)
+- [Documentation](#documentation)
+- [Security Notes](#security-notes)
+- [Security Policy](#security-policy)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Alpha Status
 
-`git-fire` is alpha software. Core multi-repo backup flows are usable today. Some roadmap items (plugin CLI auto-loading and `--backup-to`) are intentionally not wired yet.
+`git-fire` is alpha software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
 
 ## Quick Start
+
+### First run
+
+```bash
+# preview first (safe)
+git-fire --dry-run --path ~/projects
+
+# run default streamed checkpoint
+git-fire
+```
 
 ### One-line emergency mode
 
@@ -45,7 +82,7 @@ Inspect `scripts/emergency.sh` first and prefer release assets plus checksums wh
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scripts/emergency.sh | bash
 ```
 
-### Install
+## Install
 
 | Method | Command | Platform |
 |---|---|---|
@@ -58,24 +95,26 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scri
 
 Package-manager channels are published for stable tags (`vX.Y.Z`).
 Prerelease tags (`-alpha`, `-beta`, `-rc`) always ship release binaries.
+
 Maintainer runbooks:
 - Homebrew: [`docs/HOMEBREW_RELEASE_RUNBOOK.md`](docs/HOMEBREW_RELEASE_RUNBOOK.md)
 - WinGet: [`docs/WINGET_RELEASE_RUNBOOK.md`](docs/WINGET_RELEASE_RUNBOOK.md)
+- Release checklist: [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
 
-#### Homebrew (macOS/Linuxbrew)
+### Homebrew (macOS/Linuxbrew)
 
 ```bash
 brew tap git-fire/tap
 brew install git-fire
 ```
 
-#### WinGet (Windows)
+### WinGet (Windows)
 
 ```powershell
 winget install git-fire.git-fire
 ```
 
-#### Linux quick install script
+### Linux quick install script
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
@@ -88,7 +127,7 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/inst
   VERSION=v0.2.0 INSTALL_DIR="$HOME/.local/bin" bash
 ```
 
-#### Linux native packages (`.deb` / `.rpm`)
+### Linux native packages (`.deb` / `.rpm`)
 
 ```bash
 # Debian/Ubuntu
@@ -98,7 +137,23 @@ sudo dpkg -i ./git-fire_<version>_amd64.deb
 sudo dnf install ./git-fire_<version>_amd64.rpm
 ```
 
-#### PATH setup (required)
+### Go install
+
+```bash
+go install github.com/git-fire/git-fire@latest
+```
+
+Or pin an explicit release:
+
+```bash
+go install github.com/git-fire/git-fire@v0.2.0
+```
+
+### Binary archive (manual)
+
+Download and extract the right archive from [GitHub Releases](https://github.com/git-fire/git-fire/releases), then place the binary on your `PATH`.
+
+### PATH setup (required)
 
 After install, make sure the binary location is on your `PATH`.
 
@@ -110,154 +165,64 @@ Add that line to `~/.zshrc` or `~/.bashrc` to persist.
 
 **Manual binary install (Linux/macOS):**
 ```bash
-# after extracting the release archive:
 chmod +x git-fire
 sudo mv git-fire /usr/local/bin/
 ```
 
 **Manual binary install (Windows PowerShell):**
 ```powershell
-# after extracting the release archive:
 New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
 Move-Item .\git-fire.exe "$env:USERPROFILE\bin\git-fire.exe" -Force
 ```
 Then add `$env:USERPROFILE\bin` to your user `PATH` if not already present.
 
-#### Build from source
-
-Cross-platform source build instructions live in [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md).
-
-#### Verify install
+### Verify install
 
 ```bash
 git-fire --version
 which git-fire
 ```
+
 On Windows PowerShell:
+
 ```powershell
 git-fire.exe --version
 Get-Command git-fire.exe
 ```
 
-### First run
+### Build from source
 
-```bash
-# preview first (safe)
-git-fire --dry-run --path ~/projects
-
-# run default streamed checkpoint
-git-fire
-```
+Cross-platform source build instructions live in [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md).
 
 ## Who Is This For
 
-- **Anyone using Git across multiple repos:** you want one reliable checkpoint command before context switches, travel, maintenance, or riskier changes.
-- **Developers and platform/infra engineers:** you maintain many code/IaC/config repos and want consistent, auditable bulk checkpoints.
-- **Agent workflow users:** you run Claude/Cursor-style coding sessions and want a stop-hook safety net.
-- **Security/ops practitioners:** you need fast state preservation before teardown, maintenance, or incident-driven system change.
-- **Data/research/documentation teams using Git:** you track analysis, notebooks, or docs in many repos and need repeatable backup behavior.
-- **Not the target:** single-repo users and monorepo teams that already have one-repo checkpoint discipline.
+- **Anyone using Git across multiple repos:** checkpoint before context switches, travel, maintenance, or risky changes.
+- **Developers and platform/infra engineers:** keep code/IaC/config repos consistently backed up.
+- **Agent workflow users:** use it as a stop-hook safety net for AI coding sessions.
+- **Security/ops practitioners:** preserve state before teardown, maintenance, or incident-driven system changes.
+- **Data/research/documentation teams:** checkpoint notebooks, docs, and analysis repos with repeatable behavior.
+- **Not the target:** single-repo users and monorepo teams that already have strict one-repo checkpoint discipline.
 
 ## Use Cases
 
-### Daily developer checkpoint
+- **Daily developer checkpoint:** end of day, before context switches, before large refactors.
+- **Non-developer multi-repo checkpoint:** docs/content publishing windows, data-environment changes.
+- **Agent session safety net:** preserve uncommitted output and keep logs for review.
+- **IT/infra maintenance windows:** checkpoint tooling/config repos before maintenance.
+- **Security/operations workflows:** red/purple team sync and incident-response state preservation.
 
-- End of day
-- Before context switch
-- Before travel
-- Before large refactor
-
-### Non-developer multi-repo checkpoint
-
-- Before publishing docs/content from multiple repositories
-- Before data-analysis environment changes
-- Before operational change windows where Git state should be preserved
-
-### Creative and content workflows
-
-- Keep many writing/media/site repos checkpointed before publishing
-- Snapshot cross-repo changes before major editing or migration passes
-- Standardize backup behavior for mixed technical and non-technical contributors
-
-### Agent session safety net
-
-- Run at session stop to avoid losing uncommitted agent output
-- Keep logs for post-session review
-- Use dry-run in guarded environments
-
-See [docs/agentic-flows.md](docs/agentic-flows.md).
-
-### IT/infra maintenance windows
-
-- Bulk checkpoint tooling and config repos before maintenance
-- Consistent push behavior across many repos
-- Registry-backed repeatability across runs
-
-### Security and operations workflows
-
-- Red team session teardown
-- Purple team exercise sync before debrief
-- Incident response state preservation
-
-See [docs/security-ops.md](docs/security-ops.md).
-
-### Emergency hail mary
-
-If your build is literally on fire, run `git-fire`.
-
-## Integrations and Toolchains
-
-`git-fire` can be integrated into your existing toolchains, IDE workflows, and automation hooks (for example session-stop hooks, task runners, CI helpers, or wrapper scripts).
-
-If you want first-class support for a specific workflow or application, please open a feature request or submit a PR. We would love to support your use case.
-
-## Roadmap Direction: Integrations + Redundancy Layers
-
-Roadmap focus is practical integrations and emergency redundancy layers, especially for cases like SSH auth/key failures during high-pressure moments.
-
-The goal is "paranoid and lazy" at the same time: set up layers once, then run one command when it counts.
+Workflow guides:
+- [docs/agentic-flows.md](docs/agentic-flows.md)
+- [docs/security-ops.md](docs/security-ops.md)
 
 ## Key Features
 
-- **One-command multi-repo checkpoint:** discover repositories and execute a repeatable backup flow from a single command.
-- **Optional dirty-work auto-commit:** include uncommitted changes when you choose, or use `--skip-auto-commit` to push committed work only.
+- **One-command multi-repo checkpoint:** discover repositories and execute a repeatable backup flow from one command.
+- **Optional dirty-work auto-commit:** include uncommitted changes, or use `--skip-auto-commit` to push committed work only.
 - **Safety-first conflict handling:** avoid force-push in normal flow and create backup branches when needed.
 - **Dry-run planning:** preview exactly what would happen before making changes.
-- **Auditable execution logs:** structured JSON logs make troubleshooting and post-run review practical.
-- **Registry-backed repeatability:** discovered repos persist across runs so your workflow gets more reliable over time.
-
-## Advanced Configuration and Behaviors
-
-- **Persistent repo registry:** discovered repos are saved in `~/.config/git-fire/repos.toml`, so future runs include them unless explicitly ignored.
-- **Status and auth checks:** `git-fire --status` gives a quick snapshot of SSH/auth and repo readiness before a full run.
-- **Execution-mode control:** `--dry-run` for zero-side-effect planning, `--fire` for interactive selection, `--path` for scoped discovery.
-- **Registry-only mode:** use `--no-scan` to back up only repos already in the registry for this run.
-- **Config trust boundary:** only `~/.config/git-fire/config.toml` is loaded by default; use `--config <path>` to opt into a project-local file.
-- **Auto-commit strategy control:** choose whether dirty working trees are included with default behavior or skipped via `--skip-auto-commit`.
-- **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/` for auditability and debugging.
-- **Workflow composition:** combine with hooks, wrappers, task runners, or CI helper scripts for consistent team or solo automation.
-## Feature to Use-Case Map
-
-| Feature | Daily Dev | Agentic | IT/Infra | Red Team | Emergency |
-|---|---|---|---|---|---|
-| Parallel multi-repo execution | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Persistent repo registry | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Dry-run planning | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Secret detection guardrail (default block) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Structured JSON logs (`~/.cache/git-fire/logs/`) | ⚪ Optional | ✅ | ✅ | ✅ | ⚪ Optional |
-| `--status` SSH/repo snapshot | ✅ | ✅ | ✅ | ✅ | ⚪ Optional |
-| Conflict-safe backup branches (no force push in normal flow) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Plugin internals (`v0.2` CLI auto-loading target) | 🔜 | 🔜 | 🔜 | 🔜 | 🔜 |
-
-## Why It Is Trustworthy in Alpha
-
-- No force push in normal flows.
-- Conflict strategy creates backup branches (`git-fire-backup-*`) when needed.
-- Dry-run gives a no-side-effect plan preview.
-- Secret detection blocks auto-commit/push by default (override in config if you explicitly accept risk).
-- Structured logs create a machine-readable audit trail.
-- Built to reduce risk from silent failure modes in manual workflows (network, auth, and command-sequencing errors across many repos).
-- 250+ tests cover core non-UI packages.
+- **Auditable execution logs:** structured JSON logs for troubleshooting and post-run review.
+- **Registry-backed repeatability:** discovered repos persist across runs.
 
 ## Core Commands
 
@@ -292,23 +257,25 @@ git-fire --no-scan
 git-fire --init
 ```
 
-## Set-and-Forget Repeatability
+## Configuration and Behaviors
 
-`git-fire` persists discovered repositories in `~/.config/git-fire/repos.toml`. Once discovered, those repos stay in scope for future runs unless you explicitly ignore them.
+- **Persistent repo registry:** discovered repos are saved in `~/.config/git-fire/repos.toml` unless explicitly ignored.
+- **Status and auth checks:** `git-fire --status` gives a quick snapshot of SSH/auth and repo readiness.
+- **Execution-mode control:** `--dry-run`, `--fire`, and `--path` let you choose planning vs. execution mode.
+- **Registry-only mode:** `--no-scan` runs against already-known registry repos for that run.
+- **Config trust boundary:** only `~/.config/git-fire/config.toml` loads by default; use `--config <path>` to opt into project-local config.
+- **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/`.
+- **Workflow composition:** pair with hooks, wrappers, task runners, or CI helper scripts.
 
-See [docs/REGISTRY.md](docs/REGISTRY.md).
+See [docs/REGISTRY.md](docs/REGISTRY.md) for details.
 
-## Extensible via Plugins (`v0.2`)
+## TUI
 
-Plugin support is in active development. Command plugin internals exist, but default CLI auto-loading from config is a `v0.2` target.
+### TUI screenshot
 
-See [docs/agentic-flows.md](docs/agentic-flows.md).
+Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen checkpoint workflow.
 
-## USB Mode (coming soon)
-
-USB mode is planned as a first-class backup destination. The initial release will support syncing repos to one or more USB targets (including plain folder mounts), with incremental git-native updates and a per-target `.git-fire` marker/config at the destination root.
-
-Detailed design and rollout notes will be documented in `docs/USB_MODE.md` as implementation lands.
+![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
 
 ### TUI color profiles
 
@@ -323,7 +290,7 @@ You can reskin both the fire effect and border/accent colors in `git-fire --fire
 
 | Method | How |
 |--------|-----|
-| In-TUI settings | Press **`c`** → **Color profile** → `space` / `←` / `→` |
+| In-TUI settings | Press **`c`** -> **Color profile** -> `space` / `<-` / `->` |
 | Config file | Set `color_profile` under `[ui]` |
 
 ```toml
@@ -332,23 +299,28 @@ show_fire_animation = true
 color_profile = "synthwave"
 ```
 
-Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
+Custom hex palettes are planned but not enabled yet.
 
-### Extensibility with plugins
+## Roadmap and Coming Soon
 
-Command plugins let you trigger extra backup/notification steps (for example S3 sync, webhook calls via curl, local archive scripts).
+- **Plugin auto-loading in CLI (`v0.2` target):** command plugin internals exist, but default config-driven auto-loading is still in progress.
+- **USB mode:** planned as a first-class destination for repo backups (git-native incremental updates + destination marker/config).
+- **Integration-first direction:** practical integrations and redundancy layers for high-pressure moments.
 
-See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
+Plugin docs:
+- [PLUGINS.md](PLUGINS.md)
+- [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md)
 
 ## Documentation
 
 Start with [docs/README.md](docs/README.md).
 
+- Build from source: [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md)
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
+- Planned USB mode scope: [docs/USB_MODE.md](docs/USB_MODE.md)
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Validation status: [docs/REQUIREMENTS_VALIDATION.md](docs/REQUIREMENTS_VALIDATION.md)
 
 ## Security Notes
 
@@ -359,6 +331,10 @@ Before running broad backups:
 
 `git-fire` includes secret detection warnings, but commit responsibility remains with the user.
 
+## Security Policy
+
+To report security issues privately, use [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -366,4 +342,5 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
 

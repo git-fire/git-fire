@@ -396,4 +396,38 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	if len(plan.Actions) == 0 || plan.Actions[0].Type != ActionCreateFireBranch {
 		t.Fatalf("Expected first action to be create-fire-branch, got %#v", plan.Actions)
 	}
+	if plan.FireBranch != fireBranchPlaceholder {
+		t.Fatalf("Expected fire branch placeholder to be set, got %q", plan.FireBranch)
+	}
+}
+
+func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict to be detected")
+	}
+	if !plan.Skip {
+		t.Fatal("Expected plan to skip repo when strategy is abort")
+	}
+	if len(plan.Actions) != 1 || plan.Actions[0].Type != ActionSkip {
+		t.Fatalf("Expected exactly one skip action for abort strategy, got %#v", plan.Actions)
+	}
+	if plan.FireBranch != "" {
+		t.Fatalf("Expected FireBranch cleared on abort, got %q", plan.FireBranch)
+	}
 }
