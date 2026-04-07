@@ -7,7 +7,7 @@ This runbook documents the maintainer workflow for publishing `git-fire` to WinG
 - Package identifier: `git-fire.git-fire`
 - Updater workflow: `.github/workflows/winget.yml`
 - Automation engine: `vedantmgoyal9/winget-releaser` (workflow pins a fixed commit SHA for `v2`)
-- Channel note: WinGet publishing is only for stable tags (`vX.Y.Z`), not prereleases (`-alpha`, `-beta`, `-rc`)
+- Channel note: WinGet publishing is for SemVer stable tags (`vX.Y.Z`).
 
 ## One-time setup
 

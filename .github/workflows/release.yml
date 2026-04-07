@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v0.1.0 or v0.1.0-rc.1)'
+        description: 'SemVer tag to release (e.g. v0.1.0)'
         required: true
         type: string
-        default: 'v0.1.0-beta'
+        default: 'v0.1.0'
   # Allows releases when workflow_dispatch is unavailable (e.g. narrow GitHub tokens):
   # create an annotated tag on main and push it — GoReleaser runs for that tag.
   push:
@@ -42,24 +42,10 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
             echo "Invalid tag format: $TAG"
-            echo "Expected: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease"
+            echo "Expected: vMAJOR.MINOR.PATCH"
             exit 1
-          fi
-
-          # Enforce SemVer rule: numeric prerelease identifiers must not have leading zeros.
-          PRERELEASE="${TAG#v}"
-          PRERELEASE="${PRERELEASE#*.*.*}"
-          PRERELEASE="${PRERELEASE#-}"
-          if [ -n "$PRERELEASE" ]; then
-            IFS='.' read -r -a identifiers <<< "$PRERELEASE"
-            for ident in "${identifiers[@]}"; do
-              if [[ "$ident" =~ ^[0-9]+$ ]] && [[ "$ident" != "0" ]] && [[ "$ident" =~ ^0 ]]; then
-                echo "Invalid prerelease identifier with leading zero: $ident"
-                exit 1
-              fi
-            done
           fi
 
       - name: Ensure tag is reusable or create it
@@ -114,25 +100,16 @@ jobs:
               || github.ref
             }}
 
-      - name: Determine release channel
-        id: release_meta
+      - name: Validate pushed tag format
+        if: github.event_name == 'push'
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          TAG_WORKFLOW_DISPATCH: ${{ needs.tag.outputs.tag }}
-          TAG_PUSH: ${{ github.ref_name }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
-            TAG="${TAG_WORKFLOW_DISPATCH}"
-          else
-            TAG="${TAG_PUSH}"
+          if ! echo "$TAG" | grep -qE '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "Release tag must be plain SemVer (vMAJOR.MINOR.PATCH). Got: $TAG"
+            exit 1
           fi
-          if [[ "$TAG" == *-* ]]; then
-            GORELEASER_CONFIG=.goreleaser.yaml
-          else
-            GORELEASER_CONFIG=.goreleaser.stable.yaml
-          fi
-          echo "goreleaser_config=$GORELEASER_CONFIG" >> "$GITHUB_OUTPUT"
 
       - name: Require pushed tag to target mainline
         if: github.event_name == 'push'
@@ -154,7 +131,7 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --config ${{ steps.release_meta.outputs.goreleaser_config }}
+          args: release --clean --config .goreleaser.stable.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

@@ -90,8 +90,8 @@ Use this for urgent situations only. `curl | bash` executes remote code directly
 Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
 
 ```bash
-# replace v0.1.0-beta with the release tag you want to run
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-beta/scripts/emergency.sh | bash
+# replace RELEASE_TAG with a published release tag (for example v0.1.0)
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/RELEASE_TAG/scripts/emergency.sh | bash
 ```
 
 ## Install
@@ -105,8 +105,8 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-beta/scrip
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
 | Binary archive | [GitHub Releases](https://github.com/git-fire/git-fire/releases) | All |
 
-Package-manager channels are published for stable tags (`vX.Y.Z`).
-Prerelease tags (`-alpha`, `-beta`, `-rc`) always ship release binaries.
+Releases use plain SemVer tags (`vX.Y.Z`).
+Release assets always include platform binaries + checksums; package-manager channels are part of the stable release process.
 
 Maintainer runbooks:
 - Homebrew: [`docs/HOMEBREW_RELEASE_RUNBOOK.md`](docs/HOMEBREW_RELEASE_RUNBOOK.md)
@@ -319,7 +319,7 @@ Custom hex palettes are planned but not enabled yet.
 
 ## Release Roadmap
 
-- **Now (beta):** expanded tester validation, feedback, and stabilization; prerelease tags ship binaries; stable tags drive package-manager channels (see install table above).
+- **Now (beta):** expanded tester validation, feedback, and stabilization while preparing the first stable SemVer release (`v0.1.0`).
 - **During beta:** address critical stabilization issues and keep install and safety documentation current.
 - **1.0:** ship a stable production release after beta-critical items are closed.
 

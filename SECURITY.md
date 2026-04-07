@@ -17,7 +17,7 @@ Include:
 
 ## Supported Versions
 
-`git-fire` is currently in beta. Security fixes are prioritized for the latest beta (or current prerelease) tag.
+`git-fire` is currently in beta. Security fixes are prioritized for the latest supported stable SemVer release (`vX.Y.Z`) and urgent issues may also be patched on the main development branch.
 
 ## Disclosure Process
 

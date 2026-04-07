@@ -25,11 +25,11 @@ This runbook documents the maintainer workflow for publishing `git-fire` to Home
 
 - Stable release tags (`vX.Y.Z`) use `.goreleaser.stable.yaml`.
 - The stable GoReleaser config updates `Formula/git-fire.rb` in `git-fire/homebrew-tap`.
-- Prerelease tags (`-alpha`, `-beta`, `-rc`) use `.goreleaser.yaml` and do not publish package-manager updates.
+- Legacy prerelease tags (`-alpha`, `-beta`, `-rc`) use `.goreleaser.yaml` and do not publish package-manager updates.
+- Going forward, releases should use plain SemVer tags (`vX.Y.Z`).
 
 ## Messaging guidance
 
-- It is not flawed to announce alpha while using prerelease tags; that is the expected channel.
 - Reserve "stable" announcements for plain SemVer tags (`vX.Y.Z`) after release verification.
 
 ## Normal release flow

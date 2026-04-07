@@ -13,7 +13,7 @@ Use the release automation and runbooks that reflect the live repository:
 
 Release flow summary:
 
-1. Tag a version (`vX.Y.Z` or prerelease suffix like `-alpha`, `-beta`, `-rc`).
+1. Tag a version using plain SemVer (`vX.Y.Z`).
 2. Run the release workflow (or push the tag).
 3. Verify release assets (`checksums.txt`, platform archives, stable `.deb`/`.rpm`).
 4. Run smoke installs (Homebrew, WinGet, Linux script/package, source build as needed).

@@ -4,15 +4,14 @@ Use this checklist for every tagged release.
 
 ## Channel guidance (what to announce)
 
-- Announcing as `alpha` is valid when tags are prerelease (for example `v0.1.0-alpha.1`).
-- Announcing as `beta` is valid when tags are prerelease (for example `v0.1.0-beta.1`).
-- Announcing as `stable` requires a plain SemVer tag (`vX.Y.Z`) and full verification.
-- First stable is usually `v0.1.0` when coming from alpha/beta; choose `v0.2.0+` only if you intentionally want to signal a larger scope jump.
+- Announce releases using plain SemVer tags only (`vX.Y.Z`).
+- Avoid new prerelease tags (`-alpha`, `-beta`, `-rc`) for future releases unless release strategy changes.
+- First stable is usually `v0.1.0`; choose `v0.2.0+` only if you intentionally want to signal a larger scope jump.
 
 ## 1) Preconditions
 
 - `main` is green in CI.
-- Planned version is final (`vX.Y.Z`) or prerelease (`vX.Y.Z-rc.1`).
+- Planned version is final (`vX.Y.Z`).
 - Required secrets are configured:
   - `HOMEBREW_TAP_TOKEN` (stable releases)
   - `WINGET_PAT` (stable releases)
@@ -22,9 +21,7 @@ Use this checklist for every tagged release.
 ## 2) Tag and Trigger
 
 - Run `.github/workflows/release.yml` via `workflow_dispatch` with the target tag, or push a tag directly.
-- Confirm the workflow detects the correct channel:
-  - prerelease (`-alpha`, `-beta`, `-rc`) -> binaries only
-  - stable (`vX.Y.Z`) -> binaries + Homebrew + deb/rpm assets
+- Confirm the workflow runs the stable channel (`vX.Y.Z`) and publishes binaries + Homebrew + deb/rpm assets.
 
 ## 3) Verify Release Assets
 
@@ -62,9 +59,7 @@ Run at least one install per channel:
 ## 6) Launch Posts and Distribution
 
 - Prepare announcement copy from [LAUNCH_POSTS_PLAYBOOK.md](LAUNCH_POSTS_PLAYBOOK.md).
-- Confirm any references to release channels match the actual tag class:
-  - prerelease (`-alpha`, `-beta`, `-rc`) -> alpha/beta messaging
-  - stable (`vX.Y.Z`) -> stable messaging
+- Confirm all launch copy references the stable SemVer tag (`vX.Y.Z`) and avoids prerelease wording.
 - Post in a staged wave:
   1. Primary post (`Show HN` or equivalent) with the clearest problem statement
   2. Community posts (Reddit + language communities)
