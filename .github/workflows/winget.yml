@@ -15,6 +15,8 @@ jobs:
   winget:
     name: Update winget-pkgs
     runs-on: windows-latest
+    env:
+      WINGET_PAT: ${{ secrets.WINGET_PAT }}
     steps:
       - name: Resolve target tag
         id: meta
@@ -30,10 +32,17 @@ jobs:
 
           "release_tag=$tag" >> $env:GITHUB_OUTPUT
 
+      - name: Require WinGet PAT
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINGET_PAT)) {
+            throw "Missing WINGET_PAT secret. Configure it in repo secrets before publishing WinGet manifests."
+          }
+
       - name: Publish to WinGet
         uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
           identifier: git-fire.git-fire
           release-tag: ${{ steps.meta.outputs.release_tag }}
           installers-regex: '_windows_(amd64|arm64|386)\.zip$'
-          token: ${{ secrets.WINGET_PAT }}
+          token: ${{ env.WINGET_PAT }}

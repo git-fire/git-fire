@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["**"]
 
+permissions:
+  contents: read
+
 jobs:
   # TODO: golangci-lint v2 config migration in progress — re-enable once complete
   # lint:
