@@ -223,11 +223,10 @@ func TestHandleInit_ExistingConfig_NonInteractive(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
 
-	configDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		t.Fatalf("Failed to create config dir: %v", err)
 	}
-	configPath := filepath.Join(configDir, "config.toml")
 	if err := os.WriteFile(configPath, []byte("# Existing config\n"), 0644); err != nil {
 		t.Fatalf("Failed to write existing config: %v", err)
 	}
@@ -257,11 +256,10 @@ func TestHandleInit_ForceOverwrite(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
 
-	configDir := filepath.Join(tmpHome, ".config", "git-fire")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		t.Fatalf("Failed to create config dir: %v", err)
 	}
-	configPath := filepath.Join(configDir, "config.toml")
 	if err := os.WriteFile(configPath, []byte("# Old config\n"), 0644); err != nil {
 		t.Fatalf("Failed to write existing config: %v", err)
 	}
