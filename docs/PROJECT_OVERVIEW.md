@@ -127,6 +127,12 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Manual smoke fixtures for OSS testers live in `scripts/setup-manual-smoke-fixtures.sh`, `scripts/setup-manual-smoke-stages.sh`, and `scripts/run-manual-smoke-stage.sh`.
 - Future enhancement target: add stage outcome verification script for pass/fail assertions after manual runs.
 
+### Post-Release OS Polish Backlog (Low Risk)
+
+- Keep Unix-first shell script assumptions for manual smoke tooling, while documenting expected behavior for non-Unix users.
+- Consider expanding config/cache path tests around Windows `USERPROFILE`/`APPDATA` edge cases in isolated test environments.
+- Revisit non-critical path/layout fallback behavior for additional cross-OS consistency after launch feedback.
+
 ## Maturity and Risk
 
 - Alpha, but stable for many common flows.

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,6 +18,9 @@ type SSHKey struct {
 	IsLoaded    bool   // Is it loaded in ssh-agent?
 	NeedsPass   bool   // Does it require a passphrase?
 	Fingerprint string // SSH key fingerprint
+	// FingerprintError captures non-fatal fingerprint probe errors (e.g. missing
+	// ssh-keygen). We keep key discovery functional while surfacing ambiguity.
+	FingerprintError string
 }
 
 // SSHAgent represents the SSH agent status
@@ -24,6 +28,9 @@ type SSHAgent struct {
 	Running bool     // Is ssh-agent running?
 	Socket  string   // SSH_AUTH_SOCK path
 	Keys    []SSHKey // Keys loaded in agent
+	// Error records non-fatal status probe failures when SSH_AUTH_SOCK is set
+	// but ssh-add cannot be executed or parsed reliably.
+	Error string
 }
 
 // FindSSHKeys discovers SSH keys in ~/.ssh/
@@ -54,9 +61,14 @@ func FindSSHKeys() ([]SSHKey, error) {
 				Type: keyType,
 			}
 
-			// Try to get fingerprint
-			fingerprint, _ := getKeyFingerprint(keyPath)
-			key.Fingerprint = fingerprint
+			// Fingerprint probe failures are non-fatal for key discovery, but they
+			// reduce confidence in loaded-key matching, so expose the failure.
+			fingerprint, fpErr := getKeyFingerprint(keyPath)
+			if fpErr != nil {
+				key.FingerprintError = fpErr.Error()
+			} else {
+				key.Fingerprint = fingerprint
+			}
 
 			keys = append(keys, key)
 		}
@@ -99,13 +111,28 @@ func CheckSSHAgent() (*SSHAgent, error) {
 	agent.Socket = socket
 	agent.Running = true
 
+	sshAddPath, pathErr := exec.LookPath("ssh-add")
+	if pathErr != nil {
+		agent.Error = "ssh-add not found on PATH"
+		return agent, nil
+	}
+
 	// List keys in agent
-	cmd := exec.Command("ssh-add", "-l")
-	output, err := cmd.Output()
+	cmd := exec.Command(sshAddPath, "-l")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// ssh-add returns exit code 1 if no keys are loaded
-		// This is not an error, just means no keys
-		agent.Running = true
+		// ssh-add returns exit code 1 when agent is reachable but no keys loaded.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			lowerOutput := strings.ToLower(strings.TrimSpace(string(output)))
+			if lowerOutput == "" ||
+				strings.Contains(lowerOutput, "no identities") ||
+				strings.Contains(lowerOutput, "the agent has no identities") {
+				return agent, nil
+			}
+		}
+
+		agent.Error = fmt.Sprintf("ssh-add -l failed: %v", err)
 		return agent, nil
 	}
 
@@ -440,6 +467,9 @@ func (s *SSHStatus) Summary() string {
 	if s.Agent.Running {
 		sb.WriteString(fmt.Sprintf("  ✓ ssh-agent running (socket: %s)\n", s.Agent.Socket))
 		sb.WriteString(fmt.Sprintf("  ✓ %d key(s) loaded in agent\n", len(s.Agent.Keys)))
+		if s.Agent.Error != "" {
+			sb.WriteString(fmt.Sprintf("  ⚠ agent status warning: %s\n", s.Agent.Error))
+		}
 	} else {
 		sb.WriteString("  ✗ ssh-agent not running\n")
 	}
@@ -457,6 +487,9 @@ func (s *SSHStatus) Summary() string {
 			sb.WriteString(" [loaded]")
 		} else if key.NeedsPass {
 			sb.WriteString(" [needs passphrase]")
+		}
+		if key.FingerprintError != "" {
+			sb.WriteString(" [fingerprint unavailable]")
 		}
 
 		sb.WriteString("\n")
