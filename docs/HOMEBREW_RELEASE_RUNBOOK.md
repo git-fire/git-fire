@@ -27,6 +27,11 @@ This runbook documents the maintainer workflow for publishing `git-fire` to Home
 - The stable GoReleaser config updates `Formula/git-fire.rb` in `git-fire/homebrew-tap`.
 - Prerelease tags (`-alpha`, `-beta`, `-rc`) use `.goreleaser.yaml` and do not publish package-manager updates.
 
+## Messaging guidance
+
+- It is not flawed to announce alpha while using prerelease tags; that is the expected channel.
+- Reserve "stable" announcements for plain SemVer tags (`vX.Y.Z`) after release verification.
+
 ## Normal release flow
 
 1. Trigger `.github/workflows/release.yml` with a stable tag (for example `v0.2.0`), or push that tag.

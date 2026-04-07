@@ -2,6 +2,13 @@
 
 Use this checklist for every tagged release.
 
+## Channel guidance (what to announce)
+
+- Announcing as `alpha` is valid when tags are prerelease (for example `v0.1.0-alpha.1`).
+- Announcing as `beta` is valid when tags are prerelease (for example `v0.1.0-beta.1`).
+- Announcing as `stable` requires a plain SemVer tag (`vX.Y.Z`) and full verification.
+- First stable is usually `v0.1.0` when coming from alpha/beta; choose `v0.2.0+` only if you intentionally want to signal a larger scope jump.
+
 ## 1) Preconditions
 
 - `main` is green in CI.
