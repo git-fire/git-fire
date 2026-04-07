@@ -133,6 +133,12 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	var firstErr error
 	for i := 0; i < len(actions); i++ {
 		action := actions[i]
+		if action.Type == ActionAutoCommit && !repoPlanHasPushAction(actions[i+1:]) {
+			// Defensive guard: avoid creating backup branches when no push action
+			// remains in the tail (e.g. hand-crafted plans containing only skips).
+			continue
+		}
+
 		executedAction := r.executeAction(repoPlan.Repo, action, current, total)
 		result.Actions = append(result.Actions, executedAction)
 

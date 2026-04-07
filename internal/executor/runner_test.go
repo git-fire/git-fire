@@ -433,6 +433,11 @@ func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushe
 
 	rr := result.RepoResults[0]
 	for _, action := range rr.Actions {
+		if action.Type == ActionAutoCommit {
+			t.Fatalf("expected auto-commit to be skipped when no push actions remain, got actions=%#v", rr.Actions)
+		}
+	}
+	for _, action := range rr.Actions {
 		if action.Type == ActionPushBranch {
 			t.Fatalf("expected no injected push-branch actions when only skip actions remain, got actions=%#v", rr.Actions)
 		}
