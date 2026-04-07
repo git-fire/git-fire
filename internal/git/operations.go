@@ -482,9 +482,9 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 		return result, nil
 	}
 
-	originalStagedPaths, err := listStagedPaths(repoPath)
+	originalIndexTree, err := captureIndexTree(repoPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to capture original staged state: %w", err)
+		return nil, fmt.Errorf("failed to capture original index state: %w", err)
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
@@ -497,7 +497,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 		if retErr == nil || commitsCreated == 0 || successRestoreAttempted {
 			return
 		}
-		if cleanupErr := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalStagedPaths); cleanupErr != nil {
+		if cleanupErr := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalIndexTree); cleanupErr != nil {
 			retErr = fmt.Errorf("%w; failed cleanup restore of original staged/unstaged state: %v", retErr, cleanupErr)
 		}
 	}()
@@ -625,7 +625,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 	// Success path restore: preserve original staged/unstaged shape.
 	if opts.ReturnToOriginal && commitsCreated > 0 {
 		successRestoreAttempted = true
-		if err := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalStagedPaths); err != nil {
+		if err := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalIndexTree); err != nil {
 			return returnResultOnError(result, err)
 		}
 	}
@@ -665,40 +665,30 @@ func clearIndexForUnborn(repoPath string) error {
 	return nil
 }
 
-func listStagedPaths(repoPath string) ([]string, error) {
-	cmd := exec.Command("git", "diff", "--cached", "--name-only", "-z")
+func captureIndexTree(repoPath string) (string, error) {
+	cmd := exec.Command("git", "write-tree")
 	cmd.Dir = repoPath
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
-			return nil, commandError("git diff --cached --name-only -z", err, exitErr.Stderr)
-		}
-		return nil, commandError("git diff --cached --name-only -z", err, output)
+		return "", commandError("git write-tree", err, output)
 	}
-
-	parts := bytes.Split(output, []byte{0})
-	paths := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-		paths = append(paths, string(part))
+	tree := strings.TrimSpace(string(output))
+	if tree == "" {
+		return "", fmt.Errorf("git write-tree returned empty tree SHA")
 	}
-	return paths, nil
+	return tree, nil
 }
 
-func stagePaths(repoPath string, paths []string) error {
-	for _, path := range paths {
-		cmd := exec.Command("git", "add", "--", path)
-		cmd.Dir = repoPath
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return commandError("git add -- "+path, err, output)
-		}
+func restoreIndexTree(repoPath, treeSHA string) error {
+	cmd := exec.Command("git", "read-tree", treeSHA)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git read-tree "+treeSHA, err, output)
 	}
 	return nil
 }
 
-func restoreOriginalState(repoPath string, hasOriginalHead bool, originalHeadSHA string, originalStagedPaths []string) error {
+func restoreOriginalState(repoPath string, hasOriginalHead bool, originalHeadSHA, originalIndexTree string) error {
 	if hasOriginalHead {
 		if err := resetMixedToCommit(repoPath, originalHeadSHA); err != nil {
 			return err
@@ -711,7 +701,7 @@ func restoreOriginalState(repoPath string, hasOriginalHead bool, originalHeadSHA
 			return err
 		}
 	}
-	return stagePaths(repoPath, originalStagedPaths)
+	return restoreIndexTree(repoPath, originalIndexTree)
 }
 
 func returnResultOnError(result *AutoCommitResult, err error) (*AutoCommitResult, error) {

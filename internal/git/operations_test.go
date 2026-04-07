@@ -663,6 +663,64 @@ func TestAutoCommitDirtyWithStrategy_ReturnToOriginal(t *testing.T) {
 	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
 }
 
+func TestAutoCommitDirtyWithStrategy_ReturnToOriginal_PreservesIndexState(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+	filePath := filepath.Join(repo, "partial.txt")
+	if err := os.WriteFile(filePath, []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "partial.txt")
+	testutil.RunGitCmd(t, repo, "commit", "-m", "add partial file")
+
+	// Worktree content differs from staged content.
+	if err := os.WriteFile(filePath, []byte("worktree\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Directly write a blob into index to emulate a partial-stage style state.
+	writeBlob := exec.Command("git", "hash-object", "-w", "--stdin")
+	writeBlob.Dir = repo
+	writeBlob.Stdin = strings.NewReader("staged\n")
+	blobOut, err := writeBlob.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git hash-object -w --stdin failed: %v (%s)", err, strings.TrimSpace(string(blobOut)))
+	}
+	blobSHA := strings.TrimSpace(string(blobOut))
+	testutil.RunGitCmd(t, repo, "update-index", "--cacheinfo", "100644", blobSHA, "partial.txt")
+
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: true,
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+	if result.StagedBranch == "" {
+		t.Fatal("expected staged branch to be created")
+	}
+
+	// Index content should remain exactly as originally staged.
+	indexShow := exec.Command("git", "show", ":partial.txt")
+	indexShow.Dir = repo
+	indexOut, err := indexShow.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git show :partial.txt failed: %v (%s)", err, strings.TrimSpace(string(indexOut)))
+	}
+	if string(indexOut) != "staged\n" {
+		t.Fatalf("expected index content to remain staged variant, got %q", string(indexOut))
+	}
+
+	// Worktree content should remain untouched.
+	wtBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read worktree file: %v", err)
+	}
+	if string(wtBytes) != "worktree\n" {
+		t.Fatalf("expected worktree content to remain worktree variant, got %q", string(wtBytes))
+	}
+}
+
 func TestAutoCommitDirtyWithStrategy_FailureCleansUpToOriginalHead(t *testing.T) {
 	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
 		Name: "test-repo",
