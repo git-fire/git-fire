@@ -21,8 +21,8 @@ For historical planning context, see docs listed under "Historical / archive" in
 
 ### P1 - Feature completion
 
-- [ ] Plugin CLI auto-loading from config (`v0.2` target).
-- [ ] `--backup-to` implementation (`v0.2` target).
+- [x] Plugin CLI auto-loading from config: command plugins defined in `config.toml` are now loaded and fired automatically after each run.
+- [ ] `--backup-to` implementation.
 - [ ] Webhook plugin runtime path wiring.
 
 ### P1 - Operational confidence
