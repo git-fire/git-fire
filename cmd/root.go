@@ -231,15 +231,28 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 			Emergency: fireMode,
 			Logger:    &cmdPluginLogger{},
 		}
-		isFailure := runErr != nil && !errors.Is(runErr, errRunNoop)
-		trigger := plugins.TriggerOnSuccess
-		if isFailure {
-			trigger = plugins.TriggerOnFailure
-		}
-		for _, p := range plugins.FilterPluginsByTrigger(plugins.List(), trigger) {
-			if pErr := p.Execute(pluginCtx); pErr != nil {
-				fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.Name(), pErr)
+		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
+		if enabledErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %v\n", enabledErr)
+		} else {
+			runPlugins := func(trigger plugins.Trigger) {
+				for _, p := range plugins.FilterPluginsByTrigger(enabledPlugins, trigger) {
+					if pErr := p.Execute(pluginCtx); pErr != nil {
+						fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.Name(), pErr)
+					}
+				}
 			}
+
+			// after-push is the default trigger for command plugins.
+			runPlugins(plugins.TriggerAfterPush)
+
+			if runErr != nil && !errors.Is(runErr, errRunNoop) {
+				runPlugins(plugins.TriggerOnFailure)
+			} else {
+				runPlugins(plugins.TriggerOnSuccess)
+			}
+
+			runPlugins(plugins.TriggerAlways)
 		}
 	}
 
@@ -986,7 +999,9 @@ func handleStatus() error {
 // cmdPluginLogger satisfies plugins.Logger for post-run plugin execution.
 type cmdPluginLogger struct{}
 
-func (l *cmdPluginLogger) Info(msg string)              { fmt.Println(" ", msg) }
-func (l *cmdPluginLogger) Success(msg string)           { fmt.Println(" ", msg) }
-func (l *cmdPluginLogger) Error(msg string, err error)  { fmt.Fprintf(os.Stderr, "  %s: %v\n", msg, err) }
-func (l *cmdPluginLogger) Debug(_ string)               {}
+func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", msg) }
+func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", msg) }
+func (l *cmdPluginLogger) Error(msg string, err error) {
+	fmt.Fprintf(os.Stderr, "  %s: %v\n", msg, err)
+}
+func (l *cmdPluginLogger) Debug(_ string) {}

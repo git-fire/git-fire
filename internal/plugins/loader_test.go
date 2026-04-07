@@ -166,10 +166,10 @@ func TestGetEnabledPlugins(t *testing.T) {
 	Register(NewCommandPlugin("plugin3", "echo", []string{"3"}))
 
 	tests := []struct {
-		name         string
-		enabledList  []string
-		wantCount    int
-		wantErr      bool
+		name        string
+		enabledList []string
+		wantCount   int
+		wantErr     bool
 	}{
 		{
 			name:        "no enabled list returns all",
@@ -232,19 +232,25 @@ func TestFilterPluginsByTrigger(t *testing.T) {
 		{
 			name:      "after-push trigger",
 			trigger:   TriggerAfterPush,
-			wantCount: 2, // after + always
-			wantNames: []string{"after", "always"},
+			wantCount: 1,
+			wantNames: []string{"after"},
 		},
 		{
 			name:      "before-push trigger",
 			trigger:   TriggerBeforePush,
-			wantCount: 2, // before + always
-			wantNames: []string{"before", "always"},
+			wantCount: 1,
+			wantNames: []string{"before"},
 		},
 		{
 			name:      "on-success trigger",
 			trigger:   TriggerOnSuccess,
-			wantCount: 1, // only always
+			wantCount: 0,
+			wantNames: []string{},
+		},
+		{
+			name:      "always trigger",
+			trigger:   TriggerAlways,
+			wantCount: 1,
 			wantNames: []string{"always"},
 		},
 	}
