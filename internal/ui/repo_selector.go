@@ -19,13 +19,6 @@ import (
 var ErrCancelled = errors.New("cancelled")
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FF6600")).
-			Background(lipgloss.Color("#1A1A1A")).
-			Padding(0, 2).
-			MarginBottom(1)
-
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00FF00")).
 			Bold(true)
@@ -997,15 +990,6 @@ func (m RepoSelectorModel) View() string {
 	end := scrollOffset + itemVisible
 	if end > len(m.repos) {
 		end = len(m.repos)
-	}
-
-	// Fixed parts of a repo line (before the path): "> [✓]  [mode] (N remotes) 💥"
-	// "> " (2) + "[✓] " (4) + "  [" (3) + mode + "] " (2) + remotes + " 💥" (4) ≈ 15 + mode + remotes
-	// Reserve ~35 cols for the non-path parts; remainder goes to the path.
-	const nonPathCols = 35
-	maxPathCols := cw - nonPathCols
-	if maxPathCols < 0 {
-		maxPathCols = 0
 	}
 
 	if hasAbove {

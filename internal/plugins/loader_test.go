@@ -161,9 +161,9 @@ func TestGetEnabledPlugins(t *testing.T) {
 	globalRegistry.Clear()
 
 	// Register some plugins
-	Register(NewCommandPlugin("plugin1", "echo", []string{"1"}))
-	Register(NewCommandPlugin("plugin2", "echo", []string{"2"}))
-	Register(NewCommandPlugin("plugin3", "echo", []string{"3"}))
+	_ = Register(NewCommandPlugin("plugin1", "echo", []string{"1"}))
+	_ = Register(NewCommandPlugin("plugin2", "echo", []string{"2"}))
+	_ = Register(NewCommandPlugin("plugin3", "echo", []string{"3"}))
 
 	tests := []struct {
 		name        string

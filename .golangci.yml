@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      # Ignore errors from cleanup and env-management calls where failure is
+      # either irrelevant or reported more loudly elsewhere.
+      exclude-functions:
+        # OS/env management — failures are rare and not actionable in context
+        - os.Setenv
+        - os.Unsetenv
+        - os.Remove
+        - os.Chdir
+        - os.Chmod
+        # Defer cleanup — idiomatic Go; error on deferred Close is not actionable
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*Logger).Close
+        # fmt write functions — CLI output; write errors on stdout/stderr are non-recoverable anyway
+        - fmt.Fprintln
+        - fmt.Fprintf
+        - fmt.Scanln
+        # io.Copy in test capture contexts — errors would manifest as empty buffers
+        - io.Copy
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  exclude-rules:
+    # Test files get more latitude
+    - path: ".*_test\\.go"
+      linters:
+        - errcheck
