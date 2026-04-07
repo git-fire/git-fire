@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 )
 
 // ScanRepositoriesStream finds all git repositories and sends each one to out
@@ -258,28 +257,6 @@ func getRemotes(repoPath string) ([]Remote, error) {
 	return remotes, nil
 }
 
-// getBranches extracts local branch names from a git repository
-func getBranches(repoPath string) ([]string, error) {
-	cmd := exec.Command("git", "branch", "--format=%(refname:short)")
-	cmd.Dir = repoPath
-
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	branches := make([]string, 0)
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			branches = append(branches, line)
-		}
-	}
-
-	return branches, nil
-}
-
 // isDirty checks if a repository has uncommitted changes
 func isDirty(repoPath string) (bool, error) {
 	cmd := exec.Command("git", "status", "--porcelain")
@@ -294,27 +271,3 @@ func isDirty(repoPath string) (bool, error) {
 	return len(strings.TrimSpace(string(output))) > 0, nil
 }
 
-// getLastCommitTime gets the timestamp of the last commit
-func getLastCommitTime(repoPath string) (time.Time, error) {
-	cmd := exec.Command("git", "log", "-1", "--format=%ct")
-	cmd.Dir = repoPath
-
-	output, err := cmd.Output()
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	timestamp := strings.TrimSpace(string(output))
-	if timestamp == "" {
-		return time.Time{}, fmt.Errorf("no commits")
-	}
-
-	// Parse unix timestamp
-	var unixTime int64
-	_, err = fmt.Sscanf(timestamp, "%d", &unixTime)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return time.Unix(unixTime, 0), nil
-}

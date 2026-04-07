@@ -275,11 +275,12 @@ func (m RepoSelectorModel) viewConfig() string {
 
 		hintStr := ""
 		if m.configCursor == i {
-			if row.kind == configRowBool {
+			switch row.kind {
+			case configRowBool:
 				hintStr = dimStyle.Render("  space to toggle")
-			} else if row.kind == configRowComingSoon {
+			case configRowComingSoon:
 				hintStr = dimStyle.Render("  coming soon")
-			} else {
+			default:
 				hintStr = dimStyle.Render("  ←/→ to change")
 			}
 		}

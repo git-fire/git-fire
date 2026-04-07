@@ -285,8 +285,8 @@ func FormatWarning(files []SuspiciousFile) string {
 	sb.WriteString("The following files may contain sensitive information:\n\n")
 
 	for _, file := range files {
-		sb.WriteString(fmt.Sprintf("  ❌ %s\n", file.Path))
-		sb.WriteString(fmt.Sprintf("     Reason: %s\n", file.Reason))
+		fmt.Fprintf(&sb, "  ❌ %s\n", file.Path)
+		fmt.Fprintf(&sb, "     Reason: %s\n", file.Reason)
 
 		if len(file.Patterns) > 0 {
 			sb.WriteString("     Patterns matched: ")
@@ -295,7 +295,7 @@ func FormatWarning(files []SuspiciousFile) string {
 		}
 
 		if len(file.LineNumbers) > 0 {
-			sb.WriteString(fmt.Sprintf("     Lines: %v\n", file.LineNumbers))
+			fmt.Fprintf(&sb, "     Lines: %v\n", file.LineNumbers)
 		}
 
 		sb.WriteString("\n")

@@ -147,7 +147,6 @@ func applyColorProfile(profile string) string {
 	activeProfileName = profile
 	activeFireColors = p.fire
 
-	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(p.titleFg).Background(p.titleBg).Padding(0, 2).MarginBottom(1)
 	selectedStyle = lipgloss.NewStyle().Foreground(p.selected).Bold(true)
 	unselectedStyle = lipgloss.NewStyle().Foreground(p.unselected)
 	helpStyle = lipgloss.NewStyle().Foreground(p.help).MarginTop(1)
