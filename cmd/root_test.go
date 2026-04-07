@@ -817,6 +817,9 @@ func TestShouldRunPostRunPlugins(t *testing.T) {
 }
 
 func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
 	scanRoot := t.TempDir()
 	cfg := config.LoadOrDefault()
 	cfg.Global.ScanPath = scanRoot
@@ -838,6 +841,9 @@ func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
 }
 
 func TestBuildPostRunPluginContext_ReadsGitBranchAndCommitWhenScanRootIsRepo(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
 	scenario := testutil.NewScenario(t)
 	remote := scenario.CreateBareRepo("remote")
 	repo := scenario.CreateRepo("scan-root-repo").
