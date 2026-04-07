@@ -6,7 +6,7 @@ This runbook documents the maintainer workflow for publishing `git-fire` to WinG
 
 - Package identifier: `git-fire.git-fire`
 - Updater workflow: `.github/workflows/winget.yml`
-- Automation engine: `vedantmgoyal9/winget-releaser`
+- Automation engine: `vedantmgoyal9/winget-releaser` (workflow pins a fixed commit SHA for `v2`)
 
 ## One-time setup
 

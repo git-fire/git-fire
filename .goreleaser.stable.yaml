@@ -155,6 +155,8 @@ release:
     ```
 
     **Windows (WinGet)**
+    The package is available in WinGet only after the `microsoft/winget-pkgs` update PR for this version is merged.
+    Until then, install from the Windows `.zip` asset attached to this release.
     ```powershell
     winget install git-fire.git-fire
     ```

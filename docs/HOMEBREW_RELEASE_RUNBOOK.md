@@ -12,8 +12,14 @@ This runbook documents the maintainer workflow for publishing `git-fire` to Home
 
 1. Create repository `git-fire/homebrew-tap` (public).
 2. Ensure it has a `Formula/` directory.
-3. Create a classic GitHub PAT with `repo` scope for an account that can push to `git-fire/homebrew-tap`.
-4. Add that PAT to `git-fire/git-fire` repo secrets as `HOMEBREW_TAP_TOKEN`.
+3. Create a **fine-grained** GitHub PAT:
+   - Resource owner: `git-fire`
+   - Repository access: **only** `git-fire/homebrew-tap`
+   - Permissions: **Contents: Read and write** (Metadata read is included by default)
+   - GoReleaser can push formula commits with this minimal scope.
+4. Add that PAT to `git-fire/git-fire` repo secrets as **`HOMEBREW_TAP_TOKEN`**.
+
+**Classic PAT fallback (broader):** if you must use a classic token, prefer **`public_repo`** scope for this public tap—not full `repo` unless you have a specific reason.
 
 ## How automation works
 

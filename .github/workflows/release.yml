@@ -116,19 +116,22 @@ jobs:
 
       - name: Determine release channel
         id: release_meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_WORKFLOW_DISPATCH: ${{ needs.tag.outputs.tag }}
+          TAG_PUSH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          TAG="${{ github.event_name == 'workflow_dispatch' && needs.tag.outputs.tag || github.ref_name }}"
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${TAG_WORKFLOW_DISPATCH}"
+          else
+            TAG="${TAG_PUSH}"
+          fi
           if [[ "$TAG" == *-* ]]; then
-            IS_PRERELEASE=true
             GORELEASER_CONFIG=.goreleaser.yaml
           else
-            IS_PRERELEASE=false
             GORELEASER_CONFIG=.goreleaser.stable.yaml
           fi
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "goreleaser_config=$GORELEASER_CONFIG" >> "$GITHUB_OUTPUT"
 
       - name: Require pushed tag to target mainline
