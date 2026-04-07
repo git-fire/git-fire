@@ -411,37 +411,6 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	}
 }
 
-func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
-	_, repo, remote := testutil.CreateConflictScenario(t)
-
-	cfg := config.DefaultConfig()
-	cfg.Global.ConflictStrategy = "abort"
-	planner := NewPlanner(&cfg)
-
-	plan, err := planner.BuildRepoPlan(git.Repository{
-		Path:     repo.Path(),
-		Name:     "local",
-		Selected: true,
-		Mode:     git.ModePushCurrentBranch,
-		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
-	})
-	if err != nil {
-		t.Fatalf("BuildRepoPlan() error = %v", err)
-	}
-	if !plan.HasConflict {
-		t.Fatal("Expected conflict to be detected")
-	}
-	if !plan.Skip {
-		t.Fatal("Expected plan to skip repo when strategy is abort")
-	}
-	if len(plan.Actions) != 1 || plan.Actions[0].Type != ActionSkip {
-		t.Fatalf("Expected exactly one skip action for abort strategy, got %#v", plan.Actions)
-	}
-	if plan.FireBranch != "" {
-		t.Fatalf("Expected FireBranch cleared on abort, got %q", plan.FireBranch)
-	}
-}
-
 func TestBuildPlan_ConflictStrategyAbort_Stats(t *testing.T) {
 	_, repo, remote := testutil.CreateConflictScenario(t)
 
@@ -469,8 +438,11 @@ func TestBuildPlan_ConflictStrategyAbort_Stats(t *testing.T) {
 	if plan.FireBranches != 0 {
 		t.Fatalf("Expected 0 fire branches for abort strategy, got %d", plan.FireBranches)
 	}
-	if len(plan.Repos) != 1 || !plan.Repos[0].Skip {
-		t.Fatalf("Expected one skipped repo plan for abort strategy, got %#v", plan.Repos)
+	if len(plan.Repos) != 1 {
+		t.Fatalf("Expected one repo in plan, got %#v", plan.Repos)
+	}
+	if plan.Repos[0].Skip {
+		t.Fatalf("Abort strategy should skip diverged remotes via action, not mark entire repo skipped: %#v", plan.Repos[0])
 	}
 }
 
@@ -511,6 +483,75 @@ func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
 		if a.Type == ActionCreateFireBranch {
 			t.Fatalf("abort strategy should not create fire branch, got %#v", plan.Actions)
 		}
+	}
+}
+
+func TestBuildRepoPlan_ConflictStrategyAbort_MultiRemoteSkipsOnlyConflictedRemote(t *testing.T) {
+	scenario, local, origin, backup, upstream := testutil.CreateMultiRemoteScenario(t)
+	defaultBranch := local.GetDefaultBranch()
+
+	// Create divergence only against origin.
+	tempClone := scenario.CreateRepo("temp-clone").
+		WithRemote("origin", origin)
+	testutil.RunGitCmd(t, tempClone.Path(), "fetch", "origin", defaultBranch)
+	testutil.RunGitCmd(t, tempClone.Path(), "reset", "--hard", "FETCH_HEAD")
+	tempClone.
+		ModifyFile("main.go", "package main\n// remote change\n").
+		StageFile("main.go").
+		Commit("remote diverges").
+		Push("origin", defaultBranch)
+
+	local.
+		ModifyFile("main.go", "package main\n// local change\n").
+		StageFile("main.go").
+		Commit("local diverges")
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     local.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes: []git.Remote{
+			{Name: "origin", URL: origin.Path()},
+			{Name: "backup", URL: backup.Path()},
+			{Name: "upstream", URL: upstream.Path()},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected origin conflict to be detected")
+	}
+	if plan.Skip {
+		t.Fatalf("Abort strategy should not mark entire repo skipped for single-remote divergence: %#v", plan)
+	}
+
+	var skipCount int
+	var pushTargets []string
+	for _, a := range plan.Actions {
+		if a.Type == ActionSkip {
+			skipCount++
+		}
+		if a.Type == ActionPushBranch {
+			pushTargets = append(pushTargets, a.Remote)
+			if a.Branch != defaultBranch {
+				t.Fatalf("Expected non-conflict pushes to use current branch %q, got %q", defaultBranch, a.Branch)
+			}
+		}
+		if a.Type == ActionCreateFireBranch {
+			t.Fatalf("Abort strategy should never create fire branch actions, got %#v", plan.Actions)
+		}
+	}
+	if skipCount != 1 {
+		t.Fatalf("Expected exactly one skip action (origin), got %d with actions %#v", skipCount, plan.Actions)
+	}
+	if len(pushTargets) != 2 {
+		t.Fatalf("Expected pushes to remaining remotes, got targets=%v actions=%#v", pushTargets, plan.Actions)
 	}
 }
 

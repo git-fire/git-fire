@@ -49,7 +49,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 - [TUI](#tui)
   - [TUI screenshot](#tui-screenshot)
   - [TUI color profiles](#tui-color-profiles)
-- [Roadmap and Coming Soon](#roadmap-and-coming-soon)
+- [Release Roadmap](#release-roadmap)
 - [Documentation](#documentation)
 - [Security Notes](#security-notes)
 - [Security Policy](#security-policy)
@@ -231,7 +231,7 @@ Workflow guides:
 
 - **One-command multi-repo checkpoint:** discover repositories and execute a repeatable backup flow from one command.
 - **Optional dirty-work auto-commit:** include uncommitted changes, or use `--skip-auto-commit` to push committed work only.
-- **Safety-first conflict handling:** avoid force-push in normal flow and create backup branches when needed.
+- **Safety-first conflict handling:** avoid force-push in normal flow; `push-current-branch` can create backup branches on divergence.
 - **Dry-run planning:** preview exactly what would happen before making changes.
 - **Auditable execution logs:** structured JSON logs for troubleshooting and post-run review.
 - **Registry-backed repeatability:** discovered repos persist across runs.
@@ -267,13 +267,17 @@ git-fire --no-scan
 
 # generate config template
 git-fire --init
+
+# inspect/edit registry entries
+git-fire repos list
+git-fire repos ignore /abs/path/to/repo
 ```
 
 ## Configuration and Behaviors
 
 - **Persistent repo registry:** discovered repos are saved in `~/.config/git-fire/repos.toml` unless explicitly ignored.
 - **Status and auth checks:** `git-fire --status` gives a quick snapshot of SSH/auth and repo readiness.
-- **Execution-mode control:** `--dry-run`, `--fire`, and `--path` let you choose planning vs. execution mode.
+- **Execution-mode control:** `--dry-run` and `--fire` choose planning vs execution UI mode; `--path` selects scan root.
 - **Registry-only mode:** `--no-scan` runs against already-known registry repos for that run.
 - **Config trust boundary:** only `~/.config/git-fire/config.toml` loads by default; use `--config <path>` to opt into project-local config.
 - **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/`.

@@ -68,7 +68,7 @@ See [REGISTRY.md](REGISTRY.md).
 ### 6) Safety Model
 
 - Normal flows avoid force pushes.
-- Conflict safety branches (`git-fire-backup-*`) are used when needed.
+- Conflict safety branches (`git-fire-backup-*`) are used for `push-current-branch` conflict flows.
 - Dry-run mode supports preflight verification.
 - Secret-pattern detection blocks by default (configurable).
 
