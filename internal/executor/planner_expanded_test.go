@@ -413,6 +413,45 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	}
 }
 
+func TestBuildRepoPlan_EmptyConflictStrategyDefaultsToNewBranch(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = ""
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatal("Expected conflict to be detected when conflict strategy is empty")
+	}
+
+	var sawCreateFireBranch bool
+	var sawPlaceholderPush bool
+	for _, action := range plan.Actions {
+		if action.Type == ActionCreateFireBranch {
+			sawCreateFireBranch = true
+		}
+		if action.Type == ActionPushBranch && action.Branch == fireBranchPlaceholder {
+			sawPlaceholderPush = true
+		}
+	}
+	if !sawCreateFireBranch {
+		t.Fatalf("Expected create-fire-branch action, got %#v", plan.Actions)
+	}
+	if !sawPlaceholderPush {
+		t.Fatalf("Expected placeholder backup branch push, got %#v", plan.Actions)
+	}
+}
+
 func TestBuildPlan_ConflictStrategyAbort_Stats(t *testing.T) {
 	_, repo, remote := testutil.CreateConflictScenario(t)
 

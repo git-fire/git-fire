@@ -444,7 +444,7 @@ func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushe
 	}
 }
 
-func TestRunner_Execute_AutoCommitReplacesPushAllWithBackupPushesOnly(t *testing.T) {
+func TestRunner_Execute_AutoCommitReplacesPushAllAndPushKnown(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)
 
@@ -457,6 +457,7 @@ func TestRunner_Execute_AutoCommitReplacesPushAllWithBackupPushesOnly(t *testing
 	currentBranch := repo.GetDefaultBranch()
 	repo.Push("origin", currentBranch)
 
+	// Ensure dual-branch auto-commit generates both staged and full backups.
 	repo.AddFile("staged.txt", "staged\n")
 	repo.StageFile("staged.txt")
 	repo.AddFile("unstaged.txt", "unstaged\n")
@@ -474,6 +475,7 @@ func TestRunner_Execute_AutoCommitReplacesPushAllWithBackupPushesOnly(t *testing
 				Actions: []Action{
 					{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
 					{Type: ActionPushAll, Description: "Push all branches (origin)", Remote: "origin"},
+					{Type: ActionPushKnown, Description: "Push known branches (origin)", Remote: "origin"},
 				},
 			},
 		},
@@ -488,21 +490,17 @@ func TestRunner_Execute_AutoCommitReplacesPushAllWithBackupPushesOnly(t *testing
 	}
 
 	rr := result.RepoResults[0]
-	var broadPushCount int
-	var pushBranchCount int
+	pushBranchCount := 0
 	for _, action := range rr.Actions {
 		if action.Type == ActionPushAll || action.Type == ActionPushKnown {
-			broadPushCount++
+			t.Fatalf("expected push-all/push-known actions to be replaced after auto-commit, got %#v", rr.Actions)
 		}
 		if action.Type == ActionPushBranch {
 			pushBranchCount++
 		}
 	}
-	if broadPushCount != 0 {
-		t.Fatalf("expected push-all/push-known actions to be replaced after auto-commit, got actions=%#v", rr.Actions)
-	}
 	if pushBranchCount == 0 {
-		t.Fatalf("expected replacement push-branch actions for backup branches, got actions=%#v", rr.Actions)
+		t.Fatalf("expected replacement backup branch pushes, got %#v", rr.Actions)
 	}
 }
 
