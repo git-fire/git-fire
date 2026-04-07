@@ -331,17 +331,6 @@ func resolvedUserConfigDir() (string, string) {
 	if dir, err := fallbackUserConfigDir(); err == nil {
 		return dir, fmt.Sprintf("using fallback user config directory %q", dir)
 	}
-	if wd, err := os.Getwd(); err == nil {
-		if !filepath.IsAbs(wd) {
-			if abs, absErr := filepath.Abs(wd); absErr == nil {
-				wd = abs
-			}
-		}
-		if filepath.IsAbs(wd) {
-			dir := filepath.Join(wd, "git-fire")
-			return dir, fmt.Sprintf("using working-directory config fallback %q", dir)
-		}
-	}
 	tempBase := os.TempDir()
 	if !filepath.IsAbs(tempBase) {
 		if abs, absErr := filepath.Abs(tempBase); absErr == nil {
