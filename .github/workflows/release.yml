@@ -163,8 +163,8 @@ jobs:
             FORMULA_B64="$(gh api repos/git-fire/homebrew-tap/contents/Formula/git-fire.rb --jq '.content' 2>/dev/null || true)"
             if [ -n "$FORMULA_B64" ]; then
               FORMULA_CONTENT="$(printf '%s' "$FORMULA_B64" | tr -d '\n' | base64 -d)"
-              if printf '%s' "$FORMULA_CONTENT" | rg -q "version \"${RELEASE_VERSION}\"" && \
-                 printf '%s' "$FORMULA_CONTENT" | rg -q "/download/${RELEASE_TAG}/"; then
+              if printf '%s' "$FORMULA_CONTENT" | grep -q "version \"${RELEASE_VERSION}\"" && \
+                 printf '%s' "$FORMULA_CONTENT" | grep -q "/download/${RELEASE_TAG}/"; then
                 echo "Homebrew formula updated for ${RELEASE_TAG}."
                 exit 0
               fi
