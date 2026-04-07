@@ -1,13 +1,13 @@
-<!-- Variant 1: Current design, cleaned up.
-     Problems fixed:
-       - Ghost node was barely visible and looked like an afterthought
-       - The "stem" line didn't read as a commit edge  now longer and more distinct
-       - Inner highlight was off-center and too opaque
-       - Overall shape was a symmetric teardrop; real flames lean. Added subtle rightward taper at top.
-       - Glow ellipse was at the wrong y (y=140 > viewBox bottom). Pulled to y=148, still inside.
-     Candle metaphor: the "ghost" node is the candle wax base; the stem is the wick; the flame sits on top.
--->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <title>git-fire icon — V1 Cleaned-up teardrop</title>
+  <desc>
+    Variant 1: refined original teardrop flame. Fixes from the original:
+    ghost node is now a solid wax-base double-circle; stem is longer and
+    dashed so it reads as a wick/commit edge; flame tip leans slightly
+    right (real flames are asymmetric); inner highlight repositioned to
+    the hot-core left of centre; glow ellipse pulled inside viewBox.
+    Candle metaphor: wax base (node) → wick (edge) → flame.
+  </desc>
   <defs>
     <linearGradient id="v1-fg" x1="0.3" y1="1" x2="0.55" y2="0">
       <stop offset="0%"   stop-color="#B82E00"/>
@@ -25,19 +25,15 @@
     </radialGradient>
   </defs>
 
-  <!-- Ambient glow pool on ground -->
   <ellipse cx="60" cy="148" rx="26" ry="7" fill="url(#v1-glow)"/>
 
-  <!-- Wax base / candle body node (more solid, less ghostly) -->
   <circle cx="60" cy="138" r="10" fill="#2A2A2A" opacity="0.35"/>
   <circle cx="60" cy="138" r="6"  fill="#3A3A3A" opacity="0.25"/>
 
-  <!-- Wick line (commit edge  longer so it reads as a connector) -->
   <line x1="60" y1="128" x2="60" y2="106"
         stroke="#2A2A2A" stroke-width="2.5" opacity="0.50"
         stroke-linecap="round" stroke-dasharray="3,2.5"/>
 
-  <!-- Flame: classic teardrop but tip leans very slightly right, base wider -->
   <path d="
     M60,106
     C42,97 31,80 33,58
@@ -47,7 +43,6 @@
     Z"
     fill="url(#v1-fg)" opacity="0.98"/>
 
-  <!-- Inner highlight: smaller, pushed up, slightly left of center (where hot core is) -->
   <path d="
     M59,97
     C50,89 44,74 46,57

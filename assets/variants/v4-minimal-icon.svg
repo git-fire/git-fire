@@ -1,15 +1,13 @@
-<!-- Variant 4: Ultra-minimal / badge-ready.
-     Works at 16px, 32px, favicon scale.
-     Three elements total:
-       1. A git dot (filled circle) at the bottom  the commit
-       2. A short vertical line going up  the edge
-       3. A stylized flame above, very geometric (near-pentagon silhouette)
-
-     No gradients on the graph elements. Flame gets a single two-stop gradient.
-     The whole icon reads instantly at tiny sizes.
-     Inspired by: GitHub's commit dot, a match head, and a hazard warning badge.
--->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <title>git-fire icon — V4 Ultra-minimal</title>
+  <desc>
+    Variant 4: three elements only — commit dot (circle), edge stem
+    (line), flame (path). Works at 16 px favicon scale. No gradients on
+    graph elements; thick strokes for legibility. Flame has a slight
+    rightward lean at the tip. Inspired by GitHub's commit dot, a match
+    head, and a hazard warning badge. This is the design promoted to
+    production in assets/git-fire-icon.svg.
+  </desc>
   <defs>
     <linearGradient id="v4-flame" x1="0.3" y1="1" x2="0.6" y2="0">
       <stop offset="0%"   stop-color="#D03600"/>
@@ -18,14 +16,11 @@
     </linearGradient>
   </defs>
 
-  <!-- Commit node -->
   <circle cx="40" cy="68" r="6.5" fill="#1A1A1A"/>
 
-  <!-- Edge / wick line -->
   <line x1="40" y1="62" x2="40" y2="46"
         stroke="#1A1A1A" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- Flame: tight, geometric, with a slight rightward lean at tip -->
   <path d="
     M40,46
     C32,40 26,32 28,20
