@@ -50,8 +50,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+DEFAULT_TMP_ROOT="${TMPDIR:-/tmp}"
 if [[ -z "${ROOT}" ]]; then
-    ROOT="/tmp/git-fire-manual-smoke"
+    ROOT="${DEFAULT_TMP_ROOT}/git-fire-manual-smoke"
 fi
 
 case "${PROFILE}" in

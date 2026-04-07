@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-STAGE_ROOT="/tmp/git-fire-manual-smoke-stages"
+STAGE_ROOT="${TMPDIR:-/tmp}/git-fire-manual-smoke-stages"
 STAGE=""
 MODE="live"
 KEEP_HOME=false

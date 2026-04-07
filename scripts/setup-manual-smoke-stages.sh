@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-ROOT="/tmp/git-fire-manual-smoke-stages"
+ROOT="${TMPDIR:-/tmp}/git-fire-manual-smoke-stages"
 RESET=false
 
 usage() {
