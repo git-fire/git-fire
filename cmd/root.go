@@ -95,6 +95,14 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return handleStatus()
 	}
 
+	// --fire-drill is an alias for --dry-run.
+	if fireDrill {
+		dryRun = true
+	}
+	if fireMode && dryRun {
+		return fmt.Errorf("--fire and --dry-run cannot be used together")
+	}
+
 	var cfg *config.Config
 	failRun := func(err error) error {
 		if err != nil {
@@ -140,14 +148,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	if noScan {
 		cfg.Global.DisableScan = true
-	}
-
-	// Fire drill is same as dry run.
-	if fireDrill {
-		dryRun = true
-	}
-	if fireMode && dryRun {
-		return fmt.Errorf("--fire and --dry-run cannot be used together")
 	}
 
 	// Show security notice
@@ -779,14 +779,27 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 
 // truncateScanProgressPath shortens a filesystem path for one-line CLI output.
 func truncateScanProgressPath(path string, maxLen int) string {
-	if maxLen <= 0 || len(path) <= maxLen {
+	if maxLen <= 0 || runewidth.StringWidth(path) <= maxLen {
 		return path
 	}
 	ellipsis := "..."
-	if maxLen <= len(ellipsis) {
-		return path[:maxLen]
+	ellipsisWidth := runewidth.StringWidth(ellipsis)
+	if maxLen <= ellipsisWidth {
+		return runewidth.Truncate(path, maxLen, "")
 	}
-	return ellipsis + path[len(path)-(maxLen-len(ellipsis)):]
+	remaining := maxLen - ellipsisWidth
+	runes := []rune(path)
+	start := len(runes)
+	width := 0
+	for i := len(runes) - 1; i >= 0; i-- {
+		rw := runewidth.RuneWidth(runes[i])
+		if width+rw > remaining {
+			break
+		}
+		width += rw
+		start = i
+	}
+	return ellipsis + string(runes[start:])
 }
 
 func scanProgressPathMaxLen(prefix string) int {

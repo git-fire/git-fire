@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
+	"github.com/mattn/go-runewidth"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -153,7 +155,7 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 func TestHandleInit(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Run handleInit
 	err := handleInit()
@@ -216,7 +218,7 @@ func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create config directory and file
 	configDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -254,7 +256,7 @@ func TestHandleStatus(t *testing.T) {
 func TestRunGitFire_DryRun(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -286,9 +288,7 @@ func TestRunGitFire_DryRun(t *testing.T) {
 func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -323,7 +323,7 @@ func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create empty directory
 	emptyDir := t.TempDir()
@@ -346,9 +346,7 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	emptyDir := t.TempDir()
 
@@ -375,7 +373,7 @@ func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_FireDrillFlag(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -404,7 +402,7 @@ func TestRunGitFire_FireDrillFlag(t *testing.T) {
 func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -431,7 +429,7 @@ func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 func TestRunGitFire_WithInit(t *testing.T) {
 	// Setup temp home
 	tmpHome := t.TempDir()
-	setTestHome(t, tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -650,6 +648,7 @@ func TestTruncateScanProgressPath(t *testing.T) {
 		wantEqual string
 		wantLen   int
 		wantPref  string
+		checkUTF8 bool
 	}{
 		{
 			name:      "short path unchanged",
@@ -664,6 +663,13 @@ func TestTruncateScanProgressPath(t *testing.T) {
 			wantLen:  20,
 			wantPref: "...",
 		},
+		{
+			name:      "multibyte path truncated safely",
+			path:      "/tmp/" + strings.Repeat("世界", 20),
+			maxLen:    14,
+			wantPref:  "...",
+			checkUTF8: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -677,6 +683,12 @@ func TestTruncateScanProgressPath(t *testing.T) {
 			}
 			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
 				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+			if runewidth.StringWidth(got) > tt.maxLen {
+				t.Fatalf("display width=%d exceeds max=%d for %q", runewidth.StringWidth(got), tt.maxLen, got)
+			}
+			if tt.checkUTF8 && !utf8.ValidString(got) {
+				t.Fatalf("expected valid UTF-8 output, got %q", got)
 			}
 		})
 	}

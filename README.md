@@ -302,12 +302,6 @@ color_profile = "synthwave"
 
 Custom hex palettes are planned but not enabled yet. A future release will allow user-defined hex lists for fire and accent colors.
 
-### Extensibility with plugins
-
-Plugin execution from default CLI config is not wired yet. Current practical pattern: run `git-fire` first, then follow-up automation (for example S3 sync, webhook calls via curl, local archive scripts).
-
-See [PLUGINS.md](PLUGINS.md) and [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
-
 ## Release Roadmap
 
 - **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.

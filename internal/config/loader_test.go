@@ -524,8 +524,13 @@ func saveConfigAndReload(t *testing.T, cfg *Config) Config {
 }
 
 func TestSaveConfig_NilConfig(t *testing.T) {
-	if err := SaveConfig(nil, filepath.Join(t.TempDir(), "config.toml")); err == nil {
-		t.Fatal("SaveConfig(nil) should error")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	err := SaveConfig(nil, cfgPath)
+	if err == nil {
+		t.Fatal("expected error for nil config")
+	}
+	if err.Error() != "nil config" {
+		t.Fatalf("expected nil config error, got %q", err)
 	}
 }
 
@@ -583,6 +588,74 @@ func TestSaveConfig_RepoOverridesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+
+	t.Setenv("GIT_FIRE_API_TOKEN", "test-token-123")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "test-passphrase")
+
+	cfg := DefaultConfig()
+	cfg.Backup.APIToken = "test-token-123"
+	cfg.Auth.SSHPassphrase = "test-passphrase"
+
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(raw), "test-token-123") {
+		t.Fatal("saved config contains API token from env")
+	}
+	if strings.Contains(string(raw), "test-passphrase") {
+		t.Fatal("saved config contains SSH passphrase from env")
+	}
+
+	var loaded Config
+	if err := tomlUnmarshal(raw, &loaded); err != nil {
+		t.Fatalf("tomlUnmarshal after SaveConfig: %v", err)
+	}
+	if loaded.Backup.APIToken != "" {
+		t.Errorf("Backup.APIToken: want empty, got %q", loaded.Backup.APIToken)
+	}
+	if loaded.Auth.SSHPassphrase != "" {
+		t.Errorf("Auth.SSHPassphrase: want empty, got %q", loaded.Auth.SSHPassphrase)
+	}
+}
+
+func TestSaveConfig_StripsSecretsWhenViperStyleEnvSet(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+
+	t.Setenv("GIT_FIRE_BACKUP_API_TOKEN", "viper-style-token")
+	t.Setenv("GIT_FIRE_AUTH_SSH_PASSPHRASE", "viper-style-pass")
+	// Ensure the short names are unset so we only exercise nested Viper keys.
+	t.Setenv("GIT_FIRE_API_TOKEN", "")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "")
+
+	cfg := DefaultConfig()
+	cfg.Backup.APIToken = "viper-style-token"
+	cfg.Auth.SSHPassphrase = "viper-style-pass"
+
+	if err := SaveConfig(&cfg, cfgPath); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	raw, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(raw), "viper-style-token") {
+		t.Fatal("saved config contains API token when GIT_FIRE_BACKUP_API_TOKEN is set")
+	}
+	if strings.Contains(string(raw), "viper-style-pass") {
+		t.Fatal("saved config contains SSH passphrase when GIT_FIRE_AUTH_SSH_PASSPHRASE is set")
+	}
+}
+
 func TestSaveConfig_AtomicWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "config.toml")
@@ -597,35 +670,6 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 	}
 	if _, err := os.Stat(cfgPath + ".tmp"); err == nil {
 		t.Error("temp file still exists after SaveConfig")
-	}
-}
-
-func TestSaveConfig_StripsSecretsWhenEnvSet(t *testing.T) {
-	t.Setenv("GIT_FIRE_API_TOKEN", "secret-from-env")
-	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "ssh-secret")
-
-	cfg := DefaultConfig()
-	cfg.Backup.APIToken = "should-not-appear-on-disk"
-	cfg.Auth.SSHPassphrase = "also-never-persisted"
-
-	cfgPath := filepath.Join(t.TempDir(), "config.toml")
-	if err := SaveConfig(&cfg, cfgPath); err != nil {
-		t.Fatalf("SaveConfig: %v", err)
-	}
-	data, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	content := string(data)
-	if strings.Contains(content, "should-not-appear-on-disk") || strings.Contains(content, "also-never-persisted") {
-		t.Errorf("SaveConfig wrote secret values to disk: %q", content)
-	}
-	var loaded Config
-	if err := tomlUnmarshal(data, &loaded); err != nil {
-		t.Fatalf("toml unmarshal: %v", err)
-	}
-	if loaded.Backup.APIToken != "" || loaded.Auth.SSHPassphrase != "" {
-		t.Errorf("expected empty secrets in file, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
 	}
 }
 
@@ -674,5 +718,31 @@ ssh_passphrase = "passphrase-from-file"
 	}
 	if loaded.Backup.APIToken != "token-from-file" || loaded.Auth.SSHPassphrase != "passphrase-from-file" {
 		t.Fatalf("expected file secrets preserved, got api_token=%q passphrase=%q", loaded.Backup.APIToken, loaded.Auth.SSHPassphrase)
+	}
+}
+
+func TestLoadWithOptions_EnvOnlySecretsNotMarkedAsFileBacked(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(cfgPath, []byte("[global]\ndefault_mode = \"push-known-branches\"\n"), 0o600); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	t.Setenv("GIT_FIRE_BACKUP_API_TOKEN", "env-only-token")
+	t.Setenv("GIT_FIRE_AUTH_SSH_PASSPHRASE", "env-only-pass")
+	t.Setenv("GIT_FIRE_API_TOKEN", "")
+	t.Setenv("GIT_FIRE_SSH_PASSPHRASE", "")
+
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions: %v", err)
+	}
+	if cfg.Backup.APIToken != "env-only-token" || cfg.Auth.SSHPassphrase != "env-only-pass" {
+		t.Fatalf("expected env overrides in memory, got api_token=%q passphrase=%q", cfg.Backup.APIToken, cfg.Auth.SSHPassphrase)
+	}
+	if cfg.hasFileBackupAPIToken || cfg.hasFileSSHPassphrase {
+		t.Fatalf("env-only secrets must not be marked file-backed (api=%v, ssh=%v)", cfg.hasFileBackupAPIToken, cfg.hasFileSSHPassphrase)
+	}
+	if cfg.fileBackupAPIToken != "" || cfg.fileSSHPassphrase != "" {
+		t.Fatalf("env-only secrets must not populate file snapshots (api=%q, ssh=%q)", cfg.fileBackupAPIToken, cfg.fileSSHPassphrase)
 	}
 }

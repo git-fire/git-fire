@@ -312,7 +312,7 @@ func TestRunGitFire_IgnoredRepo_ExcludedFromBackup(t *testing.T) {
 
 // ---- repos subcommand function coverage ----
 
-// isolateHome redirects HOME (and clears XDG_*) so loadRegistry() uses a temp registry.
+// isolateHome redirects HOME so loadRegistry() uses a temp registry.
 func isolateHome(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
@@ -321,12 +321,14 @@ func isolateHome(t *testing.T) string {
 }
 
 // setTestUserDirs normalizes user-dir environment variables for tests that
-// depend on UserConfigDir/UserCacheDir path resolution.
+// depend on UserConfigDir/UserCacheDir path resolution (Linux/macOS/Windows).
 func setTestUserDirs(t *testing.T, home string) {
 	t.Helper()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
 	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 }
