@@ -75,7 +75,8 @@ jobs:
 
   goreleaser:
     name: GoReleaser
-    needs: tag
+    needs:
+      - tag
     # Run after workflow_dispatch tagging succeeds, or when a release tag was pushed
     # (the tag job is skipped on push; skipped needs require always() so this if is evaluated).
     # always() && !cancelled(): respect workflow cancellation (Bugbot).
