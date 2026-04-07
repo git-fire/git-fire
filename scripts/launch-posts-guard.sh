@@ -16,16 +16,19 @@ copy_if_exists() {
   local dst="$2"
   if [[ -f "$src" ]]; then
     cp "$src" "$dst"
+    return 0
   fi
+  return 1
 }
 
 case "${1:-}" in
   backup)
     mkdir -p "$BACKUP_DIR"
     backed=0
-    for f in 2026-03-31-show-hn.md 2026-03-31-reddit-golang.md 2026-03-31-reddit-programming.md 2026-03-31-reddit-devops.md; do
-      if [[ -f "$SOURCE_DIR/$f" ]]; then
-        cp "$SOURCE_DIR/$f" "$BACKUP_DIR/$f"
+    for src in "$SOURCE_DIR"/*.md; do
+      [[ -e "$src" ]] || break
+      f="$(basename "$src")"
+      if copy_if_exists "$src" "$BACKUP_DIR/$f"; then
         ((backed++)) || true
       fi
     done
@@ -38,9 +41,10 @@ case "${1:-}" in
   restore)
     mkdir -p "$SOURCE_DIR"
     restored=0
-    for f in 2026-03-31-show-hn.md 2026-03-31-reddit-golang.md 2026-03-31-reddit-programming.md 2026-03-31-reddit-devops.md; do
-      if [[ -f "$BACKUP_DIR/$f" ]]; then
-        cp "$BACKUP_DIR/$f" "$SOURCE_DIR/$f"
+    for src in "$BACKUP_DIR"/*.md; do
+      [[ -e "$src" ]] || break
+      f="$(basename "$src")"
+      if copy_if_exists "$src" "$SOURCE_DIR/$f"; then
         ((restored++)) || true
       fi
     done

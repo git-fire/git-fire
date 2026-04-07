@@ -36,6 +36,8 @@ For historical planning context, see docs listed under "Historical / archive" in
 - Machine-readable output (`--output=json`, `--output=ndjson`) for agent workflows.
 - Planning command (`git-fire plan`) for no-side-effect execution previews.
 - Repo targeting flags (`--repos`, `--repos-from-stdin`) for orchestrated workflows.
+- Per-repo branch targeting controls (explicit include/ignore branch lists per repository override).
+- Config surface expansion pass: expose/document all currently supported repo/global options with examples.
 
 ## Longer-Term (Post-Beta)
 

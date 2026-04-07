@@ -27,6 +27,7 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 - Persistent repository registry internals: [REGISTRY.md](REGISTRY.md)
 - Manual smoke fixture setup for OSS testers: [MANUAL_SMOKE_FIXTURES.md](MANUAL_SMOKE_FIXTURES.md)
 - Build/install from source by platform: [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md)
+- Launch copy and channel playbook: [LAUNCH_POSTS_PLAYBOOK.md](LAUNCH_POSTS_PLAYBOOK.md)
 - Planned USB mode scope and non-claims: [USB_MODE.md](USB_MODE.md)
 - Homebrew release runbook (maintainers): [HOMEBREW_RELEASE_RUNBOOK.md](HOMEBREW_RELEASE_RUNBOOK.md)
 - WinGet release runbook (maintainers): [WINGET_RELEASE_RUNBOOK.md](WINGET_RELEASE_RUNBOOK.md)
@@ -50,5 +51,5 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
   - [VALIDATION_PROGRESS.md](VALIDATION_PROGRESS.md)
   - [FINAL_VALIDATION_PLAN.md](FINAL_VALIDATION_PLAN.md)
   - [UAT_BUGS.md](UAT_BUGS.md)
-  - [../BETA_READINESS_REPORT.md](../BETA_READINESS_REPORT.md) and [../BETA_BLOCKERS_PROGRESS.md](../BETA_BLOCKERS_PROGRESS.md) (beta-branch snapshots; may lag `main`)
+  - Beta-branch-only readiness planning docs were removed after integration; use Git history/PR #69 for historical traceability.
 

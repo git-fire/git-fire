@@ -152,6 +152,8 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Broaden package manager publication.
 - Tighten edge-case handling and operational confidence.
 - Improve onboarding and safe-usage documentation.
+- Add per-repo branch targeting controls (explicit include/ignore branch lists).
+- Expand config docs/examples to cover all currently supported global and per-repo options.
 
 ### 1.0 (timing depends on alpha feedback)
 
