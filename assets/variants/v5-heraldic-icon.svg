@@ -1,0 +1,59 @@
+<!-- Variant 5: "Heraldic" / badge style.
+     Bold strokes, high contrast. A thick-outlined flame silhouette
+     with a small git graph (two nodes + edge) embedded inside the flame body.
+     Meant to feel like a logo stamp  no delicate gradients, just strong shapes.
+
+     Inspiration: git's own icon language (nodes + lines), warning signs,
+     the GitHub Sponsors fire emoji. The git graph inside the flame creates
+     a "message in a bottle" effect  the graph IS the fire.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120">
+  <defs>
+    <linearGradient id="v5-fill" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#CC3400"/>
+      <stop offset="50%"  stop-color="#F07010"/>
+      <stop offset="100%" stop-color="#F9DC50"/>
+    </linearGradient>
+    <linearGradient id="v5-inner" x1="0.3" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#FF6020" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFE878" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer flame silhouette with thick stroke -->
+  <path d="
+    M50,108
+    C30,98 16,78 18,54
+    C20,32 34,14 50,8
+    C66,14 80,32 82,54
+    C84,78 70,98 50,108
+    Z"
+    fill="url(#v5-fill)" stroke="#1A0800" stroke-width="3.5" stroke-linejoin="round"/>
+
+  <!-- Inner lighter zone -->
+  <path d="
+    M50,94
+    C36,85 28,68 30,50
+    C32,34 40,20 50,14
+    C60,21 68,36 69,52
+    C70,70 62,84 50,94
+    Z"
+    fill="url(#v5-inner)" opacity="0.55"/>
+
+  <!-- Git graph inside the flame: two commit nodes connected by a line -->
+  <!-- Top node (HEAD  hot) -->
+  <circle cx="50" cy="38" r="7" fill="#1A0800"/>
+  <circle cx="50" cy="38" r="4.5" fill="#F8D040"/>
+
+  <!-- Edge -->
+  <line x1="50" y1="45" x2="50" y2="65"
+        stroke="#1A0800" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Parent commit node -->
+  <circle cx="50" cy="72" r="7" fill="#1A0800"/>
+  <circle cx="50" cy="72" r="3.5" fill="#FFFFFF" opacity="0.85"/>
+
+  <!-- Base: candle stub / wax -->
+  <rect x="38" y="108" width="24" height="10" rx="3" ry="3"
+        fill="#2A2A2A" opacity="0.25"/>
+</svg>

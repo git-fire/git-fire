@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <defs>
+    <linearGradient id="v1id-fg" x1="0.3" y1="1" x2="0.55" y2="0">
+      <stop offset="0%"   stop-color="#B82E00"/>
+      <stop offset="40%"  stop-color="#E5650A"/>
+      <stop offset="75%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D040"/>
+    </linearGradient>
+    <linearGradient id="v1id-fgi" x1="0.35" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEEEA0"/>
+    </linearGradient>
+    <radialGradient id="v1id-glow" cx="50%" cy="85%" r="55%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="60" cy="148" rx="26" ry="7" fill="url(#v1id-glow)"/>
+  <circle cx="60" cy="138" r="10" fill="#FFFFFF" opacity="0.12"/>
+  <circle cx="60" cy="138" r="6"  fill="#FFFFFF" opacity="0.08"/>
+  <line x1="60" y1="128" x2="60" y2="106"
+        stroke="#FFFFFF" stroke-width="2.5" opacity="0.22"
+        stroke-linecap="round" stroke-dasharray="3,2.5"/>
+  <path d="
+    M60,106
+    C42,97 31,80 33,58
+    C35,38 46,22 60,16
+    C74,24 84,40 85,60
+    C87,82 77,97 60,106
+    Z"
+    fill="url(#v1id-fg)" opacity="0.98"/>
+  <path d="
+    M59,97
+    C50,89 44,74 46,57
+    C48,43 54,31 59,25
+    C64,31 70,44 71,58
+    C73,75 67,89 59,97
+    Z"
+    fill="url(#v1id-fgi)" opacity="0.44"/>
+</svg>

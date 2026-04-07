@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" width="220" height="80">
+  <defs>
+    <linearGradient id="v4ll-flame" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#D03600"/>
+      <stop offset="60%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D848"/>
+    </linearGradient>
+  </defs>
+  <!-- Mark at x=30 -->
+  <circle cx="30" cy="68" r="6.5" fill="#1A1A1A"/>
+  <line x1="30" y1="62" x2="30" y2="46"
+        stroke="#1A1A1A" stroke-width="3" stroke-linecap="round"/>
+  <path d="
+    M30,46
+    C22,40 16,32 18,20
+    C20,10 25,4 30,2
+    C35,5 40,13 41,22
+    C43,35 38,41 30,46
+    Z"
+    fill="url(#v4ll-flame)"/>
+  <!-- Wordmark: centered on full mark height (y=2 top, y=74 bottom ’ center y=38) -->
+  <text
+    x="58" y="38"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="28"
+    font-weight="500"
+    letter-spacing="-0.2"
+    fill="#1C1C1C"
+    dominant-baseline="middle">git-fire</text>
+</svg>

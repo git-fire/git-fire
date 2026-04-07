@@ -1,0 +1,97 @@
+<!-- Variant 2: Explicit Candle metaphor.
+     Structure (top to bottom):
+       - Flame tip at y~24
+       - Flame body down to y~84
+       - Wick: short vertical line y=84 ’ y=94
+       - Candle cylinder: rounded-rect body y=94 ’ y=144, width~32
+       - Candle "drips" on left/right = commit branch lines
+       - Two branch commit nodes sit on the drip ends
+
+     This explicitly communicates "candle" AND "git commit graph".
+     The branch lines coming off the candle sides are the key differentiator.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <defs>
+    <linearGradient id="v2-flame" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#C03200"/>
+      <stop offset="35%"  stop-color="#E8600A"/>
+      <stop offset="70%"  stop-color="#F59820"/>
+      <stop offset="100%" stop-color="#FAD84A"/>
+    </linearGradient>
+    <linearGradient id="v2-flamehi" x1="0.4" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEF0A0"/>
+    </linearGradient>
+    <linearGradient id="v2-wax" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#F5F0E8"/>
+      <stop offset="60%"  stop-color="#E8E0CC"/>
+      <stop offset="100%" stop-color="#CCC0A8"/>
+    </linearGradient>
+    <linearGradient id="v2-waxside" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#B8AE98"/>
+      <stop offset="30%"  stop-color="#E8E0CC"/>
+      <stop offset="70%"  stop-color="#D4C8B0"/>
+      <stop offset="100%" stop-color="#A89880"/>
+    </linearGradient>
+    <radialGradient id="v2-glow" cx="50%" cy="95%" r="50%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.60"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="v2-blur">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+  </defs>
+
+  <!-- Ground glow -->
+  <ellipse cx="60" cy="152" rx="30" ry="7" fill="url(#v2-glow)"/>
+
+  <!-- Candle body  rounded rect, wax gradient -->
+  <rect x="44" y="92" width="32" height="52" rx="4" ry="4" fill="url(#v2-wax)"/>
+  <!-- Subtle side shading -->
+  <rect x="44" y="92" width="32" height="52" rx="4" ry="4"
+        fill="url(#v2-waxside)" opacity="0.4"/>
+  <!-- Top rim highlight -->
+  <rect x="44" y="92" width="32" height="6" rx="4" ry="4" fill="#FFFAF0" opacity="0.7"/>
+
+  <!-- Branch lines = commit edges dripping off candle sides -->
+  <!-- Left branch: candle left side ’ left commit node -->
+  <path d="M44,108 Q28,108 24,120"
+        stroke="#888" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+  <!-- Right branch: candle right ’ right commit node -->
+  <path d="M76,114 Q90,114 94,126"
+        stroke="#888" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Branch commit nodes -->
+  <circle cx="22" cy="122" r="5" fill="#555" opacity="0.7"/>
+  <circle cx="96" cy="128" r="5" fill="#555" opacity="0.7"/>
+  <!-- Tiny additional nodes (older commits off-screen) -->
+  <circle cx="16" cy="134" r="3.5" fill="#888" opacity="0.45"/>
+  <circle cx="102" cy="140" r="3.5" fill="#888" opacity="0.45"/>
+
+  <!-- Wick -->
+  <line x1="60" y1="82" x2="60" y2="94"
+        stroke="#666" stroke-width="2" stroke-linecap="round"/>
+  <!-- Wick curl at top -->
+  <path d="M60,82 Q62,78 60,74"
+        stroke="#555" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Flame outer shape  natural teardrop, slightly asymmetric tip -->
+  <path d="
+    M60,84
+    C48,76 38,62 39,44
+    C40,28 50,16 60,10
+    C70,18 80,30 80,46
+    C81,64 71,77 60,84
+    Z"
+    fill="url(#v2-flame)" opacity="0.97"/>
+
+  <!-- Flame inner core -->
+  <path d="
+    M60,77
+    C52,70 46,58 47,44
+    C48,32 54,22 60,17
+    C66,23 72,33 72,46
+    C73,60 67,70 60,77
+    Z"
+    fill="url(#v2-flamehi)" opacity="0.45"/>
+</svg>

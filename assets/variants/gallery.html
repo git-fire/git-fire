@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>git-fire logo variants</title>
+<style>
+  :root {
+    --bg-light: #F6F8FA;
+    --bg-dark:  #0D1117;
+    --text:     #24292F;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #E8EAED; color: #222; }
+  h1   { padding: 28px 32px 4px; font-size: 1.4rem; letter-spacing: -0.3px; }
+  p.sub { padding: 0 32px 24px; color: #555; font-size: 0.88rem; }
+
+  .variant-section {
+    margin: 0 24px 40px;
+    border: 1px solid #CDD;
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+  }
+  .variant-label {
+    padding: 14px 20px 10px;
+    background: #F0F2F4;
+    border-bottom: 1px solid #DDE;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .variant-label small {
+    display: block;
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: #666;
+    margin-top: 2px;
+  }
+  .variant-row {
+    display: flex;
+    align-items: stretch;
+  }
+  .variant-cell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 16px;
+    gap: 20px;
+  }
+  .variant-cell + .variant-cell {
+    border-left: 1px solid #EEE;
+  }
+  .cell-label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .bg-light { background: var(--bg-light); }
+  .bg-dark  { background: var(--bg-dark); }
+  .dark-text { color: #CCC; }
+  img { display: block; }
+  .icon-row {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  .size-label {
+    font-size: 0.68rem;
+    color: #AAA;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* scale for size demos */
+  .sz-16  { width: 16px;  height: auto; }
+  .sz-32  { width: 32px;  height: auto; }
+  .sz-64  { width: 64px;  height: auto; }
+  .sz-128 { width: 128px; height: auto; }
+</style>
+</head>
+<body>
+
+<h1>git-fire — logo variants</h1>
+<p class="sub">Five design concepts × icon + lockup × light + dark. All SVG, inline-rendered.</p>
+
+<!-- ═══════════════════════════════════════════════════ V1 CLEAN -->
+<div class="variant-section">
+  <div class="variant-label">
+    Variant 1 — Cleaned-up current
+    <small>Same teardrop-flame concept, fixed proportions. Ghost node reads as candle wax; dashed wick line; flame tip leans slightly right.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <div class="icon-row">
+        <div>
+          <img src="v1-clean-icon.svg" class="sz-128" alt="v1 icon light 128">
+          <div class="size-label">128</div>
+        </div>
+        <div>
+          <img src="v1-clean-icon.svg" class="sz-64" alt="v1 icon light 64">
+          <div class="size-label">64</div>
+        </div>
+        <div>
+          <img src="v1-clean-icon.svg" class="sz-32" alt="v1 icon light 32">
+          <div class="size-label">32</div>
+        </div>
+      </div>
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <div class="icon-row">
+        <div>
+          <img src="v1-clean-icon-dark.svg" class="sz-128" alt="v1 icon dark 128">
+          <div class="size-label dark-text">128</div>
+        </div>
+        <div>
+          <img src="v1-clean-icon-dark.svg" class="sz-64" alt="v1 icon dark 64">
+          <div class="size-label dark-text">64</div>
+        </div>
+        <div>
+          <img src="v1-clean-icon-dark.svg" class="sz-32" alt="v1 icon dark 32">
+          <div class="size-label dark-text">32</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-row" style="border-top:1px solid #EEE">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="v1-clean-lockup.svg" alt="v1 lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="v1-clean-lockup-dark.svg" alt="v1 lockup dark">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ V2 CANDLE -->
+<div class="variant-section">
+  <div class="variant-label">
+    Variant 2 — Explicit Candle
+    <small>Wax cylinder body + commit branch lines dripping off the sides as lateral edges. Flame sits on a distinct wick curl.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <div class="icon-row">
+        <div>
+          <img src="v2-candle-icon.svg" class="sz-128" alt="v2 icon light 128">
+          <div class="size-label">128</div>
+        </div>
+        <div>
+          <img src="v2-candle-icon.svg" class="sz-64" alt="v2 icon light 64">
+          <div class="size-label">64</div>
+        </div>
+        <div>
+          <img src="v2-candle-icon.svg" class="sz-32" alt="v2 icon light 32">
+          <div class="size-label">32</div>
+        </div>
+      </div>
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <div class="icon-row">
+        <div>
+          <img src="v2-candle-icon-dark.svg" class="sz-128" alt="v2 icon dark 128">
+          <div class="size-label dark-text">128</div>
+        </div>
+        <div>
+          <img src="v2-candle-icon-dark.svg" class="sz-64" alt="v2 icon dark 64">
+          <div class="size-label dark-text">64</div>
+        </div>
+        <div>
+          <img src="v2-candle-icon-dark.svg" class="sz-32" alt="v2 icon dark 32">
+          <div class="size-label dark-text">32</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-row" style="border-top:1px solid #EEE">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="v2-candle-lockup.svg" alt="v2 lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="v2-candle-lockup-dark.svg" alt="v2 lockup dark">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ V3 GIT TREE -->
+<div class="variant-section">
+  <div class="variant-label">
+    Variant 3 — Git Commit Tree
+    <small>Recognizable git DAG: trunk, two feature branches that merge back, commit nodes. Flame crowns the HEAD commit. The graph IS the candle.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <div class="icon-row">
+        <div>
+          <img src="v3-git-tree-icon.svg" class="sz-128" alt="v3 icon light 128">
+          <div class="size-label">128</div>
+        </div>
+        <div>
+          <img src="v3-git-tree-icon.svg" class="sz-64" alt="v3 icon light 64">
+          <div class="size-label">64</div>
+        </div>
+        <div>
+          <img src="v3-git-tree-icon.svg" class="sz-32" alt="v3 icon light 32">
+          <div class="size-label">32</div>
+        </div>
+      </div>
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <div class="icon-row">
+        <div>
+          <img src="v3-git-tree-icon-dark.svg" class="sz-128" alt="v3 icon dark 128">
+          <div class="size-label dark-text">128</div>
+        </div>
+        <div>
+          <img src="v3-git-tree-icon-dark.svg" class="sz-64" alt="v3 icon dark 64">
+          <div class="size-label dark-text">64</div>
+        </div>
+        <div>
+          <img src="v3-git-tree-icon-dark.svg" class="sz-32" alt="v3 icon dark 32">
+          <div class="size-label dark-text">32</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-row" style="border-top:1px solid #EEE">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="v3-git-tree-lockup.svg" alt="v3 lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="v3-git-tree-lockup-dark.svg" alt="v3 lockup dark">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ V4 MINIMAL -->
+<div class="variant-section">
+  <div class="variant-label">
+    Variant 4 — Ultra-minimal / favicon-ready
+    <small>Three elements: commit dot → edge line → flame. Works at 16px. Inspired by GitHub's commit dot + a match head. No frills.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <div class="icon-row">
+        <div>
+          <img src="v4-minimal-icon.svg" class="sz-128" alt="v4 icon light 128">
+          <div class="size-label">128</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon.svg" class="sz-64" alt="v4 icon light 64">
+          <div class="size-label">64</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon.svg" class="sz-32" alt="v4 icon light 32">
+          <div class="size-label">32</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon.svg" class="sz-16" alt="v4 icon light 16">
+          <div class="size-label">16</div>
+        </div>
+      </div>
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <div class="icon-row">
+        <div>
+          <img src="v4-minimal-icon-dark.svg" class="sz-128" alt="v4 icon dark 128">
+          <div class="size-label dark-text">128</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon-dark.svg" class="sz-64" alt="v4 icon dark 64">
+          <div class="size-label dark-text">64</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon-dark.svg" class="sz-32" alt="v4 icon dark 32">
+          <div class="size-label dark-text">32</div>
+        </div>
+        <div>
+          <img src="v4-minimal-icon-dark.svg" class="sz-16" alt="v4 icon dark 16">
+          <div class="size-label dark-text">16</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-row" style="border-top:1px solid #EEE">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="v4-minimal-lockup.svg" alt="v4 lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="v4-minimal-lockup-dark.svg" alt="v4 lockup dark">
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ V5 HERALDIC -->
+<div class="variant-section">
+  <div class="variant-label">
+    Variant 5 — Heraldic / badge
+    <small>Thick-stroke flame silhouette with a mini git graph (HEAD + parent node + edge) embedded inside. Bold, opinionated, stamp-like.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <div class="icon-row">
+        <div>
+          <img src="v5-heraldic-icon.svg" class="sz-128" alt="v5 icon light 128">
+          <div class="size-label">128</div>
+        </div>
+        <div>
+          <img src="v5-heraldic-icon.svg" class="sz-64" alt="v5 icon light 64">
+          <div class="size-label">64</div>
+        </div>
+        <div>
+          <img src="v5-heraldic-icon.svg" class="sz-32" alt="v5 icon light 32">
+          <div class="size-label">32</div>
+        </div>
+      </div>
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <div class="icon-row">
+        <div>
+          <img src="v5-heraldic-icon-dark.svg" class="sz-128" alt="v5 icon dark 128">
+          <div class="size-label dark-text">128</div>
+        </div>
+        <div>
+          <img src="v5-heraldic-icon-dark.svg" class="sz-64" alt="v5 icon dark 64">
+          <div class="size-label dark-text">64</div>
+        </div>
+        <div>
+          <img src="v5-heraldic-icon-dark.svg" class="sz-32" alt="v5 icon dark 32">
+          <div class="size-label dark-text">32</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="variant-row" style="border-top:1px solid #EEE">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="v5-heraldic-lockup.svg" alt="v5 lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="v5-heraldic-lockup-dark.svg" alt="v5 lockup dark">
+    </div>
+  </div>
+</div>
+
+<!-- Original for comparison -->
+<div class="variant-section">
+  <div class="variant-label">
+    Original (current)
+    <small>For reference / side-by-side comparison.</small>
+  </div>
+  <div class="variant-row">
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Icon · Light</span>
+      <img src="../git-fire-icon.svg" class="sz-128" alt="original icon light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Icon · Dark</span>
+      <img src="../git-fire-icon-dark.svg" class="sz-128" alt="original icon dark">
+    </div>
+    <div class="variant-cell bg-light">
+      <span class="cell-label">Lockup · Light</span>
+      <img src="../git-fire-lockup.svg" alt="original lockup light">
+    </div>
+    <div class="variant-cell bg-dark">
+      <span class="cell-label dark-text">Lockup · Dark</span>
+      <img src="../git-fire-lockup-dark.svg" alt="original lockup dark">
+    </div>
+  </div>
+</div>
+
+<p style="padding:12px 32px 40px; color:#999; font-size:0.78rem;">
+  All assets in assets/variants/. Light backgrounds: #F6F8FA (GitHub light). Dark: #0D1117 (GitHub dark).
+</p>
+</body>
+</html>

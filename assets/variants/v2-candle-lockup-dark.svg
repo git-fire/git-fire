@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="300" height="160">
+  <defs>
+    <linearGradient id="v2ld-flame" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#C03200"/>
+      <stop offset="35%"  stop-color="#E8600A"/>
+      <stop offset="70%"  stop-color="#F59820"/>
+      <stop offset="100%" stop-color="#FAD84A"/>
+    </linearGradient>
+    <linearGradient id="v2ld-flamehi" x1="0.4" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEF0A0"/>
+    </linearGradient>
+    <linearGradient id="v2ld-wax" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#C8C0B0"/>
+      <stop offset="60%"  stop-color="#A8A090"/>
+      <stop offset="100%" stop-color="#887870"/>
+    </linearGradient>
+    <radialGradient id="v2ld-glow" cx="50%" cy="95%" r="50%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="44" cy="152" rx="24" ry="6" fill="url(#v2ld-glow)"/>
+  <rect x="28" y="92" width="32" height="52" rx="4" ry="4" fill="url(#v2ld-wax)"/>
+  <rect x="28" y="92" width="32" height="6" rx="4" ry="4" fill="#D8D0C0" opacity="0.5"/>
+  <path d="M28,108 Q14,108 10,120"
+        stroke="#AAA" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.60"/>
+  <path d="M60,114 Q72,114 76,126"
+        stroke="#AAA" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.60"/>
+  <circle cx="8"  cy="122" r="4.5" fill="#BBB" opacity="0.60"/>
+  <circle cx="78" cy="128" r="4.5" fill="#BBB" opacity="0.60"/>
+  <circle cx="3"  cy="133" r="3" fill="#999" opacity="0.38"/>
+  <circle cx="83" cy="139" r="3" fill="#999" opacity="0.38"/>
+  <line x1="44" y1="82" x2="44" y2="94"
+        stroke="#AAA" stroke-width="2" stroke-linecap="round"/>
+  <path d="M44,82 Q46,78 44,74"
+        stroke="#999" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="
+    M44,84
+    C32,76 22,62 23,44
+    C24,28 34,16 44,10
+    C54,18 64,30 64,46
+    C65,64 55,77 44,84
+    Z"
+    fill="url(#v2ld-flame)" opacity="0.97"/>
+  <path d="
+    M44,77
+    C36,70 30,58 31,44
+    C32,32 38,22 44,17
+    C50,23 56,33 56,46
+    C57,60 51,70 44,77
+    Z"
+    fill="url(#v2ld-flamehi)" opacity="0.45"/>
+  <text
+    x="100" y="47"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="34"
+    font-weight="500"
+    letter-spacing="-0.2"
+    fill="#E6EDF3"
+    dominant-baseline="middle">git-fire</text>
+</svg>

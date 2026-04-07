@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <defs>
+    <linearGradient id="v2id-flame" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#C03200"/>
+      <stop offset="35%"  stop-color="#E8600A"/>
+      <stop offset="70%"  stop-color="#F59820"/>
+      <stop offset="100%" stop-color="#FAD84A"/>
+    </linearGradient>
+    <linearGradient id="v2id-flamehi" x1="0.4" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEF0A0"/>
+    </linearGradient>
+    <!-- Dark mode wax: slightly warmer/darker -->
+    <linearGradient id="v2id-wax" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#D4CCBC"/>
+      <stop offset="60%"  stop-color="#B8B0A0"/>
+      <stop offset="100%" stop-color="#988870"/>
+    </linearGradient>
+    <radialGradient id="v2id-glow" cx="50%" cy="95%" r="50%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="60" cy="152" rx="30" ry="7" fill="url(#v2id-glow)"/>
+  <rect x="44" y="92" width="32" height="52" rx="4" ry="4" fill="url(#v2id-wax)"/>
+  <rect x="44" y="92" width="32" height="6" rx="4" ry="4" fill="#E8E0CC" opacity="0.5"/>
+  <path d="M44,108 Q28,108 24,120"
+        stroke="#AAA" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <path d="M76,114 Q90,114 94,126"
+        stroke="#AAA" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="22" cy="122" r="5" fill="#BBB" opacity="0.6"/>
+  <circle cx="96" cy="128" r="5" fill="#BBB" opacity="0.6"/>
+  <circle cx="16" cy="134" r="3.5" fill="#999" opacity="0.40"/>
+  <circle cx="102" cy="140" r="3.5" fill="#999" opacity="0.40"/>
+  <line x1="60" y1="82" x2="60" y2="94"
+        stroke="#AAA" stroke-width="2" stroke-linecap="round"/>
+  <path d="M60,82 Q62,78 60,74"
+        stroke="#999" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="
+    M60,84
+    C48,76 38,62 39,44
+    C40,28 50,16 60,10
+    C70,18 80,30 80,46
+    C81,64 71,77 60,84
+    Z"
+    fill="url(#v2id-flame)" opacity="0.97"/>
+  <path d="
+    M60,77
+    C52,70 46,58 47,44
+    C48,32 54,22 60,17
+    C66,23 72,33 72,46
+    C73,60 67,70 60,77
+    Z"
+    fill="url(#v2id-flamehi)" opacity="0.45"/>
+</svg>

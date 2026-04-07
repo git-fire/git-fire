@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" width="320" height="160">
+  <defs>
+    <linearGradient id="v3ll-flame" x1="0.25" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#C03200"/>
+      <stop offset="38%"  stop-color="#E8600A"/>
+      <stop offset="72%"  stop-color="#F59820"/>
+      <stop offset="100%" stop-color="#FAD84A"/>
+    </linearGradient>
+    <linearGradient id="v3ll-flamehi" x1="0.35" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEEEA0"/>
+    </linearGradient>
+    <radialGradient id="v3ll-glow" cx="50%" cy="0%" r="80%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Mark at x=50, scaled to fit 160px height -->
+  <ellipse cx="50" cy="74" rx="18" ry="14" fill="url(#v3ll-glow)"/>
+  <line x1="50" y1="80" x2="50" y2="144"
+        stroke="#2A2A2A" stroke-width="2.5" stroke-linecap="round" opacity="0.70"/>
+  <path d="M50,96 Q38,104 24,120"
+        stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <path d="M24,120 Q30,132 50,138"
+        stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <path d="M50,106 Q63,112 76,128"
+        stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <path d="M76,128 Q68,138 50,142"
+        stroke="#2A2A2A" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <circle cx="24"  cy="120" r="4" fill="#2A2A2A" opacity="0.60"/>
+  <circle cx="76"  cy="128" r="4" fill="#2A2A2A" opacity="0.60"/>
+  <circle cx="50"  cy="112" r="3.5" fill="#2A2A2A" opacity="0.45"/>
+  <circle cx="50"  cy="144" r="5" fill="#2A2A2A" opacity="0.75"/>
+  <!-- HEAD -->
+  <circle cx="50" cy="74" r="7" fill="#2A2A2A"/>
+  <circle cx="50" cy="74" r="5" fill="#E5650A"/>
+  <circle cx="50" cy="74" r="2.5" fill="#F8D040"/>
+  <!-- Flame (fits above y=68 within the 160px height) -->
+  <path d="
+    M50,68
+    C38,60 28,46 30,28
+    C32,13 42,4 50,0
+    C58,5 68,16 69,30
+    C71,49 62,61 50,68
+    Z"
+    fill="url(#v3ll-flame)" opacity="0.97"/>
+  <path d="
+    M50,61
+    C43,54 37,42 39,28
+    C41,17 46,8 50,4
+    C54,9 59,19 60,30
+    C61,44 57,55 50,61
+    Z"
+    fill="url(#v3ll-flamehi)" opacity="0.40"/>
+
+  <!-- Wordmark aligned to flame body center (y=0 top, y=68 base ’ center y=34) -->
+  <text
+    x="96" y="34"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="34"
+    font-weight="500"
+    letter-spacing="-0.2"
+    fill="#1C1C1C"
+    dominant-baseline="middle">git-fire</text>
+</svg>
