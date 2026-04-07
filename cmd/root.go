@@ -212,7 +212,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Routing:
 	//   --fire         → streaming TUI (repos appear as discovered)
-	//   --dry-run      → batch collect then plan summary (no changes made)
+	//   --dry-run      → batch collect, plan summary, then dry-run execute (no git mutations; secret warnings)
 	//   default        → streaming backup pipeline
 	var runErr error
 	if fireMode {
@@ -280,7 +280,8 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
 // list before proceeding, which is necessary for the interactive selector and
-// for showing a complete plan summary before any changes are made.
+// for showing a complete plan summary. --dry-run then runs the executor dry-run
+// path (e.g. secret scans) without mutating repositories.
 func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
 	var (
 		repos     []git.Repository
@@ -390,6 +391,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Println()
 
 	if dryRun {
+		runner := executor.NewRunner(cfg)
+		defer runner.Close()
+		if _, err := runner.Execute(plan); err != nil {
+			return fmt.Errorf("dry run failed: %w", err)
+		}
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
 		return errRunNoop
 	}
