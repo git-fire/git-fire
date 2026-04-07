@@ -866,6 +866,43 @@ func TestBuildPostRunPluginContext_ReadsGitBranchAndCommitWhenScanRootIsRepo(t *
 	}
 }
 
+func TestBuildPostRunPluginContext_DoesNotReadParentRepoMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	parentRepo := scenario.CreateRepo("parent-repo").
+		WithRemote("origin", remote).
+		AddFile("README.md", "parent\n").
+		Commit("init")
+	defaultBranch := parentRepo.GetDefaultBranch()
+	parentRepo.Push("origin", defaultBranch)
+
+	scanRoot := filepath.Join(parentRepo.Path(), "projects")
+	if err := os.MkdirAll(scanRoot, 0o755); err != nil {
+		t.Fatalf("mkdir scan root: %v", err)
+	}
+
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = scanRoot
+
+	ctx := buildPostRunPluginContext(cfg, false, false)
+
+	if ctx.RepoPath != scanRoot {
+		t.Fatalf("expected RepoPath %q, got %q", scanRoot, ctx.RepoPath)
+	}
+	if ctx.RepoName != filepath.Base(scanRoot) {
+		t.Fatalf("expected RepoName %q, got %q", filepath.Base(scanRoot), ctx.RepoName)
+	}
+	if ctx.Branch != "" {
+		t.Fatalf("expected Branch to be empty when scan root is not a git repo, got %q", ctx.Branch)
+	}
+	if ctx.CommitSHA != "" {
+		t.Fatalf("expected CommitSHA to be empty when scan root is not a git repo, got %q", ctx.CommitSHA)
+	}
+}
+
 // Helper function to reset flags between tests
 func resetFlags() {
 	dryRun = false

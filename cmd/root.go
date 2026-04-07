@@ -1027,6 +1027,23 @@ func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) p
 	ctx.RepoPath = scanRoot
 	ctx.RepoName = filepath.Base(scanRoot)
 
+	// Only read git metadata when scanRoot is itself the repository root.
+	topLevelOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return ctx
+	}
+	topLevelPath := filepath.Clean(strings.TrimSpace(string(topLevelOut)))
+	scanRootPath := filepath.Clean(scanRoot)
+	if resolved, err := filepath.EvalSymlinks(topLevelPath); err == nil {
+		topLevelPath = filepath.Clean(resolved)
+	}
+	if resolved, err := filepath.EvalSymlinks(scanRootPath); err == nil {
+		scanRootPath = filepath.Clean(resolved)
+	}
+	if topLevelPath != scanRootPath {
+		return ctx
+	}
+
 	if branchOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
 		ctx.Branch = strings.TrimSpace(string(branchOut))
 	}
