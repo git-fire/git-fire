@@ -1034,7 +1034,11 @@ func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) p
 	ctx.RepoName = filepath.Base(scanRoot)
 
 	// Only read git metadata when scanRoot is itself the repository root.
-	topLevelOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "--show-toplevel").Output()
+	// Bound local git subprocess time so a wedged repo cannot stall post-run hooks.
+	gitCmdCtx, cancelGitCmd := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelGitCmd()
+
+	topLevelOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--show-toplevel").Output()
 	if err != nil {
 		return ctx
 	}
@@ -1050,10 +1054,10 @@ func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) p
 		return ctx
 	}
 
-	if branchOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
+	if branchOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
 		ctx.Branch = strings.TrimSpace(string(branchOut))
 	}
-	if commitOut, err := exec.Command("git", "-C", scanRoot, "rev-parse", "HEAD").Output(); err == nil {
+	if commitOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "HEAD").Output(); err == nil {
 		ctx.CommitSHA = strings.TrimSpace(string(commitOut))
 	}
 
