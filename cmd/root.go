@@ -399,7 +399,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	// Execute plan
 	fmt.Println()
@@ -547,7 +547,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	fmt.Println("🔥 Pushing repositories...")
 	fmt.Println()
@@ -687,7 +687,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	planner := executor.NewPlanner(cfg)
 	runner := executor.NewRunner(cfg)
