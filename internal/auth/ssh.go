@@ -474,20 +474,20 @@ func (s *SSHStatus) Summary() string {
 	sb.WriteString("SSH Configuration:\n")
 
 	if s.Agent.Running {
-		sb.WriteString(fmt.Sprintf("  ✓ ssh-agent running (socket: %s)\n", s.Agent.Socket))
+		fmt.Fprintf(&sb, "  ✓ ssh-agent running (socket: %s)\n", s.Agent.Socket)
 		if s.Agent.KeysKnown {
-			sb.WriteString(fmt.Sprintf("  ✓ %d key(s) loaded in agent\n", len(s.Agent.Keys)))
+			fmt.Fprintf(&sb, "  ✓ %d key(s) loaded in agent\n", len(s.Agent.Keys))
 		} else {
 			sb.WriteString("  ? key inventory unavailable (agent probe did not complete)\n")
 		}
 		if s.Agent.Error != "" {
-			sb.WriteString(fmt.Sprintf("  ⚠ agent status warning: %s\n", s.Agent.Error))
+			fmt.Fprintf(&sb, "  ⚠ agent status warning: %s\n", s.Agent.Error)
 		}
 	} else {
 		sb.WriteString("  ✗ ssh-agent not running\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("\nAvailable SSH keys: %d\n", len(s.AvailableKeys)))
+	fmt.Fprintf(&sb, "\nAvailable SSH keys: %d\n", len(s.AvailableKeys))
 	for _, key := range s.AvailableKeys {
 		status := "?"
 		if s.Agent.KeysKnown {
@@ -497,7 +497,7 @@ func (s *SSHStatus) Summary() string {
 			status = "✓"
 		}
 
-		sb.WriteString(fmt.Sprintf("  %s %s (%s)", status, key.Name, key.Type))
+		fmt.Fprintf(&sb, "  %s %s (%s)", status, key.Name, key.Type)
 
 		if key.IsLoaded {
 			sb.WriteString(" [loaded]")

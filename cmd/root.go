@@ -212,7 +212,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Routing:
 	//   --fire         → streaming TUI (repos appear as discovered)
-	//   --dry-run      → batch collect then plan summary (no changes made)
+	//   --dry-run      → batch collect, plan summary, then dry-run execute (no git mutations; secret warnings)
 	//   default        → streaming backup pipeline
 	var runErr error
 	if fireMode {
@@ -225,12 +225,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Fire post-run plugins (non-fatal, skipped on dry-run, user abort, and no-op runs)
 	if shouldRunPostRunPlugins(dryRun, runErr) {
-		pluginCtx := plugins.Context{
-			Timestamp: time.Now(),
-			DryRun:    dryRun,
-			Emergency: fireMode,
-			Logger:    &cmdPluginLogger{},
-		}
+		pluginCtx := buildPostRunPluginContext(cfg, dryRun, fireMode)
 		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
 		if enabledErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
@@ -280,7 +275,8 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
 // list before proceeding, which is necessary for the interactive selector and
-// for showing a complete plan summary before any changes are made.
+// for showing a complete plan summary. --dry-run then runs the executor dry-run
+// path (e.g. secret scans) without mutating repositories.
 func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
 	var (
 		repos     []git.Repository
@@ -390,6 +386,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Println()
 
 	if dryRun {
+		runner := executor.NewRunner(cfg)
+		defer runner.Close()
+		if _, err := runner.Execute(plan); err != nil {
+			return fmt.Errorf("dry run failed: %w", err)
+		}
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
 		return errRunNoop
 	}
@@ -399,7 +400,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	// Execute plan
 	fmt.Println()
@@ -547,7 +548,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	fmt.Println("🔥 Pushing repositories...")
 	fmt.Println()
@@ -687,7 +688,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	planner := executor.NewPlanner(cfg)
 	runner := executor.NewRunner(cfg)
@@ -1013,4 +1014,52 @@ func (l *cmdPluginLogger) Debug(_ string) {}
 
 func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
 	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
+}
+
+func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) plugins.Context {
+	ctx := plugins.Context{
+		Timestamp: time.Now(),
+		DryRun:    isDryRun,
+		Emergency: isEmergency,
+		Logger:    &cmdPluginLogger{},
+	}
+
+	// Post-run hooks execute at the run level, so we seed repo vars from the
+	// configured scan root as a best-effort context instead of leaving them blank.
+	scanRoot, err := filepath.Abs(cfg.Global.ScanPath)
+	if err != nil {
+		return ctx
+	}
+	ctx.RepoPath = scanRoot
+	ctx.RepoName = filepath.Base(scanRoot)
+
+	// Only read git metadata when scanRoot is itself the repository root.
+	// Bound local git subprocess time so a wedged repo cannot stall post-run hooks.
+	gitCmdCtx, cancelGitCmd := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelGitCmd()
+
+	topLevelOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return ctx
+	}
+	topLevelPath := filepath.Clean(strings.TrimSpace(string(topLevelOut)))
+	scanRootPath := filepath.Clean(scanRoot)
+	if resolved, err := filepath.EvalSymlinks(topLevelPath); err == nil {
+		topLevelPath = filepath.Clean(resolved)
+	}
+	if resolved, err := filepath.EvalSymlinks(scanRootPath); err == nil {
+		scanRootPath = filepath.Clean(resolved)
+	}
+	if topLevelPath != scanRootPath {
+		return ctx
+	}
+
+	if branchOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
+		ctx.Branch = strings.TrimSpace(string(branchOut))
+	}
+	if commitOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "HEAD").Output(); err == nil {
+		ctx.CommitSHA = strings.TrimSpace(string(commitOut))
+	}
+
+	return ctx
 }
