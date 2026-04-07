@@ -58,3 +58,16 @@ Run at least one install per channel:
 - If Homebrew publish fails, keep release assets and rerun release job with corrected token/config.
 - If WinGet PR fails, rerun `.github/workflows/winget.yml` with `workflow_dispatch` and target tag.
 - If package metadata is wrong, publish a patch tag (`vX.Y.(Z+1)`) rather than mutating existing release assets.
+
+## 6) Launch Posts and Distribution
+
+- Prepare announcement copy from [LAUNCH_POSTS_PLAYBOOK.md](LAUNCH_POSTS_PLAYBOOK.md).
+- Confirm any references to release channels match the actual tag class:
+  - prerelease (`-alpha`, `-beta`, `-rc`) -> alpha/beta messaging
+  - stable (`vX.Y.Z`) -> stable messaging
+- Post in a staged wave:
+  1. Primary post (`Show HN` or equivalent) with the clearest problem statement
+  2. Community posts (Reddit + language communities)
+  3. Professional/social channels (X/LinkedIn/Discord)
+- Keep one source-of-truth update thread and link it from all follow-up posts.
+- Track URLs for each post in your launch notes so comments/bugs can be triaged quickly.

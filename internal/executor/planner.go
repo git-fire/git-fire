@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
@@ -39,7 +40,7 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 			continue // Skip unselected repos
 		}
 
-		repoPlan, err := p.BuildRepoPlan(repo)
+		repoPlan, err := p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
 		if err != nil {
 			return nil, fmt.Errorf("failed to plan repo %s: %w", repo.Path, err)
 		}
@@ -68,7 +69,61 @@ func (p *Planner) BuildRepoPlan(repo git.Repository) (RepoPlan, error) {
 	return p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: true})
 }
 
+func (p *Planner) resolveRepoOverride(repo git.Repository) *config.RepoOverride {
+	if p.config == nil {
+		return nil
+	}
+	absPath, err := filepath.Abs(repo.Path)
+	if err != nil {
+		return nil
+	}
+	// Match path-only overrides first.
+	if o := p.config.FindRepoOverride(absPath, ""); o != nil {
+		return o
+	}
+
+	// Then match remote-pattern overrides across every configured remote.
+	for _, remote := range repo.Remotes {
+		if remote.URL == "" {
+			continue
+		}
+		if o := p.config.FindRepoOverride(absPath, remote.URL); o != nil {
+			return o
+		}
+	}
+	return nil
+}
+
+func (p *Planner) resolveRepoMode(repo git.Repository) git.RepoMode {
+	if o := p.resolveRepoOverride(repo); o != nil && o.Mode != "" {
+		if !isKnownRepoMode(o.Mode) {
+			// Keep discovered mode for invalid override values.
+			return repo.Mode
+		}
+		return git.ParseMode(o.Mode)
+	}
+	return repo.Mode
+}
+
+func (p *Planner) effectiveAutoCommitDirty(repo git.Repository) bool {
+	if p.config == nil || !p.config.Global.AutoCommitDirty {
+		return false
+	}
+	if o := p.resolveRepoOverride(repo); o != nil && o.SkipAutoCommit {
+		return false
+	}
+	return true
+}
+
+func (p *Planner) withResolvedOverrides(repo git.Repository) git.Repository {
+	out := repo
+	out.Mode = p.resolveRepoMode(repo)
+	return out
+}
+
 func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOptions) (RepoPlan, error) {
+	repo = p.withResolvedOverrides(repo)
+
 	repoPlan := RepoPlan{
 		Repo:    repo,
 		Actions: []Action{},
@@ -96,15 +151,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 		return repoPlan, nil
 	}
 
-	// Step 1: Auto-commit if dirty
-	if repo.IsDirty && p.config.Global.AutoCommitDirty {
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionAutoCommit,
-			Description: "Auto-commit uncommitted changes",
-		})
-	}
-
-	// Step 2+3: Determine push strategy and add an action for every remote.
+	// Step 1+2: Determine push strategy and add an action for every remote.
 	// In an emergency every configured remote is a backup destination.
 	//
 	// The default mode pushes only the currently checked-out branch. We resolve
@@ -144,22 +191,20 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 			})
 
 		case git.ModePushCurrentBranch:
-			if opts.DetectConflicts && (p.config.Global.ConflictStrategy == "new-branch" || p.config.Global.ConflictStrategy == "abort") {
+			strategy := normalizeConflictStrategy(p.config)
+			if opts.DetectConflicts && (strategy == "new-branch" || strategy == "abort") {
 				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
 					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
 				}
 				if hasConflict {
 					repoPlan.HasConflict = true
-					if p.config.Global.ConflictStrategy == "abort" {
-						repoPlan.Skip = true
-						repoPlan.SkipReason = fmt.Sprintf("conflict detected on %s; strategy=abort", remote.Name)
-						repoPlan.Actions = []Action{{
+					if strategy == "abort" {
+						repoPlan.Actions = append(repoPlan.Actions, Action{
 							Type:        ActionSkip,
-							Description: repoPlan.SkipReason,
-						}}
-						repoPlan.FireBranch = ""
-						return repoPlan, nil
+							Description: fmt.Sprintf("Skip push to %s: branch %s diverged from remote (conflict_strategy=abort)", remote.Name, currentBranch),
+						})
+						continue
 					}
 					if !repoPlanHasFireCreateAction(repoPlan.Actions) {
 						repoPlan.Actions = append(repoPlan.Actions, Action{
@@ -197,6 +242,16 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 		}
 	}
 
+	// Auto-commit only when there is an actual push action to execute.
+	// This avoids creating backup branches when conflict_strategy=abort skips
+	// every remote (single-remote divergence), preserving prior skip semantics.
+	if repo.IsDirty && p.effectiveAutoCommitDirty(repo) && repoPlanHasPushAction(repoPlan.Actions) {
+		repoPlan.Actions = append([]Action{{
+			Type:        ActionAutoCommit,
+			Description: "Auto-commit uncommitted changes",
+		}}, repoPlan.Actions...)
+	}
+
 	return repoPlan, nil
 }
 
@@ -207,6 +262,39 @@ func repoPlanHasFireCreateAction(actions []Action) bool {
 		}
 	}
 	return false
+}
+
+func repoPlanHasPushAction(actions []Action) bool {
+	for _, action := range actions {
+		if action.Type == ActionPushBranch || action.Type == ActionPushAll || action.Type == ActionPushKnown {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeConflictStrategy(cfg *config.Config) string {
+	if cfg == nil {
+		return "new-branch"
+	}
+	switch cfg.Global.ConflictStrategy {
+	case "", "new-branch":
+		return "new-branch"
+	case "abort":
+		return "abort"
+	default:
+		// Fail closed to safe conflict detection behavior.
+		return "new-branch"
+	}
+}
+
+func isKnownRepoMode(mode string) bool {
+	switch mode {
+	case "leave-untouched", "push-known-branches", "push-all", "push-current-branch":
+		return true
+	default:
+		return false
+	}
 }
 
 // Summary returns a human-readable summary of the plan

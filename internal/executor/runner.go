@@ -131,10 +131,20 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	// Execute each action. Continue past failures so every remote gets a
 	// best-effort push — collecting the first error to surface to the caller.
 	var firstErr error
+	var executedNonSkip bool
 	for i := 0; i < len(actions); i++ {
 		action := actions[i]
+		if action.Type == ActionAutoCommit && !repoPlanHasPushAction(actions[i+1:]) {
+			// Defensive guard: avoid creating backup branches when no push action
+			// remains in the tail (e.g. hand-crafted plans containing only skips).
+			continue
+		}
+
 		executedAction := r.executeAction(repoPlan.Repo, action, current, total)
 		result.Actions = append(result.Actions, executedAction)
+		if action.Type != ActionSkip {
+			executedNonSkip = true
+		}
 
 		if executedAction.Error != nil {
 			if firstErr == nil {
@@ -153,15 +163,24 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		if action.Type == ActionAutoCommit && executedAction.Error == nil && executedAction.Branch != "" {
 			createdBranches := strings.Split(executedAction.Branch, ",")
 			var remotes []string
+			seenRemotes := make(map[string]struct{})
 			for _, pending := range actions[i+1:] {
-				if pending.Type == ActionPushBranch && pending.Remote != "" {
+				if pending.Type != ActionPushBranch && pending.Type != ActionPushAll && pending.Type != ActionPushKnown {
+					continue
+				}
+				if pending.Remote != "" {
+					if _, exists := seenRemotes[pending.Remote]; exists {
+						continue
+					}
+					seenRemotes[pending.Remote] = struct{}{}
 					remotes = append(remotes, pending.Remote)
 				}
 			}
 			if len(remotes) == 0 {
-				for _, remote := range repoPlan.Repo.Remotes {
-					remotes = append(remotes, remote.Name)
-				}
+				// No push actions remain for this repo (e.g. all remotes were
+				// skipped by conflict_strategy=abort), so don't inject fallback
+				// backup pushes.
+				continue
 			}
 
 			replacementPushes := make([]Action, 0, len(remotes)*len(createdBranches))
@@ -182,7 +201,7 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 
 			filteredTail := make([]Action, 0, len(actions[i+1:]))
 			for _, pending := range actions[i+1:] {
-				if pending.Type == ActionPushBranch {
+				if pending.Type == ActionPushBranch || pending.Type == ActionPushAll || pending.Type == ActionPushKnown {
 					continue
 				}
 				filteredTail = append(filteredTail, pending)
@@ -201,7 +220,7 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 		}
 	}
 
-	result.Success = firstErr == nil
+	result.Success = firstErr == nil && executedNonSkip
 	if firstErr != nil {
 		result.Error = firstErr
 	}
@@ -210,6 +229,8 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 	finalStatus := StatusSuccess
 	if firstErr != nil {
 		finalStatus = StatusFailed
+	} else if !executedNonSkip {
+		finalStatus = StatusSkipped
 	}
 	r.sendProgress(Progress{
 		CurrentRepo: current,
@@ -461,7 +482,7 @@ func (r *Runner) ExecuteStream(
 		}
 		sequence++
 
-		repoPlan, err := planner.BuildRepoPlan(repo)
+		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
 		if err != nil {
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.

@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
+	"github.com/mattn/go-runewidth"
 )
 
 func TestRootCommand_Flags(t *testing.T) {
@@ -153,12 +155,7 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 func TestHandleInit(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Run handleInit
 	err := handleInit()
@@ -221,11 +218,7 @@ func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 func TestHandleInit_ExistingConfig(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create config directory and file
 	configDir := filepath.Join(tmpHome, ".config", "git-fire")
@@ -263,9 +256,7 @@ func TestHandleStatus(t *testing.T) {
 func TestRunGitFire_DryRun(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -297,9 +288,7 @@ func TestRunGitFire_DryRun(t *testing.T) {
 func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -334,9 +323,7 @@ func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create empty directory
 	emptyDir := t.TempDir()
@@ -359,9 +346,7 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	emptyDir := t.TempDir()
 
@@ -388,9 +373,7 @@ func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_FireDrillFlag(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -419,9 +402,7 @@ func TestRunGitFire_FireDrillFlag(t *testing.T) {
 func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -448,9 +429,7 @@ func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 func TestRunGitFire_WithInit(t *testing.T) {
 	// Setup temp home
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -538,6 +517,34 @@ func TestBackupToExecuteError(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_FireAndDryRunMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	dryRun = true
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --dry-run are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunGitFire_FireAndFireDrillMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	fireDrill = true // aliases to --dry-run in runGitFire
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --fire-drill are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRootCommand_CombinedFlags(t *testing.T) {
 	// Reset flags
 	resetFlags()
@@ -610,6 +617,80 @@ func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	}
 	if entry.Mode != git.ModePushAll.String() {
 		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
+	}
+	if !updated.IsNewRegistryEntry {
+		t.Fatal("expected IsNewRegistryEntry for first upsert")
+	}
+}
+
+func TestUpsertRepoIntoRegistry_SecondUpsertNotNew(t *testing.T) {
+	reg := &registry.Registry{}
+	now := time.Now()
+	repo := git.Repository{
+		Path: "/tmp/repo-twice",
+		Name: "repo-twice",
+	}
+	first, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if !first.IsNewRegistryEntry {
+		t.Fatal("first upsert should be new to registry")
+	}
+	second, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if second.IsNewRegistryEntry {
+		t.Fatal("second upsert should not mark IsNewRegistryEntry")
+	}
+}
+
+func TestTruncateScanProgressPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		maxLen    int
+		wantEqual string
+		wantLen   int
+		wantPref  string
+		checkUTF8 bool
+	}{
+		{
+			name:      "short path unchanged",
+			path:      "/home/u/proj",
+			maxLen:    72,
+			wantEqual: "/home/u/proj",
+		},
+		{
+			name:     "long path truncated",
+			path:     strings.Repeat("/x", 80),
+			maxLen:   20,
+			wantLen:  20,
+			wantPref: "...",
+		},
+		{
+			name:      "multibyte path truncated safely",
+			path:      "/tmp/" + strings.Repeat("世界", 20),
+			maxLen:    14,
+			wantPref:  "...",
+			checkUTF8: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateScanProgressPath(tt.path, tt.maxLen)
+			if tt.wantEqual != "" && got != tt.wantEqual {
+				t.Fatalf("got %q want %q", got, tt.wantEqual)
+			}
+			if tt.wantLen > 0 && len(got) != tt.wantLen {
+				t.Fatalf("len=%d want %d", len(got), tt.wantLen)
+			}
+			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
+				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+			if runewidth.StringWidth(got) > tt.maxLen {
+				t.Fatalf("display width=%d exceeds max=%d for %q", runewidth.StringWidth(got), tt.maxLen, got)
+			}
+			if tt.checkUTF8 && !utf8.ValidString(got) {
+				t.Fatalf("expected valid UTF-8 output, got %q", got)
+			}
+		})
 	}
 }
 

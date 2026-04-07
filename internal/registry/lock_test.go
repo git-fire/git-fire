@@ -151,3 +151,31 @@ func TestAcquireLock_Timeout(t *testing.T) {
 		t.Fatal("acquireLock() should return an error when lock is held for longer than lockTimeout")
 	}
 }
+
+func TestStaleLock_NonExistentLockFile(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "missing.lock")
+	if staleLock(lockPath) {
+		t.Fatal("staleLock should return false for missing lock file")
+	}
+}
+
+func TestStaleLock_InvalidPIDContent(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "bad.lock")
+	if err := os.WriteFile(lockPath, []byte("not-a-pid\n"), 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
+	if staleLock(lockPath) {
+		t.Fatal("staleLock should return false for unparsable lock pid")
+	}
+}
+
+func TestStaleLock_CurrentPIDIsNotStale(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "live.lock")
+	content := fmt.Sprintf("%d\n", os.Getpid())
+	if err := os.WriteFile(lockPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
+	if staleLock(lockPath) {
+		t.Fatal("staleLock should return false for currently running process")
+	}
+}

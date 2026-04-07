@@ -49,7 +49,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 - [TUI](#tui)
   - [TUI screenshot](#tui-screenshot)
   - [TUI color profiles](#tui-color-profiles)
-- [Roadmap and Coming Soon](#roadmap-and-coming-soon)
+- [Release Roadmap](#release-roadmap)
 - [Documentation](#documentation)
 - [Security Notes](#security-notes)
 - [Security Policy](#security-policy)
@@ -59,6 +59,16 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 ## Alpha Status
 
 `git-fire` is alpha software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
+
+## Project Snapshot
+
+- **Project:** `git-fire` (`github.com/git-fire/git-fire`)
+- **Language:** Go 1.24.2
+- **License:** MIT
+- **Status:** Alpha
+- **Core promise:** one command to discover repos, auto-commit dirty work (unless disabled), and push backups so local-only work is not lost
+
+Detailed product, architecture, safety, testing, and roadmap notes are in [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md).
 
 ## Quick Start
 
@@ -73,6 +83,8 @@ git-fire
 ```
 
 ### One-line emergency mode
+
+> Emergency bootstrap script path is established; package-manager installs are still coming soon.
 
 Use this for urgent situations only. `curl | bash` executes remote code directly.
 Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
@@ -219,7 +231,7 @@ Workflow guides:
 
 - **One-command multi-repo checkpoint:** discover repositories and execute a repeatable backup flow from one command.
 - **Optional dirty-work auto-commit:** include uncommitted changes, or use `--skip-auto-commit` to push committed work only.
-- **Safety-first conflict handling:** avoid force-push in normal flow and create backup branches when needed.
+- **Safety-first conflict handling:** avoid force-push in normal flow; `push-current-branch` can create backup branches on divergence.
 - **Dry-run planning:** preview exactly what would happen before making changes.
 - **Auditable execution logs:** structured JSON logs for troubleshooting and post-run review.
 - **Registry-backed repeatability:** discovered repos persist across runs.
@@ -255,13 +267,17 @@ git-fire --no-scan
 
 # generate config template
 git-fire --init
+
+# inspect/edit registry entries
+git-fire repos list
+git-fire repos ignore /abs/path/to/repo
 ```
 
 ## Configuration and Behaviors
 
 - **Persistent repo registry:** discovered repos are saved in `~/.config/git-fire/repos.toml` unless explicitly ignored.
 - **Status and auth checks:** `git-fire --status` gives a quick snapshot of SSH/auth and repo readiness.
-- **Execution-mode control:** `--dry-run`, `--fire`, and `--path` let you choose planning vs. execution mode.
+- **Execution-mode control:** `--dry-run` and `--fire` choose planning vs execution UI mode; `--path` selects scan root.
 - **Registry-only mode:** `--no-scan` runs against already-known registry repos for that run.
 - **Config trust boundary:** only `~/.config/git-fire/config.toml` loads by default; use `--config <path>` to opt into project-local config.
 - **Session logging:** each run writes structured logs under `~/.cache/git-fire/logs/`.
@@ -301,7 +317,13 @@ color_profile = "synthwave"
 
 Custom hex palettes are planned but not enabled yet.
 
-## Roadmap and Coming Soon
+## Release Roadmap
+
+- **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
+- **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
+- **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
+
+### Coming Soon
 
 - **Plugin auto-loading in CLI (`v0.2` target):** command plugin internals exist, but default config-driven auto-loading is still in progress.
 - **USB mode:** planned as a first-class destination for repo backups (git-native incremental updates + destination marker/config).
@@ -318,6 +340,7 @@ Start with [docs/README.md](docs/README.md).
 - Build from source: [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md)
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
+- Manual smoke fixture scripts: [docs/MANUAL_SMOKE_FIXTURES.md](docs/MANUAL_SMOKE_FIXTURES.md)
 - Planned USB mode scope: [docs/USB_MODE.md](docs/USB_MODE.md)
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -9,12 +9,14 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 
 	"github.com/git-fire/git-fire/internal/auth"
@@ -92,6 +94,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+
+	// --fire-drill is an alias for --dry-run.
+	if fireDrill {
+		dryRun = true
+	}
+	if fireMode && dryRun {
+		return fmt.Errorf("--fire and --dry-run cannot be used together")
+	}
+
 	var cfg *config.Config
 	failRun := func(err error) error {
 		if err != nil {
@@ -137,11 +148,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 	if noScan {
 		cfg.Global.DisableScan = true
-	}
-
-	// Fire drill is same as dry run
-	if fireDrill {
-		dryRun = true
 	}
 
 	// Show security notice
@@ -297,7 +303,13 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Printf("✓ Found %d repositories\n", len(repos))
 	fmt.Printf("✓ SSH Status: %d keys available", len(sshStatus.AvailableKeys))
 	if sshStatus.Agent.Running {
-		fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		if sshStatus.Agent.KeysKnown {
+			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		} else if sshStatus.Agent.Error != "" {
+			fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+		} else {
+			fmt.Printf(" (agent key status unknown)")
+		}
 	}
 	fmt.Println()
 	fmt.Println()
@@ -581,11 +593,39 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		scanErr = git.ScanRepositoriesStream(opts, scanChan)
 	}()
 
-	// Drain folder-progress in the background (TUI uses it; CLI discards it).
-	go func() {
-		for range folderProgress {
-		}
-	}()
+	// Folder progress: TUI consumes paths live; default stream prints periodic
+	// updates so long walks are not silent.
+	var lastFolder atomic.Pointer[string]
+	if !opts.DisableScan {
+		go func() {
+			for p := range folderProgress {
+				pp := p
+				lastFolder.Store(&pp)
+			}
+		}()
+		go func() {
+			tick := time.NewTicker(2 * time.Second)
+			defer tick.Stop()
+			const scanPrefix = "   🔍 Scanning… "
+			for {
+				select {
+				case <-scanDone:
+					return
+				case <-tick.C:
+					ptr := lastFolder.Load()
+					if ptr != nil && *ptr != "" {
+						maxPathLen := scanProgressPathMaxLen(scanPrefix)
+						fmt.Printf("%s%s\n", scanPrefix, truncateScanProgressPath(*ptr, maxPathLen))
+					}
+				}
+			}
+		}()
+	} else {
+		go func() {
+			for range folderProgress {
+			}
+		}()
+	}
 
 	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
 	now := time.Now()
@@ -680,7 +720,13 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	case sshStatus := <-sshChan:
 		fmt.Printf("\n✓ SSH: %d keys available", len(sshStatus.AvailableKeys))
 		if sshStatus.Agent.Running {
-			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			if sshStatus.Agent.KeysKnown {
+				fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			} else if sshStatus.Agent.Error != "" {
+				fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+			} else {
+				fmt.Printf(" (agent key status unknown)")
+			}
 		}
 		fmt.Println()
 	case sshErr := <-sshErrChan:
@@ -706,6 +752,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	absPath, err := filepath.Abs(repo.Path)
 	if err != nil {
 		// Can't resolve path — include repo to be safe (never silently drop backups).
+		repo.IsNewRegistryEntry = false
 		return repo, true
 	}
 	var modeStr string
@@ -720,6 +767,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		e.Status = registry.StatusActive
 	})
 	if found {
+		repo.IsNewRegistryEntry = false
 		if modeStr != "" {
 			repo.Mode = git.ParseMode(modeStr)
 		} else {
@@ -729,6 +777,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	}
 	// New discovery — register it immediately (opt-out model).
 	repo.Mode = defaultMode
+	repo.IsNewRegistryEntry = true
 	reg.Upsert(registry.RegistryEntry{
 		Path:     absPath,
 		Name:     repo.Name,
@@ -738,6 +787,50 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		LastSeen: now,
 	})
 	return repo, true
+}
+
+// truncateScanProgressPath shortens a filesystem path for one-line CLI output.
+func truncateScanProgressPath(path string, maxLen int) string {
+	if maxLen <= 0 || runewidth.StringWidth(path) <= maxLen {
+		return path
+	}
+	ellipsis := "..."
+	ellipsisWidth := runewidth.StringWidth(ellipsis)
+	if maxLen <= ellipsisWidth {
+		return runewidth.Truncate(path, maxLen, "")
+	}
+	remaining := maxLen - ellipsisWidth
+	runes := []rune(path)
+	start := len(runes)
+	width := 0
+	for i := len(runes) - 1; i >= 0; i-- {
+		rw := runewidth.RuneWidth(runes[i])
+		if width+rw > remaining {
+			break
+		}
+		width += rw
+		start = i
+	}
+	return ellipsis + string(runes[start:])
+}
+
+func scanProgressPathMaxLen(prefix string) int {
+	const (
+		fallback = 72
+		minLen   = 8
+	)
+	cols, err := strconv.Atoi(os.Getenv("COLUMNS"))
+	if err != nil || cols <= 0 {
+		return fallback
+	}
+	dynamic := cols - runewidth.StringWidth(prefix)
+	if dynamic < minLen {
+		return minLen
+	}
+	if dynamic > fallback {
+		return fallback
+	}
+	return dynamic
 }
 
 // saveRegistry persists the registry and logs a warning on failure.

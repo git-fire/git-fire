@@ -263,8 +263,13 @@ func TestRepoSelectorLiteModel_Key_CycleMode(t *testing.T) {
 	}
 
 	m = updateLite(t, m, press('m'))
+	if m.repos[0].Mode != git.ModePushCurrentBranch {
+		t.Errorf("after third 'm': mode = %v, want ModePushCurrentBranch", m.repos[0].Mode)
+	}
+
+	m = updateLite(t, m, press('m'))
 	if m.repos[0].Mode != git.ModeLeaveUntouched {
-		t.Errorf("after third 'm': mode = %v, want ModeLeaveUntouched (wraps around)", m.repos[0].Mode)
+		t.Errorf("after fourth 'm': mode = %v, want ModeLeaveUntouched (wraps around)", m.repos[0].Mode)
 	}
 }
 
