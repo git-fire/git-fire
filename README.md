@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Status: alpha">
+  <img src="https://img.shields.io/badge/status-beta-blue" alt="Status: beta">
   <img src="https://img.shields.io/badge/tests-250%2B-brightgreen" alt="Tests: 250+">
   <img src="https://img.shields.io/badge/go-1.24.2-blue" alt="Go 1.24.2">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT">
@@ -27,7 +27,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 
 ## Table of Contents
 
-- [Alpha Status](#alpha-status)
+- [Beta Status](#beta-status)
 - [Quick Start](#quick-start)
   - [First run](#first-run)
   - [One-line emergency mode](#one-line-emergency-mode)
@@ -56,16 +56,16 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 - [Contributing](#contributing)
 - [License](#license)
 
-## Alpha Status
+## Beta Status
 
-`git-fire` is alpha software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
+`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
 
 ## Project Snapshot
 
 - **Project:** `git-fire` (`github.com/git-fire/git-fire`)
 - **Language:** Go 1.24.2
 - **License:** MIT
-- **Status:** Alpha
+- **Status:** Beta
 - **Core promise:** one command to discover repos, auto-commit dirty work (unless disabled), and push backups so local-only work is not lost
 
 Detailed product, architecture, safety, testing, and roadmap notes are in [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md).
@@ -90,8 +90,8 @@ Use this for urgent situations only. `curl | bash` executes remote code directly
 Inspect `scripts/emergency.sh` first and prefer release assets plus checksums when you have time.
 
 ```bash
-# replace v0.1.0-alpha with the release tag you want to run
-curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-alpha/scripts/emergency.sh | bash
+# replace v0.1.0-beta with the release tag you want to run
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/v0.1.0-beta/scripts/emergency.sh | bash
 ```
 
 ## Install
@@ -319,9 +319,9 @@ Custom hex palettes are planned but not enabled yet.
 
 ## Release Roadmap
 
-- **Beta goal (next 2 weeks):** begin beta rollout with expanded tester validation and feedback.
-- **During beta:** begin publishing `git-fire` binaries to online package managers and address critical stabilization issues.
-- **1.0 release target (next 2-4 months):** ship a stable production release after beta-critical items are closed.
+- **Now (beta):** expanded tester validation, feedback, and stabilization; prerelease tags ship binaries; stable tags drive package-manager channels (see install table above).
+- **During beta:** address critical stabilization issues and keep install and safety documentation current.
+- **1.0:** ship a stable production release after beta-critical items are closed.
 
 ### Coming Soon
 

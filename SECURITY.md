@@ -17,7 +17,7 @@ Include:
 
 ## Supported Versions
 
-`git-fire` is currently in alpha. Security fixes are prioritized for the latest alpha release tag.
+`git-fire` is currently in beta. Security fixes are prioritized for the latest beta (or current prerelease) tag.
 
 ## Disclosure Process
 

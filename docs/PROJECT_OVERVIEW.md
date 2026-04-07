@@ -10,7 +10,7 @@ Core value: in a panic (or at end-of-day), run one command to discover repositor
 - **Repository:** `github.com/git-fire/git-fire`
 - **Language:** Go 1.24.2
 - **License:** MIT
-- **Status:** Alpha
+- **Status:** Beta
 
 ## User Promise
 
@@ -135,7 +135,7 @@ See [../PLUGINS.md](../PLUGINS.md).
 
 ## Maturity and Risk
 
-- Alpha, but stable for many common flows.
+- Beta, but stable for many common flows.
 - Not intended to be a sole backup system yet.
 - Users should run dry-runs, verify results, and keep independent backup layers.
 
@@ -155,7 +155,7 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Add per-repo branch targeting controls (explicit include/ignore branch lists).
 - Expand config docs/examples to cover all currently supported global and per-repo options.
 
-### 1.0 (timing depends on alpha feedback)
+### 1.0 (timing depends on beta feedback)
 
 - Close beta-critical issues.
 - Ship stable production-ready core flows.

@@ -6,7 +6,7 @@ Use this playbook to run an announcement wave without drifting message or over-p
 
 - Core promise: one command to checkpoint many local git repos safely.
 - Primary value: preserve local-only work before context switches, risky refactors, travel, or outages.
-- Trust posture: alpha software with clear constraints and safety-first defaults.
+- Trust posture: beta software with clear constraints and safety-first defaults.
 
 ## Required message blocks
 

@@ -99,7 +99,7 @@ Practical notes:
 
 ---
 
-## Current Alpha Caveats
+## Current Beta Caveats
 
 - Plugin internals exist, but default CLI auto-loading from config is not wired yet (`v0.2` target).
 - `--backup-to` is exposed but not implemented yet (`v0.2` target).

@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing!
 
-For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Detailed behavior expectations, edge cases, and validation targets are documented in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md); user-facing summaries and shipped code on `main` are the practical source of truth when wording drifts during alpha.
+For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Detailed behavior expectations, edge cases, and validation targets are documented in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md); user-facing summaries and shipped code on `main` are the practical source of truth when wording drifts during beta.
 
 ## Prerequisites
 
@@ -57,7 +57,7 @@ Maintainers are listed on the GitHub repository: `github.com/git-fire/git-fire`.
 | `internal/plugins` | Plugin system — command execution and registry |
 | `internal/testutil` | Shared test helpers: repo fixtures, scenarios, snapshots |
 
-## Current Alpha Limitations
+## Current Beta Limitations
 
 - Plugin auto-loading from config is not yet wired into the default CLI run path (`v0.2` target).
 - `--backup-to` is exposed but not yet implemented (`v0.2` target).

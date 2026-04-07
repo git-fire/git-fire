@@ -7,7 +7,7 @@ on:
         description: 'Tag to release (e.g. v0.1.0 or v0.1.0-rc.1)'
         required: true
         type: string
-        default: 'v0.1.0-alpha'
+        default: 'v0.1.0-beta'
   # Allows releases when workflow_dispatch is unavailable (e.g. narrow GitHub tokens):
   # create an annotated tag on main and push it — GoReleaser runs for that tag.
   push:
