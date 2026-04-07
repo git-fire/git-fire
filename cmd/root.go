@@ -153,7 +153,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Load plugins from config (non-fatal: warn and continue on failure)
 	if loadErr := plugins.LoadFromConfig(cfg); loadErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to load plugins from config: %v\n", loadErr)
+		fmt.Fprintf(os.Stderr, "warning: failed to load plugins from config: %s\n", safety.SanitizeText(loadErr.Error()))
 	}
 
 	// Show security notice
@@ -233,12 +233,12 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		}
 		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
 		if enabledErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %v\n", enabledErr)
+			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
 		} else {
 			runPlugins := func(trigger plugins.Trigger) {
 				for _, p := range plugins.FilterPluginsByTrigger(enabledPlugins, trigger) {
 					if pErr := p.Execute(pluginCtx); pErr != nil {
-						fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.Name(), pErr)
+						fmt.Fprintf(os.Stderr, "plugin %s: %s\n", p.Name(), safety.SanitizeText(pErr.Error()))
 					}
 				}
 			}
