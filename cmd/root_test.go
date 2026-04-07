@@ -730,6 +730,68 @@ func TestCmdPluginLoggerError_SanitizesOutput(t *testing.T) {
 	}
 }
 
+func TestCmdPluginLoggerInfo_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	logger := &cmdPluginLogger{}
+	logger.Info("plugin info: https://user:supersecret@github.com/org/repo.git")
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stdout pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
+func TestCmdPluginLoggerSuccess_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	logger := &cmdPluginLogger{}
+	logger.Success("plugin success: https://user:supersecret@github.com/org/repo.git")
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stdout pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
 func TestShouldRunPostRunPlugins(t *testing.T) {
 	tests := []struct {
 		name     string

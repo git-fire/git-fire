@@ -999,8 +999,8 @@ func handleStatus() error {
 // cmdPluginLogger satisfies plugins.Logger for post-run plugin execution.
 type cmdPluginLogger struct{}
 
-func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", msg) }
-func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", msg) }
+func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", safety.SanitizeText(msg)) }
+func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", safety.SanitizeText(msg)) }
 func (l *cmdPluginLogger) Error(msg string, err error) {
 	safeMsg := safety.SanitizeText(msg)
 	if err == nil {
