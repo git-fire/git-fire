@@ -319,7 +319,7 @@ func (m RepoSelectorLiteModel) View() string {
 	s.WriteString(help)
 
 	if m.lastErr != nil {
-		s.WriteString(fmt.Sprintf("\n\n⚠️  registry save failed: %v", m.lastErr))
+		fmt.Fprintf(&s, "\n\n⚠️  registry save failed: %v", m.lastErr)
 	}
 
 	return liteBoxStyle.Render(s.String())
@@ -338,7 +338,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 			if m.ignoredCursor == i {
 				cursor = ">"
 			}
-			s.WriteString(fmt.Sprintf("%s %s\n", cursor, AbbreviateUserHome(e.Path)))
+			fmt.Fprintf(&s, "%s %s\n", cursor, AbbreviateUserHome(e.Path))
 		}
 	}
 	help := liteHelpStyle.Render(
@@ -348,7 +348,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 	)
 	s.WriteString(help)
 	if m.lastErr != nil {
-		s.WriteString(fmt.Sprintf("\n\n⚠️  %v", m.lastErr))
+		fmt.Fprintf(&s, "\n\n⚠️  %v", m.lastErr)
 	}
 	return liteBoxStyle.Render(s.String())
 }

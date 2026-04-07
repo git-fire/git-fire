@@ -1223,7 +1223,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			} else if len([]rune(displayPath)) > maxPathCols {
 				displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
 			}
-			s.WriteString(fmt.Sprintf("%s %s\n", cur, displayPath))
+			fmt.Fprintf(&s, "%s %s\n", cur, displayPath)
 		}
 
 		if hasBelow {
