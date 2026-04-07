@@ -45,6 +45,14 @@ For historical planning context, see docs listed under "Historical / archive" in
 - Restore/replay tooling from structured logs.
 - Additional backup destinations and redundancy layers (including planned USB mode).
 
+## Ideas / Future Exploration
+
+These are not committed to any release — early-stage thinking worth tracking.
+
+- **Arbitrary file capture into portable git repo:** extend git-fire beyond existing git repos to capture arbitrary files and directories (non-repo paths) by initializing a temporary git repo and committing them. Target use case: red team operators and security practitioners who need to stash tooling, notes, findings, or other artifacts into a git-backed portable archive at the end of an engagement — whether those artifacts live in a git repo or not. Natural extension of the USB mode direction.
+
+- **Document and artifact stashing:** companion to the above — a lightweight `git-fire stash <path>` style command that captures any file or directory into a named, portable git repo on a configured destination (remote, USB, or local archive path). Non-destructive, auditable, and consistent with git-fire's safety-first design.
+
 ## Notes
 
 - This file is the active roadmap summary.

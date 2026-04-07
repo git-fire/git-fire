@@ -76,6 +76,11 @@ func defaultPatterns() []SecretPattern {
 			Description: "GitHub OAuth Token",
 		},
 		{
+			Name:        "GitLab Personal Access Token",
+			Pattern:     regexp.MustCompile(`(?i)glpat-[0-9a-zA-Z_\-]{20,}`),
+			Description: "GitLab personal access token",
+		},
+		{
 			Name:        "Private Key Header",
 			Pattern:     regexp.MustCompile(`-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----`),
 			Description: "Private Key",

@@ -13,6 +13,8 @@
   <a href="https://discord.gg/pjkVMSpT7j"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
+> 🌐 [git-fire.com](https://git-fire.com) — redirects here. A dedicated site is planned once the community grows.
+
 > In case of fire:
 > 1. `git-fire`
 > 2. Leave building
@@ -99,7 +101,7 @@ curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/RELEASE_TAG/scrip
 | Method | Command | Platform |
 |---|---|---|
 | Homebrew | `brew install git-fire/tap/git-fire` | macOS, Linuxbrew |
-| WinGet | `winget install git-fire.git-fire` | Windows |
+| WinGet | `winget install git-fire` (or `winget install git-fire.git-fire`) | Windows |
 | Linux install script | `curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh \| bash` | Linux |
 | Linux package | Download `.deb` or `.rpm` from [GitHub Releases](https://github.com/git-fire/git-fire/releases) | Linux |
 | Go | `go install github.com/git-fire/git-fire@latest` | All (Go 1.24.2+) |
@@ -121,6 +123,12 @@ brew install git-fire
 ```
 
 ### WinGet (Windows)
+
+```powershell
+winget install git-fire
+```
+
+If the short form isn't available yet, use the explicit package ID:
 
 ```powershell
 winget install git-fire.git-fire
@@ -361,6 +369,8 @@ To report security issues privately, use [SECURITY.md](SECURITY.md).
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API.
 
 ## License
 
