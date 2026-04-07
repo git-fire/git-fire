@@ -1,15 +1,15 @@
 # Git-Fire Roadmap (Current)
 
-This roadmap tracks current priorities for alpha hardening and near-term follow-up.
+This roadmap tracks current priorities for beta stabilization and near-term follow-up.
 It intentionally avoids stale week-by-week timelines and historical metrics.
 
 For historical planning context, see docs listed under "Historical / archive" in [docs/README.md](docs/README.md).
 
-## Current Alpha Priorities
+## Current Beta Priorities
 
 ### P0 - Trust and release readiness
 
-- [x] Keep README and docs aligned with shipped behavior on `main` (alpha docs overhaul pass).
+- [x] Keep README and docs aligned with shipped behavior on `main` (docs overhaul pass).
 - [x] Complete docs clarity pass for first-run safety (`--dry-run`, `--path`, trust notes).
 - [x] Add/maintain clear security reporting policy (`SECURITY.md`).
 
@@ -19,7 +19,7 @@ For historical planning context, see docs listed under "Historical / archive" in
 - [ ] Re-enable lint job in `.github/workflows/ci.yml`.
 - [ ] Keep `go build`, `go vet`, and `go test -race -count=1 ./...` green on PRs.
 
-### P1 - Alpha feature completion
+### P1 - Feature completion
 
 - [ ] Plugin CLI auto-loading from config (`v0.2` target).
 - [ ] `--backup-to` implementation (`v0.2` target).
@@ -48,5 +48,5 @@ For historical planning context, see docs listed under "Historical / archive" in
 ## Notes
 
 - This file is the active roadmap summary.
-- Historical deep planning artifacts should stay out of user-facing alpha claims unless refreshed.
+- Historical deep planning artifacts should stay out of user-facing status claims unless refreshed.
 

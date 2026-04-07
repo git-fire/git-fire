@@ -6,7 +6,7 @@ Use this playbook to run an announcement wave without drifting message or over-p
 
 - Core promise: one command to checkpoint many local git repos safely.
 - Primary value: preserve local-only work before context switches, risky refactors, travel, or outages.
-- Trust posture: alpha software with clear constraints and safety-first defaults.
+- Trust posture: beta software with clear constraints and safety-first defaults.
 
 ## Required message blocks
 
@@ -15,7 +15,7 @@ Every post should include:
 1. Problem in one sentence.
 2. What `git-fire` does in one sentence.
 3. Fast proof path (`--dry-run`, then real run).
-4. Current status (`alpha`/`beta`/`stable`) that matches the release tag.
+4. Current status (beta today; stable once `vX.Y.Z` is published) that matches the release tag.
 5. Link to repo and install docs.
 
 ## Canonical 30-second demo
@@ -76,7 +76,7 @@ Quick start:
 1. `git-fire --dry-run --path ~/projects`
 2. `git-fire`
 
-Status: <alpha|beta|stable> (tag: <vX.Y.Z or prerelease tag>)
+Status: <beta|stable> (tag: <vX.Y.Z>)
 
 Repo + docs: https://github.com/git-fire/git-fire
 Would love brutal feedback on UX, edge cases, and failure modes.

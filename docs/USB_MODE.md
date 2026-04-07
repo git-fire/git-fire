@@ -1,6 +1,6 @@
 # USB Mode (Planned)
 
-`git-fire` USB mode is a planned feature and is not part of current alpha behavior.
+`git-fire` USB mode is a planned feature and is not part of current beta behavior.
 
 ## Intended Scope
 
@@ -16,7 +16,7 @@
 
 ## Current Recommendation
 
-For alpha users who need offline redundancy now:
+For beta users who need offline redundancy now:
 
 - use `git-fire` for remote checkpointing first
 - layer a separate filesystem backup workflow for local/offline copies
