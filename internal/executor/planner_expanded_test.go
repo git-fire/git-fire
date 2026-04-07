@@ -396,6 +396,16 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	if len(plan.Actions) == 0 || plan.Actions[0].Type != ActionCreateFireBranch {
 		t.Fatalf("Expected first action to be create-fire-branch, got %#v", plan.Actions)
 	}
+	foundPlaceholderPush := false
+	for _, action := range plan.Actions {
+		if action.Type == ActionPushBranch && action.Branch == fireBranchPlaceholder {
+			foundPlaceholderPush = true
+			break
+		}
+	}
+	if !foundPlaceholderPush {
+		t.Fatalf("Expected conflicting remote push to use placeholder branch, got %#v", plan.Actions)
+	}
 	if plan.FireBranch != fireBranchPlaceholder {
 		t.Fatalf("Expected fire branch placeholder to be set, got %q", plan.FireBranch)
 	}
@@ -429,5 +439,37 @@ func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
 	}
 	if plan.FireBranch != "" {
 		t.Fatalf("Expected FireBranch cleared on abort, got %q", plan.FireBranch)
+	}
+}
+
+func TestBuildPlan_ConflictStrategyAbort_Stats(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	planner := NewPlanner(&cfg)
+
+	repos := []git.Repository{
+		{
+			Path:     repo.Path(),
+			Name:     "local",
+			Selected: true,
+			Mode:     git.ModePushCurrentBranch,
+			Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+		},
+	}
+
+	plan, err := planner.BuildPlan(repos, false)
+	if err != nil {
+		t.Fatalf("BuildPlan() error = %v", err)
+	}
+	if plan.Conflicts != 1 {
+		t.Fatalf("Expected 1 conflict in plan stats, got %d", plan.Conflicts)
+	}
+	if plan.FireBranches != 0 {
+		t.Fatalf("Expected 0 fire branches for abort strategy, got %d", plan.FireBranches)
+	}
+	if len(plan.Repos) != 1 || !plan.Repos[0].Skip {
+		t.Fatalf("Expected one skipped repo plan for abort strategy, got %#v", plan.Repos)
 	}
 }
