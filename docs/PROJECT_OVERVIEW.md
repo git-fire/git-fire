@@ -124,6 +124,8 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Coverage is tracked per package with a risk-based focus, not a single global gate.
 - UI testing remains intentionally limited compared to non-UI packages.
 - Integration tests using real `git` are preferred over mocking.
+- Manual smoke fixtures for OSS testers live in `scripts/setup-manual-smoke-fixtures.sh`, `scripts/setup-manual-smoke-stages.sh`, and `scripts/run-manual-smoke-stage.sh`.
+- Future enhancement target: add stage outcome verification script for pass/fail assertions after manual runs.
 
 ## Maturity and Risk
 
