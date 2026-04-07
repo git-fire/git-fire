@@ -77,7 +77,7 @@ func defaultPatterns() []SecretPattern {
 		},
 		{
 			Name:        "GitLab Personal Access Token",
-			Pattern:     regexp.MustCompile(`glpat-[0-9a-zA-Z_\-]{20,}`),
+			Pattern:     regexp.MustCompile(`(?i)glpat-[0-9a-zA-Z_\-]{20,}`),
 			Description: "GitLab personal access token",
 		},
 		{
