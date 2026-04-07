@@ -27,11 +27,19 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --root)
-            ROOT="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+                echo "Error: --root requires a directory argument" >&2
+                exit 1
+            fi
+            ROOT="$2"
             shift 2
             ;;
         --profile)
-            PROFILE="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+                echo "Error: --profile requires a profile argument" >&2
+                exit 1
+            fi
+            PROFILE="$2"
             shift 2
             ;;
         --reset)

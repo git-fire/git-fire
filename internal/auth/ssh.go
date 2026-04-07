@@ -25,9 +25,14 @@ type SSHKey struct {
 
 // SSHAgent represents the SSH agent status
 type SSHAgent struct {
-	Running bool     // Is ssh-agent running?
-	Socket  string   // SSH_AUTH_SOCK path
-	Keys    []SSHKey // Keys loaded in agent
+	Running bool   // Is ssh-agent running?
+	Socket  string // SSH_AUTH_SOCK path
+	// Keys loaded in agent. Inspect only when KeysKnown is true.
+	Keys []SSHKey
+	// KeysKnown is true only when ssh-add probing completed successfully.
+	// When false, loaded-key status is unknown and callers should not infer
+	// "no keys loaded" from an empty Keys slice.
+	KeysKnown bool
 	// Error records non-fatal status probe failures when SSH_AUTH_SOCK is set
 	// but ssh-add cannot be executed or parsed reliably.
 	Error string
@@ -128,6 +133,7 @@ func CheckSSHAgent() (*SSHAgent, error) {
 			if lowerOutput == "" ||
 				strings.Contains(lowerOutput, "no identities") ||
 				strings.Contains(lowerOutput, "the agent has no identities") {
+				agent.KeysKnown = true
 				return agent, nil
 			}
 		}
@@ -137,6 +143,7 @@ func CheckSSHAgent() (*SSHAgent, error) {
 	}
 
 	// Parse output
+	agent.KeysKnown = true
 	// Format: "2048 SHA256:abc123... user@host (RSA)"
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
@@ -431,21 +438,23 @@ func GetSSHStatus() (*SSHStatus, error) {
 	status.Agent = agent
 
 	// Mark which keys are loaded
-	for i := range status.AvailableKeys {
-		key := &status.AvailableKeys[i]
+	if agent.KeysKnown {
+		for i := range status.AvailableKeys {
+			key := &status.AvailableKeys[i]
 
-		// Check if this key is loaded in agent
-		for _, agentKey := range agent.Keys {
-			if agentKey.Fingerprint == key.Fingerprint {
-				key.IsLoaded = true
-				break
+			// Check if this key is loaded in agent
+			for _, agentKey := range agent.Keys {
+				if agentKey.Fingerprint == key.Fingerprint {
+					key.IsLoaded = true
+					break
+				}
 			}
-		}
 
-		// Check if key needs passphrase
-		if !key.IsLoaded {
-			encrypted, _ := IsKeyEncrypted(key.Path)
-			key.NeedsPass = encrypted
+			// Check if key needs passphrase
+			if !key.IsLoaded {
+				encrypted, _ := IsKeyEncrypted(key.Path)
+				key.NeedsPass = encrypted
+			}
 		}
 	}
 
@@ -466,7 +475,11 @@ func (s *SSHStatus) Summary() string {
 
 	if s.Agent.Running {
 		sb.WriteString(fmt.Sprintf("  ✓ ssh-agent running (socket: %s)\n", s.Agent.Socket))
-		sb.WriteString(fmt.Sprintf("  ✓ %d key(s) loaded in agent\n", len(s.Agent.Keys)))
+		if s.Agent.KeysKnown {
+			sb.WriteString(fmt.Sprintf("  ✓ %d key(s) loaded in agent\n", len(s.Agent.Keys)))
+		} else {
+			sb.WriteString("  ? key inventory unavailable (agent probe did not complete)\n")
+		}
 		if s.Agent.Error != "" {
 			sb.WriteString(fmt.Sprintf("  ⚠ agent status warning: %s\n", s.Agent.Error))
 		}
@@ -476,7 +489,10 @@ func (s *SSHStatus) Summary() string {
 
 	sb.WriteString(fmt.Sprintf("\nAvailable SSH keys: %d\n", len(s.AvailableKeys)))
 	for _, key := range s.AvailableKeys {
-		status := "✗"
+		status := "?"
+		if s.Agent.KeysKnown {
+			status = "✗"
+		}
 		if key.IsLoaded {
 			status = "✓"
 		}

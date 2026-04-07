@@ -139,6 +139,9 @@ func TestCheckSSHAgent_ProbeFailureIsNonFatalAndVisible(t *testing.T) {
 	if agent.Error == "" {
 		t.Fatal("Expected non-fatal probe warning when ssh-add exits unexpectedly")
 	}
+	if agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=false when probe fails")
+	}
 }
 
 func TestCheckSSHAgent_NoKeysExitCodeIsTreatedAsHealthy(t *testing.T) {
@@ -163,6 +166,9 @@ func TestCheckSSHAgent_NoKeysExitCodeIsTreatedAsHealthy(t *testing.T) {
 	if len(agent.Keys) != 0 {
 		t.Fatalf("Expected no loaded keys, got %d", len(agent.Keys))
 	}
+	if !agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=true for successful no-identities probe")
+	}
 }
 
 func TestCheckSSHAgent_MissingSshAddIsVisible(t *testing.T) {
@@ -179,6 +185,9 @@ func TestCheckSSHAgent_MissingSshAddIsVisible(t *testing.T) {
 	}
 	if !strings.Contains(agent.Error, "ssh-add not found") {
 		t.Fatalf("Expected missing ssh-add warning, got %q", agent.Error)
+	}
+	if agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=false when ssh-add is missing")
 	}
 }
 
