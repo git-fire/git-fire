@@ -1,8 +1,8 @@
 # Git Fire - Multi-Repo Checkpoint CLI
 
 <p align="center">
-  <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
-  <img src="assets/git-fire-lockup-dark.svg#gh-dark-mode-only" alt="git-fire: flame and git node with wordmark" width="280" height="160">
+  <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: commit node, edge, flame, wordmark" width="220" height="80">
+  <img src="assets/git-fire-lockup-dark.svg#gh-dark-mode-only" alt="git-fire: commit node, edge, flame, wordmark" width="220" height="80">
 </p>
 
 <p align="center">

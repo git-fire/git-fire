@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160" width="300" height="160">
+  <defs>
+    <linearGradient id="v1l-fg" x1="0.3" y1="1" x2="0.55" y2="0">
+      <stop offset="0%"   stop-color="#B82E00"/>
+      <stop offset="40%"  stop-color="#E5650A"/>
+      <stop offset="75%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D040"/>
+    </linearGradient>
+    <linearGradient id="v1l-fgi" x1="0.35" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FEEEA0"/>
+    </linearGradient>
+    <radialGradient id="v1l-glow" cx="50%" cy="85%" r="55%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.50"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Mark (flame + wick + node)  all shifted so mark center x=50 -->
+  <ellipse cx="50" cy="148" rx="22" ry="6" fill="url(#v1l-glow)"/>
+  <circle cx="50" cy="138" r="9"  fill="#2A2A2A" opacity="0.32"/>
+  <circle cx="50" cy="138" r="5"  fill="#3A3A3A" opacity="0.22"/>
+  <line x1="50" y1="129" x2="50" y2="108"
+        stroke="#2A2A2A" stroke-width="2.5" opacity="0.48"
+        stroke-linecap="round" stroke-dasharray="3,2.5"/>
+  <path d="
+    M50,108
+    C34,99 24,82 26,60
+    C28,40 39,24 50,18
+    C62,26 72,42 73,62
+    C74,84 64,99 50,108
+    Z"
+    fill="url(#v1l-fg)" opacity="0.98"/>
+  <path d="
+    M49,99
+    C41,91 36,76 38,59
+    C40,45 46,33 49,27
+    C54,33 59,46 60,60
+    C62,77 56,91 49,99
+    Z"
+    fill="url(#v1l-fgi)" opacity="0.40"/>
+
+  <!-- Wordmark: vertically centered on flame body (y=18 top, y=108 base ’ center y=63) -->
+  <text
+    x="88" y="63"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="34"
+    font-weight="500"
+    letter-spacing="-0.2"
+    fill="#1C1C1C"
+    dominant-baseline="middle">git-fire</text>
+</svg>
