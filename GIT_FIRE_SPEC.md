@@ -1,6 +1,7 @@
 # Git Fire — behavior spec (implementation-aligned)
 
 **Status:** Alpha. This document describes **what the current codebase does**. Roadmap-only ideas are labeled **planned** or **deferred** explicitly.
+This document also serves as written behavior/spec context for requirements validation and exploratory sections, but alpha release decisions should defer to `README.md` and shipped code on `main` when mismatches exist.
 
 **Canonical sources:** `cmd/root.go`, `internal/config/{types,defaults,loader}.go`, `internal/git`, `internal/executor`, `internal/registry`, `PLUGINS.md`, `.github/workflows/ci.yml`.
 
