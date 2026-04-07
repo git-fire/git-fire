@@ -140,15 +140,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 		return repoPlan, nil
 	}
 
-	// Step 1: Auto-commit if dirty
-	if repo.IsDirty && p.effectiveAutoCommitDirty(repo) {
-		repoPlan.Actions = append(repoPlan.Actions, Action{
-			Type:        ActionAutoCommit,
-			Description: "Auto-commit uncommitted changes",
-		})
-	}
-
-	// Step 2+3: Determine push strategy and add an action for every remote.
+	// Step 1+2: Determine push strategy and add an action for every remote.
 	// In an emergency every configured remote is a backup destination.
 	//
 	// The default mode pushes only the currently checked-out branch. We resolve
@@ -242,12 +234,31 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 		}
 	}
 
+	// Auto-commit only when there is an actual push action to execute.
+	// This avoids creating backup branches when conflict_strategy=abort skips
+	// every remote (single-remote divergence), preserving prior skip semantics.
+	if repo.IsDirty && p.effectiveAutoCommitDirty(repo) && repoPlanHasPushAction(repoPlan.Actions) {
+		repoPlan.Actions = append([]Action{{
+			Type:        ActionAutoCommit,
+			Description: "Auto-commit uncommitted changes",
+		}}, repoPlan.Actions...)
+	}
+
 	return repoPlan, nil
 }
 
 func repoPlanHasFireCreateAction(actions []Action) bool {
 	for _, action := range actions {
 		if action.Type == ActionCreateFireBranch {
+			return true
+		}
+	}
+	return false
+}
+
+func repoPlanHasPushAction(actions []Action) bool {
+	for _, action := range actions {
+		if action.Type == ActionPushBranch || action.Type == ActionPushAll || action.Type == ActionPushKnown {
 			return true
 		}
 	}

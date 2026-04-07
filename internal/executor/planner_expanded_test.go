@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/git-fire/git-fire/internal/config"
@@ -482,6 +484,38 @@ func TestBuildRepoPlan_ConflictStrategyAbort(t *testing.T) {
 	for _, a := range plan.Actions {
 		if a.Type == ActionCreateFireBranch {
 			t.Fatalf("abort strategy should not create fire branch, got %#v", plan.Actions)
+		}
+	}
+}
+
+func TestBuildRepoPlan_ConflictStrategyAbort_AllRemotesSkippedOmitsAutoCommit(t *testing.T) {
+	_, repo, remote := testutil.CreateConflictScenario(t)
+
+	// Make the local repo dirty to ensure auto-commit would otherwise be planned.
+	if err := os.WriteFile(filepath.Join(repo.Path(), "dirty.txt"), []byte("dirty\n"), 0o600); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "abort"
+	cfg.Global.AutoCommitDirty = true
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		IsDirty:  true,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+
+	for _, a := range plan.Actions {
+		if a.Type == ActionAutoCommit {
+			t.Fatalf("abort-all-skipped should not include auto-commit, got actions %#v", plan.Actions)
 		}
 	}
 }

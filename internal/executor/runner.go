@@ -158,11 +158,6 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 					remotes = append(remotes, pending.Remote)
 				}
 			}
-			if len(remotes) == 0 {
-				for _, remote := range repoPlan.Repo.Remotes {
-					remotes = append(remotes, remote.Name)
-				}
-			}
 
 			replacementPushes := make([]Action, 0, len(remotes)*len(createdBranches))
 			for _, remote := range remotes {

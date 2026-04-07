@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -384,6 +385,49 @@ func TestRunner_Execute_UsesDualBranchPushes(t *testing.T) {
 		if strings.HasPrefix(b, currentBranch) {
 			t.Errorf("expected backup branch push, got current branch %q", b)
 		}
+	}
+}
+
+func TestRunner_ExecuteRepo_AutoCommitDoesNotFallbackPushWhenNoPushActions(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+	repo.AddFile("dirty.txt", "dirty\n")
+
+	repoPlan := RepoPlan{
+		Repo: git.Repository{
+			Path: repo.Path(),
+			Name: "dirty-repo",
+			Remotes: []git.Remote{
+				{Name: "origin", URL: remote.Path()},
+			},
+		},
+		Actions: []Action{
+			{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
+			{Type: ActionSkip, Description: "Skip push to origin: diverged"},
+		},
+	}
+
+	result := runner.executeRepo(repoPlan, 1, 1)
+	if !result.Success {
+		t.Fatalf("expected repo execution to succeed without push fallback, got error: %v", result.Error)
+	}
+
+	cmd := exec.Command("git", "-C", remote.Path(), "for-each-ref", "--format=%(refname:short)", "refs/heads/git-fire-*")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("failed to inspect remote refs: %v output=%s", err, string(out))
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		t.Fatalf("expected no fallback push of backup branches to remote, got refs:\n%s", string(out))
 	}
 }
 
