@@ -902,6 +902,61 @@ func TestRunner_ExecuteStream_DryRun_SkippedNotCountedAsSuccess(t *testing.T) {
 	}
 }
 
+func TestRunner_ExecuteStream_DryRun_SkipsConflictDetection(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	runner := NewRunner(&cfg)
+	defer runner.Close()
+
+	go func() {
+		for range runner.ProgressChan() {
+		}
+	}()
+
+	_, local, remote := testutil.CreateConflictScenario(t)
+
+	repoChan := make(chan git.Repository, 1)
+	repoChan <- git.Repository{
+		Path:     local.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	}
+	close(repoChan)
+
+	planner := NewPlanner(&cfg)
+	var total int64 = 1
+	result, err := runner.ExecuteStream(repoChan, planner, true, &total)
+	if err != nil {
+		t.Fatalf("ExecuteStream() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	repoResult := result.RepoResults[0]
+	if !repoResult.Success {
+		t.Fatalf("expected dry-run repo result to be success, got %+v", repoResult)
+	}
+
+	var sawPush bool
+	for _, action := range repoResult.Actions {
+		if action.Type == ActionCreateFireBranch {
+			t.Fatalf("dry-run stream should skip conflict detection and fire branch planning: %#v", repoResult.Actions)
+		}
+		if action.Type == ActionPushBranch {
+			sawPush = true
+			if action.Branch == fireBranchPlaceholder {
+				t.Fatalf("dry-run stream should not include placeholder fire-branch push: %#v", repoResult.Actions)
+			}
+		}
+	}
+	if !sawPush {
+		t.Fatalf("expected a normal push action, got %#v", repoResult.Actions)
+	}
+}
+
 func TestDryRunExecute_SkippedAggregatesLikeLiveRun(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)
@@ -910,10 +965,10 @@ func TestDryRunExecute_SkippedAggregatesLikeLiveRun(t *testing.T) {
 		DryRun: true,
 		Repos: []RepoPlan{
 			{
-				Repo:        git.Repository{Path: "/tmp/skipped", Name: "skipped"},
-				Skip:        true,
-				SkipReason:  "No remotes configured",
-				Actions:     []Action{{Type: ActionPushAll, Description: "noop"}},
+				Repo:       git.Repository{Path: "/tmp/skipped", Name: "skipped"},
+				Skip:       true,
+				SkipReason: "No remotes configured",
+				Actions:    []Action{{Type: ActionPushAll, Description: "noop"}},
 			},
 			{
 				Repo: git.Repository{Path: "/tmp/fake-repo", Name: "would-run"},
