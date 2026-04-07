@@ -1,51 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 160" width="280" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" width="220" height="80">
   <defs>
-    <linearGradient id="fg-d" x1="0.2" y1="1" x2="0.5" y2="0">
-      <stop offset="0%"   stop-color="#B82E00"/>
-      <stop offset="45%"  stop-color="#E5650A"/>
-      <stop offset="80%"  stop-color="#F09520"/>
-      <stop offset="100%" stop-color="#F8D040"/>
+    <linearGradient id="flame-ld" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#D03600"/>
+      <stop offset="60%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D848"/>
     </linearGradient>
-    <linearGradient id="fgi-d" x1="0.3" y1="1" x2="0.4" y2="0">
-      <stop offset="0%"   stop-color="#F07818"/>
-      <stop offset="100%" stop-color="#FDE870"/>
-    </linearGradient>
-    <radialGradient id="glow-d" cx="50%" cy="90%" r="60%">
-      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
-    </radialGradient>
   </defs>
-
-  <ellipse cx="42" cy="136" rx="22" ry="7" fill="url(#glow-d)"/>
-
-  <circle cx="42" cy="136" r="12" fill="#FFFFFF" opacity="0.10"/>
-
-  <line x1="42" y1="124" x2="42" y2="104" stroke="#FFFFFF" stroke-width="2.2" opacity="0.22" stroke-linecap="round"/>
-
-  <path d="
-    M42,104
-    C26,96 16,80 18,60
-    C20,42 30,26 42,18
-    C54,26 64,42 66,60
-    C68,80 58,96 42,104
-    Z"
-    fill="url(#fg-d)" opacity="0.97"/>
-
-  <path d="
-    M42,96
-    C32,88 26,74 28,58
-    C30,44 36,32 42,26
-    C48,32 54,44 56,58
-    C58,74 52,88 42,96
-    Z"
-    fill="url(#fgi-d)" opacity="0.50"/>
-
+  <circle cx="30" cy="68" r="6.5" fill="#E0E0E0"/>
+  <line x1="30" y1="62" x2="30" y2="46"
+        stroke="#E0E0E0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M30,46 C22,40 16,32 18,20 C20,10 25,4 30,2 C35,5 40,13 41,22 C43,35 38,41 30,46 Z"
+        fill="url(#flame-ld)"/>
   <text
-    x="82" y="83"
+    x="58" y="38"
     font-family="system-ui, -apple-system, sans-serif"
-    font-size="36"
+    font-size="28"
     font-weight="500"
-    letter-spacing="0.5"
+    letter-spacing="-0.2"
     fill="#E6EDF3"
     dominant-baseline="middle">git-fire</text>
 </svg>
