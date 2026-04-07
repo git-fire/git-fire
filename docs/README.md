@@ -16,6 +16,8 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 - Agent workflows and automation patterns: [agentic-flows.md](agentic-flows.md)
 - Security and operations checkpoint workflows: [security-ops.md](security-ops.md)
 - Persistent repository registry internals: [REGISTRY.md](REGISTRY.md)
+- Homebrew release runbook (maintainers): [HOMEBREW_RELEASE_RUNBOOK.md](HOMEBREW_RELEASE_RUNBOOK.md)
+- WinGet release runbook (maintainers): [WINGET_RELEASE_RUNBOOK.md](WINGET_RELEASE_RUNBOOK.md)
 - Plugin examples: [../examples/plugins/s3-upload.md](../examples/plugins/s3-upload.md)
 
 ## Reference
