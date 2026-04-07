@@ -16,7 +16,7 @@ func TestNewLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	if logger.LogPath() == "" {
 		t.Error("LogPath() should not be empty")
@@ -40,7 +40,7 @@ func TestLogger_FilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	info, err := os.Stat(logger.LogPath())
 	if err != nil {
@@ -59,7 +59,7 @@ func TestLogger_Info(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	logger.Info("myrepo", "test-action", "hello world")
 
@@ -79,7 +79,7 @@ func TestLogger_Error(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	testErr := &testError{"something failed"}
 	logger.Error("myrepo", "push", "push failed", testErr)
@@ -100,7 +100,7 @@ func TestLogger_Error_MasksURLCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	logger.Error("myrepo", "push", "push failed",
 		&testError{"remote: https://user:s3cr3tpassword@github.com/org/repo.git"})
@@ -124,7 +124,7 @@ func TestLogger_Error_MasksKeyValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	logger.Error("myrepo", "push", "auth failed",
 		&testError{"API_KEY=supersecrettoken123"})
@@ -148,7 +148,7 @@ func TestLogger_Error_Nil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	// Should not panic on nil error
 	logger.Error("repo", "action", "desc", nil)
@@ -160,7 +160,7 @@ func TestLogger_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	logger.Success("myrepo", "push", "pushed 3 branches", 2*time.Second)
 
@@ -180,7 +180,7 @@ func TestLogger_LogResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	result := &ExecutionResult{
 		Success:  2,
@@ -228,7 +228,7 @@ func TestLogger_ValidJSON(t *testing.T) {
 	logger.Info("repo", "action", "description")
 	logger.Error("repo", "action", "failed", &testError{"oops"})
 	logger.Success("repo", "action", "done", time.Second)
-	logger.Close()
+	_ = logger.Close()
 
 	data, err := os.ReadFile(logger.LogPath())
 	if err != nil {

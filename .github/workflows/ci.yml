@@ -10,22 +10,18 @@ permissions:
   contents: read
 
 jobs:
-  # lint: DISABLED — golangci-lint v2 config migration in progress.
-  #   Baseline static analysis: go vet runs in the test job below.
-  #   Re-enable once .golangci.yml is migrated to v2 format.
-  #   Tracking: https://github.com/git-fire/git-fire/issues — see ROADMAP.md P0.
-  # lint:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: go.mod
-  #         cache: false
-  #     - uses: golangci/golangci-lint-action@v7
-  #       with:
-  #         version: v2.11.4
-  #         args: --timeout=5m
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+          args: --timeout=5m
 
   test:
     runs-on: ubuntu-latest

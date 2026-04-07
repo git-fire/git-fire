@@ -1010,7 +1010,7 @@ func TestRunner_ExecuteStream(t *testing.T) {
 	close(repoChan)
 
 	planner := NewPlanner(&cfg)
-	var total int64 = int64(len(repos))
+	total := int64(len(repos))
 
 	result, err := runner.ExecuteStream(repoChan, planner, false, &total)
 	if err != nil {

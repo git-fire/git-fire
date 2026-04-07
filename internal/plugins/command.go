@@ -121,7 +121,7 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 
 	select {
 	case <-time.After(p.timeout):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return fmt.Errorf("command timed out after %v", p.timeout)
 
 	case err := <-done:
@@ -135,7 +135,7 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 			ctx.Logger.Debug(fmt.Sprintf("Output: %s", safety.SanitizeText(stdout.String())))
 		}
 
-		ctx.Logger.Success(fmt.Sprintf("Command completed successfully"))
+		ctx.Logger.Success("Command completed successfully")
 		return nil
 	}
 }

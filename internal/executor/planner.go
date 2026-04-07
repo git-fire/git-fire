@@ -303,7 +303,7 @@ func (p *PushPlan) Summary() string {
 		return "No repositories selected for push."
 	}
 
-	summary := fmt.Sprintf("Push Plan:\n")
+	summary := "Push Plan:\n"
 	summary += fmt.Sprintf("  Total repositories: %d\n", p.TotalRepos)
 	summary += fmt.Sprintf("  Dirty repositories: %d\n", p.DirtyRepos)
 
