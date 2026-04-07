@@ -10,7 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  # TODO: golangci-lint v2 config migration in progress — re-enable once complete
+  # lint: DISABLED — golangci-lint v2 config migration in progress.
+  #   Baseline static analysis: go vet runs in the test job below.
+  #   Re-enable once .golangci.yml is migrated to v2 format.
+  #   Tracking: https://github.com/git-fire/git-fire/issues — see ROADMAP.md P0.
   # lint:
   #   runs-on: ubuntu-latest
   #   steps:
