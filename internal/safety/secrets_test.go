@@ -163,6 +163,29 @@ func TestScanFileContent_DatabaseURL(t *testing.T) {
 	}
 }
 
+func TestScanFileContent_GitLabToken(t *testing.T) {
+	scanner := NewSecretScanner()
+	tmpDir := t.TempDir()
+
+	testFile := filepath.Join(tmpDir, "token.txt")
+	// GitLab PAT format: glpat- + 20+ alphanumeric/dash/underscore chars
+	content := `
+GITLAB_TOKEN=glpat-abcdefghij1234567890
+`
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	results, err := scanner.scanFileContent(testFile)
+	if err != nil {
+		t.Fatalf("scanFileContent() error = %v", err)
+	}
+
+	if len(results) == 0 {
+		t.Error("Expected to detect GitLab personal access token")
+	}
+}
+
 func TestScanFileContent_CleanFile(t *testing.T) {
 	scanner := NewSecretScanner()
 	tmpDir := t.TempDir()
