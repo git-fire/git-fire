@@ -439,6 +439,68 @@ func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushe
 	}
 }
 
+func TestRunner_Execute_AutoCommitReplacesPushAllWithBackupPushesOnly(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+
+	repo.AddFile("staged.txt", "staged\n")
+	repo.StageFile("staged.txt")
+	repo.AddFile("unstaged.txt", "unstaged\n")
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: repo.Path(),
+					Name: "dirty-repo",
+					Remotes: []git.Remote{
+						{Name: "origin", URL: remote.Path()},
+					},
+				},
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
+					{Type: ActionPushAll, Description: "Push all branches (origin)", Remote: "origin"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	rr := result.RepoResults[0]
+	var broadPushCount int
+	var pushBranchCount int
+	for _, action := range rr.Actions {
+		if action.Type == ActionPushAll || action.Type == ActionPushKnown {
+			broadPushCount++
+		}
+		if action.Type == ActionPushBranch {
+			pushBranchCount++
+		}
+	}
+	if broadPushCount != 0 {
+		t.Fatalf("expected push-all/push-known actions to be replaced after auto-commit, got actions=%#v", rr.Actions)
+	}
+	if pushBranchCount == 0 {
+		t.Fatalf("expected replacement push-branch actions for backup branches, got actions=%#v", rr.Actions)
+	}
+}
+
 func TestRunner_ExecuteActionPushBranch(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)

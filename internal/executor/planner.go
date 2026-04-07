@@ -181,7 +181,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 
 		case git.ModePushCurrentBranch:
 			strategy := "new-branch"
-			if p.config != nil {
+			if p.config != nil && p.config.Global.ConflictStrategy != "" {
 				strategy = p.config.Global.ConflictStrategy
 			}
 			if opts.DetectConflicts && (strategy == "new-branch" || strategy == "abort") {

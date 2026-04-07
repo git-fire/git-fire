@@ -191,7 +191,7 @@ func (r *Runner) executeRepo(repoPlan RepoPlan, current, total int) RepoResult {
 
 			filteredTail := make([]Action, 0, len(actions[i+1:]))
 			for _, pending := range actions[i+1:] {
-				if pending.Type == ActionPushBranch {
+				if pending.Type == ActionPushBranch || pending.Type == ActionPushAll || pending.Type == ActionPushKnown {
 					continue
 				}
 				filteredTail = append(filteredTail, pending)

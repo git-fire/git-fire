@@ -649,6 +649,28 @@ func TestBuildPlan_DryRunSkipsConflictDetection(t *testing.T) {
 	}
 }
 
+func TestBuildRepoPlan_EmptyConflictStrategyStillDetectsConflicts(t *testing.T) {
+	_, local, remote := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "" // simulate manually-constructed config without defaults
+	planner := NewPlanner(&cfg)
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     local.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if !plan.HasConflict {
+		t.Fatalf("expected conflict detection to default to new-branch strategy when config value is empty: %#v", plan)
+	}
+}
+
 func TestBuildPlan_RepoOverrideMode(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Repos = []config.RepoOverride{
