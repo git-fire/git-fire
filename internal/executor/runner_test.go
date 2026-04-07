@@ -430,8 +430,14 @@ func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushe
 	if len(result.RepoResults) != 1 {
 		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
 	}
+	if result.Success != 0 || result.Skipped != 1 {
+		t.Fatalf("expected skip-only repo to aggregate as skipped (success=0, skipped=1), got success=%d skipped=%d", result.Success, result.Skipped)
+	}
 
 	rr := result.RepoResults[0]
+	if rr.Success {
+		t.Fatalf("expected skip-only repo result to be non-success, got %+v", rr)
+	}
 	for _, action := range rr.Actions {
 		if action.Type == ActionAutoCommit {
 			t.Fatalf("expected auto-commit to be skipped when no push actions remain, got actions=%#v", rr.Actions)
