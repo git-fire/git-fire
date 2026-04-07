@@ -6,7 +6,7 @@ Use this checklist for every tagged release.
 
 - Announce releases using plain SemVer tags only (`vX.Y.Z`).
 - Avoid new prerelease tags (`-alpha`, `-beta`, `-rc`) for future releases unless release strategy changes.
-- First stable is usually `v0.1.0`; choose `v0.2.0+` only if you intentionally want to signal a larger scope jump.
+- Next stable target is `v0.2.0`; choose `v0.3.0+` only if you intentionally want to signal a larger scope jump.
 
 ## 1) Preconditions
 

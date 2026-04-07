@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'SemVer tag to release (e.g. v0.1.0)'
+        description: 'SemVer tag to release (e.g. v0.2.0)'
         required: true
         type: string
-        default: 'v0.1.0'
+        default: 'v0.2.0'
   # Allows releases when workflow_dispatch is unavailable (e.g. narrow GitHub tokens):
   # create an annotated tag on main and push it — GoReleaser runs for that tag.
   push:
@@ -112,6 +112,21 @@ jobs:
             exit 1
           fi
 
+      - name: Determine release tag
+        id: release_meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_WORKFLOW_DISPATCH: ${{ needs.tag.outputs.tag }}
+          TAG_PUSH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${TAG_WORKFLOW_DISPATCH}"
+          else
+            TAG="${TAG_PUSH}"
+          fi
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Require pushed tag to target mainline
         if: github.event_name == 'push'
         run: |
@@ -136,3 +151,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Verify Homebrew formula publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_meta.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          for attempt in $(seq 1 18); do
+            FORMULA_B64="$(gh api repos/git-fire/homebrew-tap/contents/Formula/git-fire.rb --jq '.content' 2>/dev/null || true)"
+            if [ -n "$FORMULA_B64" ]; then
+              FORMULA_CONTENT="$(printf '%s' "$FORMULA_B64" | tr -d '\n' | base64 -d)"
+              if printf '%s' "$FORMULA_CONTENT" | grep -q "version \"${RELEASE_VERSION}\"" && \
+                 printf '%s' "$FORMULA_CONTENT" | grep -q "/download/${RELEASE_TAG}/"; then
+                echo "Homebrew formula updated for ${RELEASE_TAG}."
+                exit 0
+              fi
+            fi
+            echo "Homebrew formula not updated for ${RELEASE_TAG} yet (attempt ${attempt}/18)."
+            sleep 10
+          done
+          echo "Homebrew formula did not update for ${RELEASE_TAG}; failing release gate."
+          exit 1
