@@ -217,31 +217,74 @@ func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 	}
 }
 
-func TestHandleInit_ExistingConfig(t *testing.T) {
-	// Create temp directory for config
+func TestHandleInit_ExistingConfig_NonInteractive(t *testing.T) {
+	// Simulate a non-interactive environment by replacing os.Stdin with a pipe.
+	// handleInit should return an error rather than prompt when stdin is not a tty.
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
 
-	// Create config directory and file
-	configDir := filepath.Join(tmpHome, ".config", "git-fire")
-	err := os.MkdirAll(configDir, 0755)
-	if err != nil {
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		t.Fatalf("Failed to create config dir: %v", err)
 	}
+	if err := os.WriteFile(configPath, []byte("# Existing config\n"), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
+	}
 
-	configPath := filepath.Join(configDir, "config.toml")
-	existingContent := "# Existing config\n"
-	err = os.WriteFile(configPath, []byte(existingContent), 0644)
+	// Replace stdin with a pipe so Stat() returns non-character-device mode.
+	r, w, err := os.Pipe()
 	if err != nil {
-		t.Fatalf("Failed to create existing config: %v", err)
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	w.Close()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin; r.Close() }()
+
+	resetFlags()
+	gotErr := handleInit()
+	if gotErr == nil {
+		t.Fatal("handleInit() should return error when config exists in non-interactive env")
+	}
+	if !strings.Contains(gotErr.Error(), "already exists") {
+		t.Errorf("expected 'already exists' error, got: %v", gotErr)
+	}
+}
+
+func TestHandleInit_ForceOverwrite(t *testing.T) {
+	// --force should overwrite an existing config without prompting.
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("# Old config\n"), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
 	}
 
-	// handleInit should detect existing config
-	// Note: In real usage, it would prompt the user
-	// For testing, we can verify the file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Error("Existing config file should be detected")
+	resetFlags()
+	forceInit = true
+	defer func() { forceInit = false }()
+
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with --force error = %v", err)
 	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config after force overwrite: %v", err)
+	}
+	if strings.Contains(string(content), "# Old config") {
+		t.Error("Config was not overwritten by --force")
+	}
+}
+
+func TestCmdPluginLogger_Debug(t *testing.T) {
+	// Debug is a no-op — just confirm it doesn't panic.
+	l := &cmdPluginLogger{}
+	l.Debug("should not panic")
 }
 
 func TestHandleStatus(t *testing.T) {
