@@ -98,6 +98,8 @@ See [../PLUGINS.md](../PLUGINS.md).
 
 ## Architecture
 
+For Mermaid sequence and flow diagrams (CLI routing, default stream path, dry-run, TUI, registry), see [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md).
+
 - `main.go`
 - `cmd/root.go` (Cobra orchestration and flags)
 - `internal/config` (Viper/TOML config loading)

@@ -344,6 +344,7 @@ Plugin docs:
 
 Start with [docs/README.md](docs/README.md).
 
+- Architecture diagrams (Mermaid): [docs/ARCHITECTURE_DIAGRAMS.md](docs/ARCHITECTURE_DIAGRAMS.md)
 - Build from source: [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md)
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
