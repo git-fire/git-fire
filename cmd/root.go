@@ -73,7 +73,7 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.Version = Version
+	rootCmd.Version = resolvedCLIVersion(Version)
 	rootCmd.SilenceUsage = true
 	rootCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be done without making changes")
 	rootCmd.Flags().BoolVar(&fireDrill, "fire-drill", false, "Alias for --dry-run")
