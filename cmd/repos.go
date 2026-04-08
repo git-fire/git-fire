@@ -79,6 +79,9 @@ func loadRegistry() (*registry.Registry, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("registry path: %w", err)
 	}
+	if err := maybeOfferRegistryUnlock(regPath); err != nil {
+		return nil, "", err
+	}
 	reg, err := registry.Load(regPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("loading registry: %w", err)

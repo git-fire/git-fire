@@ -18,6 +18,61 @@ import (
 // The cross-process case is handled by the lock file written in acquireLock.
 var pkgMu sync.RWMutex
 
+// LockPath returns the cross-process lock file path for a registry file.
+func LockPath(registryPath string) string {
+	return registryPath + ".lock"
+}
+
+// LockFileInfo describes an existing registry lock file on disk.
+type LockFileInfo struct {
+	LockPath          string
+	PID               int  // owning PID from the file, or 0 if missing/unreadable
+	OwnerAppearsAlive bool // true if PID > 0 and Signal(0) indicates the process exists
+}
+
+// ReadLockFile returns information about the registry lock file if it exists.
+// If there is no lock file, it returns nil, nil.
+func ReadLockFile(registryPath string) (*LockFileInfo, error) {
+	lp := LockPath(registryPath)
+	if _, err := os.Stat(lp); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	data, err := os.ReadFile(lp)
+	info := &LockFileInfo{LockPath: lp}
+	if err != nil {
+		return info, fmt.Errorf("reading registry lock: %w", err)
+	}
+	var pid int
+	if _, scanErr := fmt.Sscan(string(data), &pid); scanErr != nil || pid <= 0 {
+		info.PID = 0
+		return info, nil
+	}
+	info.PID = pid
+	info.OwnerAppearsAlive = processAppearsAlive(pid)
+	return info, nil
+}
+
+// RemoveLockFile removes the registry lock file if present.
+func RemoveLockFile(registryPath string) error {
+	return os.Remove(LockPath(registryPath))
+}
+
+// processAppearsAlive reports whether pid looks like a running process (Unix: Signal(0) not ESRCH).
+func processAppearsAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = proc.Signal(syscall.Signal(0))
+	return !errors.Is(err, syscall.ESRCH) && !errors.Is(err, os.ErrProcessDone)
+}
+
 // acquireLock creates an exclusive per-file lock using O_CREATE|O_EXCL so that
 // only one git-fire instance modifies the registry at a time. It spins for up
 // to lockTimeout before returning an error. The caller must invoke the returned
@@ -26,7 +81,7 @@ const lockTimeout = 5 * time.Second
 const lockPollInterval = 50 * time.Millisecond
 
 func acquireLock(registryPath string) (release func(), err error) {
-	lockPath := registryPath + ".lock"
+	lockPath := LockPath(registryPath)
 
 	// Ensure the directory exists before attempting to create the lock file.
 	// Without this, os.OpenFile returns ENOENT on first run, which would spin
@@ -81,12 +136,5 @@ func staleLock(lockPath string) bool {
 	if _, err := fmt.Sscan(string(data), &pid); err != nil || pid <= 0 {
 		return false
 	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return true
-	}
-	// Signal(0) probes liveness without delivering a real signal.
-	// ESRCH ("no such process") confirms the owner is gone.
-	err = proc.Signal(syscall.Signal(0))
-	return errors.Is(err, syscall.ESRCH) || errors.Is(err, os.ErrProcessDone)
+	return !processAppearsAlive(pid)
 }
