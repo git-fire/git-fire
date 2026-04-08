@@ -46,7 +46,7 @@ Execute external commands or scripts:
 name = "s3-backup"
 command = "aws"
 args = ["s3", "sync", "{repo_path}", "s3://emergency-backups/{repo_name}"]
-when = "after-push"  # before-push, after-push, on-failure
+when = "after-push"  # alias for on-success; also supports on-failure and always
 
 [[plugins.command]]
 name = "notify-team"
@@ -58,7 +58,7 @@ when = "after-push"
 name = "create-tarball"
 command = "tar"
 args = ["czf", "/backups/{repo_name}-{timestamp}.tar.gz", "-C", "{repo_path}", "."]
-when = "before-push"
+when = "always"
 ```
 
 **Variables available:**
@@ -270,7 +270,7 @@ type CommandPlugin struct {
     Command string
     Args    []string
     Env     map[string]string
-    When    Trigger  // before-push, after-push, on-failure
+    When    Trigger  // on-success, on-failure, always (after-push aliases on-success)
     Timeout time.Duration
 }
 ```
