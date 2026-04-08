@@ -5,8 +5,9 @@ REPO_BIN := $(ROOT)$(BINARY)
 # Single global install location (overwrites on each install).
 USER_BIN := $(abspath $(HOME)/.local/bin)
 INSTALL_BIN := $(USER_BIN)/$(BINARY)
-# Version: use git tag if available, otherwise "dev"
-VERSION ?= $(shell git -C "$(ROOT)" describe --tags --always --dirty 2>/dev/null || echo "dev")
+# Version: nearest tag + distance if tags exist in this clone; else module pseudo-version
+# from go.mod (avoids bare commit hash from `describe --always` when tags are missing).
+VERSION ?= $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "$(ROOT)" && go list -m -f '{{.Version}}' 2>/dev/null) || echo "dev")
 LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
