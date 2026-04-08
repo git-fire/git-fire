@@ -1,34 +1,23 @@
-# OSS Publish Plan
+# OSS Publish Plan (Historical + Current State)
 
-## Strategy: Single Clean Initial Commit
+This file previously documented a pre-public migration strategy. `git-fire` is now already public at `github.com/git-fire/git-fire`, so the orphan-history bootstrap instructions are no longer the active workflow.
 
-When the project is ready to move to the public OSS repository, the entire current commit history will be squashed into a single initial commit. This keeps the public repo clean and avoids exposing internal dev history (planning docs, AI-assisted iteration, intermediate states).
+## Current publish workflow
 
-**Steps when ready to publish:**
+Use the release automation and runbooks that reflect the live repository:
 
-1. Create a new public GitHub repo
-2. Check out this repo at the desired state (tip of the release-ready branch)
-3. Create a fresh git history:
+- Release checklist: [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+- Homebrew maintainer flow: [HOMEBREW_RELEASE_RUNBOOK.md](HOMEBREW_RELEASE_RUNBOOK.md)
+- WinGet maintainer flow: [WINGET_RELEASE_RUNBOOK.md](WINGET_RELEASE_RUNBOOK.md)
+- Release workflow definition: [../.github/workflows/release.yml](../.github/workflows/release.yml)
 
-   ```bash
-   git checkout --orphan initial
-   git add -A
-   git commit -m "Initial commit"
-   git push <new-public-remote> initial:main
-   ```
+Release flow summary:
 
-4. Add install/release workflow (GoReleaser or similar) for binary distribution
-5. Update install scripts once first tagged release exists
+1. Tag a version using plain SemVer (`vX.Y.Z`).
+2. Run the release workflow (or push the tag).
+3. Verify release assets (`checksums.txt`, platform archives, stable `.deb`/`.rpm`).
+4. Run smoke installs (Homebrew, WinGet, Linux script/package, source build as needed).
 
-## What ships in the initial commit
+## Historical note
 
-- All source code and tests
-- README, CONTRIBUTING, Makefile, CI workflow
-- Scripts (`install.sh`, `emergency.sh`) — note: these reference GitHub Releases, so a `v0.1.0` tag must be created immediately after pushing so the install path works
-- The `docs/` directory can be cleaned up or omitted before the initial commit
-
-## What does NOT ship
-
-- Local `.claude/` settings (already in `.gitignore`)
-- The built `git-fire` binary (already in `.gitignore`)
-- Any `.env` or credential files
+The old "single clean initial commit" approach is preserved only as archival context from pre-public planning and should not be used for current releases.

@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/registry"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/registry"
 )
 
 // Simple styles for lite mode
@@ -41,18 +41,18 @@ var (
 
 // RepoSelectorLiteModel is the simple, non-animated version
 type RepoSelectorLiteModel struct {
-	repos          []git.Repository
-	cursor         int
-	ignoredCursor  int
-	view           repoSelectorView
-	ignoredEntries []registry.RegistryEntry
-	selected       map[int]bool
-	quitting       bool
-	confirmed      bool
-	reg            *registry.Registry
-	regPath        string
-	lastErr        error
-	windowWidth    int
+	repos            []git.Repository
+	cursor           int
+	ignoredCursor    int
+	view             repoSelectorView
+	ignoredEntries   []registry.RegistryEntry
+	selected         map[int]bool
+	quitting         bool
+	confirmed        bool
+	reg              *registry.Registry
+	regPath          string
+	lastErr          error
+	windowWidth      int
 	pathScrollOffset int // manual path scroll offset for the focused repo row
 }
 
@@ -171,6 +171,8 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case git.ModePushKnownBranches:
 				repo.Mode = git.ModePushAll
 			case git.ModePushAll:
+				repo.Mode = git.ModePushCurrentBranch
+			case git.ModePushCurrentBranch:
 				repo.Mode = git.ModeLeaveUntouched
 			}
 			m.lastErr = m.persistMode(repo.Path, repo.Mode)
@@ -317,7 +319,7 @@ func (m RepoSelectorLiteModel) View() string {
 	s.WriteString(help)
 
 	if m.lastErr != nil {
-		s.WriteString(fmt.Sprintf("\n\n⚠️  registry save failed: %v", m.lastErr))
+		fmt.Fprintf(&s, "\n\n⚠️  registry save failed: %v", m.lastErr)
 	}
 
 	return liteBoxStyle.Render(s.String())
@@ -336,7 +338,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 			if m.ignoredCursor == i {
 				cursor = ">"
 			}
-			s.WriteString(fmt.Sprintf("%s %s\n", cursor, AbbreviateUserHome(e.Path)))
+			fmt.Fprintf(&s, "%s %s\n", cursor, AbbreviateUserHome(e.Path))
 		}
 	}
 	help := liteHelpStyle.Render(
@@ -346,7 +348,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 	)
 	s.WriteString(help)
 	if m.lastErr != nil {
-		s.WriteString(fmt.Sprintf("\n\n⚠️  %v", m.lastErr))
+		fmt.Fprintf(&s, "\n\n⚠️  %v", m.lastErr)
 	}
 	return liteBoxStyle.Render(s.String())
 }

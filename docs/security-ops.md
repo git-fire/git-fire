@@ -99,8 +99,8 @@ Practical notes:
 
 ---
 
-## Current Alpha Caveats
+## Current Beta Caveats
 
-- Plugin internals exist, but default CLI auto-loading from config is not wired yet (`v0.2` target).
+- Command plugins defined under `[[plugins.command]]` in `config.toml` are loaded and executed automatically after each non-dry run. Post-run plugins fire once per session and use scan-root template context.
 - `--backup-to` is exposed but not implemented yet (`v0.2` target).
 - `git-fire` is a checkpoint accelerator, not an evidence collection framework.

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <linearGradient id="v4id-flame" x1="0.3" y1="1" x2="0.6" y2="0">
+      <stop offset="0%"   stop-color="#D03600"/>
+      <stop offset="60%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D848"/>
+    </linearGradient>
+  </defs>
+  <circle cx="40" cy="68" r="6.5" fill="#E0E0E0"/>
+  <line x1="40" y1="62" x2="40" y2="46"
+        stroke="#E0E0E0" stroke-width="3" stroke-linecap="round"/>
+  <path d="
+    M40,46
+    C32,40 26,32 28,20
+    C30,10 35,4 40,2
+    C45,5 50,13 51,22
+    C53,35 48,41 40,46
+    Z"
+    fill="url(#v4id-flame)"/>
+</svg>

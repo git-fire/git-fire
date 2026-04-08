@@ -11,6 +11,13 @@ type Config struct {
 	Auth    AuthConfig     `mapstructure:"auth"     toml:"auth"`
 	Plugins PluginsConfig  `mapstructure:"plugins"  toml:"plugins"`
 	Repos   []RepoOverride `mapstructure:"repos"    toml:"repos"`
+
+	// File-backed secret snapshots captured at load time and used by SaveConfig
+	// to avoid persisting environment-injected secret values.
+	fileBackupAPIToken    string
+	fileSSHPassphrase     string
+	hasFileBackupAPIToken bool
+	hasFileSSHPassphrase  bool
 }
 
 // GlobalConfig contains global settings
@@ -174,6 +181,7 @@ type CommandPluginConfig struct {
 	Env     map[string]string `mapstructure:"env"     toml:"env"`
 	When    string            `mapstructure:"when"    toml:"when"`
 	Timeout string            `mapstructure:"timeout" toml:"timeout"`
+	FailRun bool              `mapstructure:"fail_run" toml:"fail_run"`
 }
 
 // WebhookPluginConfig configures a webhook plugin

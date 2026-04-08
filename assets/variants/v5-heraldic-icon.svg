@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" width="100" height="120">
+  <title>git-fire icon — V5 Heraldic / badge</title>
+  <desc>
+    Variant 5: thick-stroke flame silhouette (3.5 px stroke, warm near-
+    black outline) with a mini 2-node git graph embedded inside. Top node
+    is the HEAD commit (dark ring + gold fill); bottom node is the parent
+    (dark ring + white fill); a 3 px stem connects them. The git graph
+    sits inside the fire — history caught in the flames. Bold, stamp-like,
+    poster-quality at large sizes. A small wax-stub rect at the base
+    grounds the candle metaphor.
+  </desc>
+  <defs>
+    <linearGradient id="v5-fill" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#CC3400"/>
+      <stop offset="50%"  stop-color="#F07010"/>
+      <stop offset="100%" stop-color="#F9DC50"/>
+    </linearGradient>
+    <linearGradient id="v5-inner" x1="0.3" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#FF6020" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFE878" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <path d="
+    M50,108
+    C30,98 16,78 18,54
+    C20,32 34,14 50,8
+    C66,14 80,32 82,54
+    C84,78 70,98 50,108
+    Z"
+    fill="url(#v5-fill)" stroke="#1A0800" stroke-width="3.5" stroke-linejoin="round"/>
+
+  <path d="
+    M50,94
+    C36,85 28,68 30,50
+    C32,34 40,20 50,14
+    C60,21 68,36 69,52
+    C70,70 62,84 50,94
+    Z"
+    fill="url(#v5-inner)" opacity="0.55"/>
+
+  <circle cx="50" cy="38" r="7"   fill="#1A0800"/>
+  <circle cx="50" cy="38" r="4.5" fill="#F8D040"/>
+
+  <line x1="50" y1="45" x2="50" y2="65"
+        stroke="#1A0800" stroke-width="3" stroke-linecap="round"/>
+
+  <circle cx="50" cy="72" r="7"   fill="#1A0800"/>
+  <circle cx="50" cy="72" r="3.5" fill="#FFFFFF" opacity="0.85"/>
+
+  <rect x="38" y="108" width="24" height="10" rx="3" ry="3"
+        fill="#2A2A2A" opacity="0.25"/>
+</svg>

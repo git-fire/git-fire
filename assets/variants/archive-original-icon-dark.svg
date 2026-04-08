@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 160" width="120" height="160">
+  <defs>
+    <linearGradient id="fg-id" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#B82E00"/>
+      <stop offset="45%"  stop-color="#E5650A"/>
+      <stop offset="80%"  stop-color="#F09520"/>
+      <stop offset="100%" stop-color="#F8D040"/>
+    </linearGradient>
+    <linearGradient id="fgi-id" x1="0.3" y1="1" x2="0.4" y2="0">
+      <stop offset="0%"   stop-color="#F07818"/>
+      <stop offset="100%" stop-color="#FDE870"/>
+    </linearGradient>
+    <radialGradient id="glow-id" cx="50%" cy="90%" r="60%">
+      <stop offset="0%"   stop-color="#F09020" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#F09020" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="60" cy="140" rx="28" ry="9" fill="url(#glow-id)"/>
+
+  <circle cx="60" cy="140" r="14" fill="#FFFFFF" opacity="0.12"/>
+
+  <line x1="60" y1="126" x2="60" y2="106" stroke="#FFFFFF" stroke-width="2.2" opacity="0.25" stroke-linecap="round"/>
+
+  <path d="
+    M60,106
+    C44,98 34,82 36,62
+    C38,44 48,28 60,20
+    C72,28 82,44 84,62
+    C86,82 76,98 60,106
+    Z"
+    fill="url(#fg-id)" opacity="0.97"/>
+
+  <path d="
+    M60,98
+    C50,90 44,76 46,60
+    C48,46 54,34 60,28
+    C66,34 72,46 74,60
+    C76,76 70,90 60,98
+    Z"
+    fill="url(#fgi-id)" opacity="0.55"/>
+</svg>

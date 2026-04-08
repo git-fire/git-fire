@@ -3,6 +3,7 @@ package git
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -83,26 +84,57 @@ func TestDetectConflict(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		setup        func(string) // Setup function receives localRepo path
+		setup        func(*testing.T, string) // Setup function receives localRepo path
 		wantConflict bool
 		wantErr      bool
 	}{
 		{
 			name: "no conflict - branches match",
-			setup: func(repo string) {
+			setup: func(t *testing.T, repo string) {
 				// Do nothing - branches are already in sync
 			},
 			wantConflict: false,
 			wantErr:      false,
 		},
 		{
-			name: "conflict - local ahead",
-			setup: func(repo string) {
+			name: "no conflict - local ahead only",
+			setup: func(t *testing.T, repo string) {
 				// Add local commit
 				newFile := filepath.Join(repo, "new.txt")
-				os.WriteFile(newFile, []byte("new content"), 0644)
+				if err := os.WriteFile(newFile, []byte("new content"), 0644); err != nil {
+					t.Fatal(err)
+				}
 				testutil.RunGitCmd(t, repo, "add", "new.txt")
 				testutil.RunGitCmd(t, repo, "commit", "-m", "Local commit")
+			},
+			wantConflict: false,
+			wantErr:      false,
+		},
+		{
+			name: "conflict - true divergence",
+			setup: func(t *testing.T, repo string) {
+				// Local commit (ahead locally)
+				localFile := filepath.Join(repo, "local-only.txt")
+				if err := os.WriteFile(localFile, []byte("local content"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				testutil.RunGitCmd(t, repo, "add", "local-only.txt")
+				testutil.RunGitCmd(t, repo, "commit", "-m", "Local diverging commit")
+
+				// Independent remote commit from another clone (ahead remotely)
+				cloneBase := t.TempDir()
+				peerDir := filepath.Join(cloneBase, "peer")
+				testutil.RunGitCmd(t, cloneBase, "clone", remoteRepo, peerDir)
+				testutil.RunGitCmd(t, peerDir, "config", "user.email", "test@example.com")
+				testutil.RunGitCmd(t, peerDir, "config", "user.name", "Test User")
+
+				peerFile := filepath.Join(peerDir, "remote-only.txt")
+				if err := os.WriteFile(peerFile, []byte("remote content"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				testutil.RunGitCmd(t, peerDir, "add", "remote-only.txt")
+				testutil.RunGitCmd(t, peerDir, "commit", "-m", "Remote diverging commit")
+				testutil.RunGitCmd(t, peerDir, "push", "origin", currentBranch)
 			},
 			wantConflict: true,
 			wantErr:      false,
@@ -115,7 +147,7 @@ func TestDetectConflict(t *testing.T) {
 			testutil.RunGitCmd(t, localRepo, "reset", "--hard", "origin/"+currentBranch)
 
 			if tt.setup != nil {
-				tt.setup(localRepo)
+				tt.setup(t, localRepo)
 			}
 
 			hasConflict, localSHA, remoteSHA, err := DetectConflict(localRepo, currentBranch, "origin")
@@ -137,6 +169,60 @@ func TestDetectConflict(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAutoCommitDirtyWithStrategy_FailureCleansUpUnbornHead(t *testing.T) {
+	repo := t.TempDir()
+	testutil.RunGitCmd(t, repo, "init")
+	testutil.RunGitCmd(t, repo, "config", "user.email", "test@example.com")
+	testutil.RunGitCmd(t, repo, "config", "user.name", "Test User")
+
+	// Prepare staged + unstaged changes with no initial commit.
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fail only the second commit ("full backup").
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("mkdir hooks dir: %v", err)
+	}
+	hookPath := filepath.Join(hooksDir, "commit-msg")
+	hook := `#!/bin/sh
+msg_file="$1"
+if grep -q "full backup" "$msg_file"; then
+  exit 1
+fi
+exit 0
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0755); err != nil {
+		t.Fatalf("write commit-msg hook: %v", err)
+	}
+	testutil.RunGitCmd(t, repo, "config", "core.hooksPath", hooksDir)
+
+	_, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false,
+	})
+	if err == nil {
+		t.Fatal("expected auto-commit strategy to fail on second commit")
+	}
+
+	// Ensure we returned to unborn HEAD state.
+	cmd := exec.Command("git", "rev-parse", "--verify", "HEAD")
+	cmd.Dir = repo
+	if output, cmdErr := cmd.CombinedOutput(); cmdErr == nil {
+		t.Fatalf("expected unborn HEAD after cleanup, but rev-parse HEAD succeeded: %s", strings.TrimSpace(string(output)))
+	}
+
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
 }
 
 func TestCreateFireBranch(t *testing.T) {
@@ -573,15 +659,172 @@ func TestAutoCommitDirtyWithStrategy_ReturnToOriginal(t *testing.T) {
 		t.Errorf("Expected HEAD to return to %s, got %s", originalSHA, currentSHA)
 	}
 
-	// After git reset --soft, all changes become staged (this is expected behavior)
-	// git reset --soft moves HEAD but keeps changes in index
-	hasStaged, _ := HasStagedChanges(repo)
-	if !hasStaged {
-		t.Error("Expected changes to be staged after reset --soft")
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
+}
+
+func TestAutoCommitDirtyWithStrategy_ReturnToOriginal_PreservesIndexState(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+	filePath := filepath.Join(repo, "partial.txt")
+	if err := os.WriteFile(filePath, []byte("base\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "partial.txt")
+	testutil.RunGitCmd(t, repo, "commit", "-m", "add partial file")
+
+	// Worktree content differs from staged content.
+	if err := os.WriteFile(filePath, []byte("worktree\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
 
-	// Verify both files exist and are staged
-	testutil.RunGitCmd(t, repo, "status", "--porcelain")
+	// Directly write a blob into index to emulate a partial-stage style state.
+	writeBlob := exec.Command("git", "hash-object", "-w", "--stdin")
+	writeBlob.Dir = repo
+	writeBlob.Stdin = strings.NewReader("staged\n")
+	blobOut, err := writeBlob.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git hash-object -w --stdin failed: %v (%s)", err, strings.TrimSpace(string(blobOut)))
+	}
+	blobSHA := strings.TrimSpace(string(blobOut))
+	testutil.RunGitCmd(t, repo, "update-index", "--cacheinfo", "100644", blobSHA, "partial.txt")
+
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: true,
+	})
+	if err != nil {
+		t.Fatalf("AutoCommitDirtyWithStrategy() error = %v", err)
+	}
+	if result.StagedBranch == "" {
+		t.Fatal("expected staged branch to be created")
+	}
+
+	// Index content should remain exactly as originally staged.
+	indexShow := exec.Command("git", "show", ":partial.txt")
+	indexShow.Dir = repo
+	indexOut, err := indexShow.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git show :partial.txt failed: %v (%s)", err, strings.TrimSpace(string(indexOut)))
+	}
+	if string(indexOut) != "staged\n" {
+		t.Fatalf("expected index content to remain staged variant, got %q", string(indexOut))
+	}
+
+	// Worktree content should remain untouched.
+	wtBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read worktree file: %v", err)
+	}
+	if string(wtBytes) != "worktree\n" {
+		t.Fatalf("expected worktree content to remain worktree variant, got %q", string(wtBytes))
+	}
+}
+
+func TestAutoCommitDirtyWithStrategy_FailureCleansUpToOriginalHead(t *testing.T) {
+	repo := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name: "test-repo",
+	})
+
+	originalSHA := testutil.GetCurrentSHA(t, repo)
+
+	// Prepare staged + unstaged changes so the strategy performs two commits.
+	stagedFile := filepath.Join(repo, "staged.txt")
+	if err := os.WriteFile(stagedFile, []byte("staged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, repo, "add", "staged.txt")
+
+	unstagedFile := filepath.Join(repo, "unstaged.txt")
+	if err := os.WriteFile(unstagedFile, []byte("unstaged"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fail only the second commit ("full backup") via commit-msg hook.
+	hooksDir := filepath.Join(t.TempDir(), "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("mkdir hooks dir: %v", err)
+	}
+	hookPath := filepath.Join(hooksDir, "commit-msg")
+	hook := `#!/bin/sh
+msg_file="$1"
+if grep -q "full backup" "$msg_file"; then
+  exit 1
+fi
+exit 0
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0755); err != nil {
+		t.Fatalf("write commit-msg hook: %v", err)
+	}
+	testutil.RunGitCmd(t, repo, "config", "core.hooksPath", hooksDir)
+
+	result, err := AutoCommitDirtyWithStrategy(repo, CommitOptions{
+		ReturnToOriginal: false, // failure cleanup must still reset to original
+	})
+	if err == nil {
+		t.Fatal("expected auto-commit strategy to fail on second commit")
+	}
+	if !strings.Contains(err.Error(), "failed to commit unstaged changes") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result == nil || result.StagedBranch == "" {
+		t.Fatalf("expected partial result with staged backup branch on failure, got %+v", result)
+	}
+
+	currentSHA := testutil.GetCurrentSHA(t, repo)
+	if currentSHA != originalSHA {
+		t.Fatalf("expected cleanup reset to original HEAD %s, got %s", originalSHA, currentSHA)
+	}
+
+	assertUncommittedFilesContain(t, repo, "staged.txt", "unstaged.txt")
+	assertStatusEntries(t, repo, "A  staged.txt", "?? unstaged.txt")
+}
+
+func assertUncommittedFilesContain(t *testing.T, repo string, expected ...string) {
+	t.Helper()
+
+	files, err := GetUncommittedFiles(repo)
+	if err != nil {
+		t.Fatalf("GetUncommittedFiles() error: %v", err)
+	}
+
+	fileSet := make(map[string]struct{}, len(files))
+	for _, f := range files {
+		fileSet[f] = struct{}{}
+	}
+
+	for _, want := range expected {
+		if _, ok := fileSet[want]; !ok {
+			t.Fatalf("expected %q in uncommitted files, got %v", want, files)
+		}
+	}
+}
+
+func assertStatusEntries(t *testing.T, repo string, expected ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", "status", "--porcelain=v1")
+	cmd.Dir = repo
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status --porcelain=v1 failed: %v (%s)", err, strings.TrimSpace(string(output)))
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	set := make(map[string]struct{}, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		set[line] = struct{}{}
+	}
+
+	for _, want := range expected {
+		if _, ok := set[want]; !ok {
+			t.Fatalf("expected status entry %q, got %v", want, lines)
+		}
+	}
 }
 
 func TestListWorktrees(t *testing.T) {

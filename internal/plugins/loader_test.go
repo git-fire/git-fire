@@ -134,26 +134,19 @@ func TestCreateCommandPlugin(t *testing.T) {
 	}
 }
 
-func TestParseTrigger(t *testing.T) {
-	tests := []struct {
-		input string
-		want  Trigger
-	}{
-		{"before-push", TriggerBeforePush},
-		{"after-push", TriggerAfterPush},
-		{"on-success", TriggerOnSuccess},
-		{"on-failure", TriggerOnFailure},
-		{"always", TriggerAlways},
-		{"unknown", TriggerAfterPush}, // Default
+func TestCreateCommandPlugin_DefaultTriggerOnSuccess(t *testing.T) {
+	cfg := config.CommandPluginConfig{
+		Name:    "default-trigger",
+		Command: "echo",
+		Args:    []string{"hello"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := parseTrigger(tt.input)
-			if got != tt.want {
-				t.Errorf("parseTrigger(%s) = %v, want %v", tt.input, got, tt.want)
-			}
-		})
+	plugin, err := createCommandPlugin(cfg)
+	if err != nil {
+		t.Fatalf("createCommandPlugin() error = %v", err)
+	}
+	if plugin.when != TriggerOnSuccess {
+		t.Fatalf("expected default trigger %q, got %q", TriggerOnSuccess, plugin.when)
 	}
 }
 
@@ -161,15 +154,15 @@ func TestGetEnabledPlugins(t *testing.T) {
 	globalRegistry.Clear()
 
 	// Register some plugins
-	Register(NewCommandPlugin("plugin1", "echo", []string{"1"}))
-	Register(NewCommandPlugin("plugin2", "echo", []string{"2"}))
-	Register(NewCommandPlugin("plugin3", "echo", []string{"3"}))
+	_ = Register(NewCommandPlugin("plugin1", "echo", []string{"1"}))
+	_ = Register(NewCommandPlugin("plugin2", "echo", []string{"2"}))
+	_ = Register(NewCommandPlugin("plugin3", "echo", []string{"3"}))
 
 	tests := []struct {
-		name         string
-		enabledList  []string
-		wantCount    int
-		wantErr      bool
+		name        string
+		enabledList []string
+		wantCount   int
+		wantErr     bool
 	}{
 		{
 			name:        "no enabled list returns all",
@@ -206,69 +199,6 @@ func TestGetEnabledPlugins(t *testing.T) {
 
 			if !tt.wantErr && len(plugins) != tt.wantCount {
 				t.Errorf("GetEnabledPlugins() count = %d, want %d", len(plugins), tt.wantCount)
-			}
-		})
-	}
-}
-
-func TestFilterPluginsByTrigger(t *testing.T) {
-	plugin1 := NewCommandPlugin("after", "echo", []string{"1"})
-	plugin1.SetTrigger(TriggerAfterPush)
-
-	plugin2 := NewCommandPlugin("before", "echo", []string{"2"})
-	plugin2.SetTrigger(TriggerBeforePush)
-
-	plugin3 := NewCommandPlugin("always", "echo", []string{"3"})
-	plugin3.SetTrigger(TriggerAlways)
-
-	allPlugins := []Plugin{plugin1, plugin2, plugin3}
-
-	tests := []struct {
-		name      string
-		trigger   Trigger
-		wantCount int
-		wantNames []string
-	}{
-		{
-			name:      "after-push trigger",
-			trigger:   TriggerAfterPush,
-			wantCount: 2, // after + always
-			wantNames: []string{"after", "always"},
-		},
-		{
-			name:      "before-push trigger",
-			trigger:   TriggerBeforePush,
-			wantCount: 2, // before + always
-			wantNames: []string{"before", "always"},
-		},
-		{
-			name:      "on-success trigger",
-			trigger:   TriggerOnSuccess,
-			wantCount: 1, // only always
-			wantNames: []string{"always"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filtered := FilterPluginsByTrigger(allPlugins, tt.trigger)
-
-			if len(filtered) != tt.wantCount {
-				t.Errorf("FilterPluginsByTrigger() count = %d, want %d", len(filtered), tt.wantCount)
-			}
-
-			// Check names
-			for _, wantName := range tt.wantNames {
-				found := false
-				for _, p := range filtered {
-					if p.Name() == wantName {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Expected plugin %s in filtered results", wantName)
-				}
 			}
 		})
 	}

@@ -114,8 +114,19 @@ func DetectConflict(repoPath, branch, remote string) (bool, string, string, erro
 		return false, localSHA, "", nil
 	}
 
-	// Check if they differ
-	hasConflict := localSHA != remoteSHA
+	// Compare ancestry, not just tip inequality:
+	// - merge-base == remoteSHA => local is only ahead (no divergence)
+	// - merge-base == localSHA  => local is behind (no divergence)
+	// - otherwise               => true divergence (conflict)
+	mergeBaseSHA, hasMergeBase, err := getMergeBaseSHA(repoPath, branch, remoteBranch)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get merge-base: %w", err)
+	}
+	if !hasMergeBase {
+		// No common ancestor means true divergence for conflict-handling purposes.
+		return true, localSHA, remoteSHA, nil
+	}
+	hasConflict := mergeBaseSHA != remoteSHA && mergeBaseSHA != localSHA
 
 	return hasConflict, localSHA, remoteSHA, nil
 }
@@ -137,6 +148,19 @@ func getCommitSHA(repoPath, ref string) (string, error) {
 // GetCommitSHA returns the SHA for a ref in the repository.
 func GetCommitSHA(repoPath, ref string) (string, error) {
 	return getCommitSHA(repoPath, ref)
+}
+
+func getMergeBaseSHA(repoPath, leftRef, rightRef string) (string, bool, error) {
+	cmd := exec.Command("git", "merge-base", leftRef, rightRef)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return "", false, nil
+		}
+		return "", false, commandError("git merge-base", err, output)
+	}
+	return strings.TrimSpace(string(output)), true, nil
 }
 
 // CreateFireBranch creates a new fire backup branch
@@ -418,8 +442,8 @@ func ListWorktrees(repoPath string) ([]Worktree, error) {
 
 // AutoCommitDirtyWithStrategy commits changes using the staged/unstaged dual branch strategy
 // Returns information about branches created and any error
-func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoCommitResult, error) {
-	result := &AutoCommitResult{}
+func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *AutoCommitResult, retErr error) {
+	result = &AutoCommitResult{}
 
 	// Set defaults
 	if !opts.UseDualBranch {
@@ -433,6 +457,13 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 	currentBranch, err := GetCurrentBranch(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	// Capture original HEAD once and use it for all cleanup/reset paths.
+	// Repos with no commits (unborn HEAD) are valid and handled explicitly.
+	originalHeadSHA, hasOriginalHead, err := getOptionalHeadSHA(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get original HEAD SHA: %w", err)
 	}
 
 	// Check for staged and unstaged changes
@@ -451,8 +482,25 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		return result, nil
 	}
 
+	originalIndexTree, err := captureIndexTree(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to capture original index state: %w", err)
+	}
+
 	timestamp := time.Now().Format("20060102-150405")
-	commitsToReset := 0
+	commitsCreated := 0
+	successRestoreAttempted := false
+
+	// Failure path cleanup: always reset to the original commit to avoid orphan
+	// backup commits, even when multiple commits were created.
+	defer func() {
+		if retErr == nil || commitsCreated == 0 || successRestoreAttempted {
+			return
+		}
+		if cleanupErr := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalIndexTree); cleanupErr != nil {
+			retErr = fmt.Errorf("%w; failed cleanup restore of original staged/unstaged state: %v", retErr, cleanupErr)
+		}
+	}()
 
 	// Scenario 1: Only staged changes
 	if hasStaged && !hasUnstaged {
@@ -463,14 +511,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		}
 
 		if err := commitChanges(repoPath, message, false); err != nil {
-			return nil, fmt.Errorf("failed to commit staged changes: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to commit staged changes: %w", err))
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Get SHA and create branch
 		sha, err := getCommitSHA(repoPath, "HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get commit SHA: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to get commit SHA: %w", err))
 		}
 		shortSHA := sha
 		if len(shortSHA) > 7 {
@@ -479,7 +527,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 
 		branchName := fmt.Sprintf("git-fire-staged-%s-%s-%s", currentBranch, timestamp, shortSHA)
 		if err := createBranch(repoPath, branchName); err != nil {
-			return nil, fmt.Errorf("failed to create staged branch: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to create staged branch: %w", err))
 		}
 
 		result.StagedBranch = branchName
@@ -494,14 +542,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		}
 
 		if err := commitChanges(repoPath, message, true); err != nil {
-			return nil, fmt.Errorf("failed to commit unstaged changes: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to commit unstaged changes: %w", err))
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Get SHA and create branch
 		sha, err := getCommitSHA(repoPath, "HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get commit SHA: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to get commit SHA: %w", err))
 		}
 		shortSHA := sha
 		if len(shortSHA) > 7 {
@@ -510,7 +558,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 
 		branchName := fmt.Sprintf("git-fire-full-%s-%s-%s", currentBranch, timestamp, shortSHA)
 		if err := createBranch(repoPath, branchName); err != nil {
-			return nil, fmt.Errorf("failed to create full branch: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to create full branch: %w", err))
 		}
 
 		result.FullBranch = branchName
@@ -525,14 +573,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		}
 
 		if err := commitChanges(repoPath, message1, false); err != nil {
-			return nil, fmt.Errorf("failed to commit staged changes: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to commit staged changes: %w", err))
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Create staged branch
 		sha1, err := getCommitSHA(repoPath, "HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get staged commit SHA: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to get staged commit SHA: %w", err))
 		}
 		shortSHA1 := sha1
 		if len(shortSHA1) > 7 {
@@ -541,7 +589,7 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 
 		stagedBranchName := fmt.Sprintf("git-fire-staged-%s-%s-%s", currentBranch, timestamp, shortSHA1)
 		if err := createBranch(repoPath, stagedBranchName); err != nil {
-			return nil, fmt.Errorf("failed to create staged branch: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to create staged branch: %w", err))
 		}
 		result.StagedBranch = stagedBranchName
 
@@ -552,14 +600,14 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 		}
 
 		if err := commitChanges(repoPath, message2, true); err != nil {
-			return nil, fmt.Errorf("failed to commit unstaged changes: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to commit unstaged changes: %w", err))
 		}
-		commitsToReset++
+		commitsCreated++
 
 		// Create full branch
 		sha2, err := getCommitSHA(repoPath, "HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get full commit SHA: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to get full commit SHA: %w", err))
 		}
 		shortSHA2 := sha2
 		if len(shortSHA2) > 7 {
@@ -568,22 +616,117 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (*AutoComm
 
 		fullBranchName := fmt.Sprintf("git-fire-full-%s-%s-%s", currentBranch, timestamp, shortSHA2)
 		if err := createBranch(repoPath, fullBranchName); err != nil {
-			return nil, fmt.Errorf("failed to create full branch: %w", err)
+			return returnResultOnError(result, fmt.Errorf("failed to create full branch: %w", err))
 		}
 		result.FullBranch = fullBranchName
 		result.BothCreated = true
 	}
 
-	// Reset to original state if requested
-	if opts.ReturnToOriginal && commitsToReset > 0 {
-		cmd := exec.Command("git", "reset", "--soft", fmt.Sprintf("HEAD~%d", commitsToReset))
-		cmd.Dir = repoPath
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return nil, commandError("git reset --soft", err, output)
+	// Success path restore: preserve original staged/unstaged shape.
+	if opts.ReturnToOriginal && commitsCreated > 0 {
+		successRestoreAttempted = true
+		if err := restoreOriginalState(repoPath, hasOriginalHead, originalHeadSHA, originalIndexTree); err != nil {
+			return returnResultOnError(result, err)
 		}
 	}
 
 	return result, nil
+}
+
+func resetMixedToCommit(repoPath, sha string) error {
+	cmd := exec.Command("git", "reset", "--mixed", sha)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git reset --mixed", err, output)
+	}
+	return nil
+}
+
+func resetToUnborn(repoPath string) error {
+	branch, err := GetCurrentBranch(repoPath)
+	if err != nil {
+		return fmt.Errorf("resolve current branch for unborn reset: %w", err)
+	}
+	ref := fmt.Sprintf("refs/heads/%s", branch)
+	cmd := exec.Command("git", "update-ref", "-d", ref)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git update-ref -d "+ref, err, output)
+	}
+	return nil
+}
+
+func clearIndexForUnborn(repoPath string) error {
+	cmd := exec.Command("git", "read-tree", "--empty")
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git read-tree --empty", err, output)
+	}
+	return nil
+}
+
+func captureIndexTree(repoPath string) (string, error) {
+	cmd := exec.Command("git", "write-tree")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", commandError("git write-tree", err, output)
+	}
+	tree := strings.TrimSpace(string(output))
+	if tree == "" {
+		return "", fmt.Errorf("git write-tree returned empty tree SHA")
+	}
+	return tree, nil
+}
+
+func restoreIndexTree(repoPath, treeSHA string) error {
+	cmd := exec.Command("git", "read-tree", treeSHA)
+	cmd.Dir = repoPath
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return commandError("git read-tree "+treeSHA, err, output)
+	}
+	return nil
+}
+
+func restoreOriginalState(repoPath string, hasOriginalHead bool, originalHeadSHA, originalIndexTree string) error {
+	if hasOriginalHead {
+		if err := resetMixedToCommit(repoPath, originalHeadSHA); err != nil {
+			return err
+		}
+	} else {
+		if err := resetToUnborn(repoPath); err != nil {
+			return err
+		}
+		if err := clearIndexForUnborn(repoPath); err != nil {
+			return err
+		}
+	}
+	return restoreIndexTree(repoPath, originalIndexTree)
+}
+
+func returnResultOnError(result *AutoCommitResult, err error) (*AutoCommitResult, error) {
+	if result != nil && (result.StagedBranch != "" || result.FullBranch != "" || result.BothCreated) {
+		return result, err
+	}
+	return nil, err
+}
+
+func getOptionalHeadSHA(repoPath string) (string, bool, error) {
+	cmd := exec.Command("git", "rev-parse", "-q", "--verify", "HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return "", false, nil
+		}
+		return "", false, commandError("git rev-parse -q --verify HEAD", err, output)
+	}
+
+	sha := strings.TrimSpace(string(output))
+	if sha == "" {
+		return "", false, fmt.Errorf("git rev-parse -q --verify HEAD returned empty output")
+	}
+	return sha, true, nil
 }
 
 // commitChanges commits changes with optional git add -A

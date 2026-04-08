@@ -23,7 +23,6 @@ This summary captures the implemented behavior for staged/unstaged backup and co
 
 - Requirement-level status: `docs/REQUIREMENTS_VALIDATION.md`
 - UAT bug and remediation history: `docs/UAT_BUGS.md`
-- Final run artifacts and gate result: `docs/validation-artifacts/2026-03-29-run1/VALIDATION_REPORT.md`
 
 ## Notes for OSS readers
 

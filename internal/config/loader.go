@@ -65,17 +65,35 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		}
 	}
 
+	fileSecrets := fileSecretSnapshot{}
+	if cfgPath := v.ConfigFileUsed(); cfgPath != "" {
+		snapshot, err := readFileSecretSnapshot(cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to capture file-backed secret snapshot: %v\n", err)
+		} else {
+			fileSecrets = snapshot
+		}
+	}
+
 	// Unmarshal into struct
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	cfg.fileBackupAPIToken = fileSecrets.backupAPIToken
+	cfg.fileSSHPassphrase = fileSecrets.sshPassphrase
+	cfg.hasFileBackupAPIToken = fileSecrets.hasBackupAPIToken
+	cfg.hasFileSSHPassphrase = fileSecrets.hasSSHPassphrase
 
 	// Override with env vars for sensitive data
 	if token := os.Getenv("GIT_FIRE_API_TOKEN"); token != "" {
 		cfg.Backup.APIToken = token
+	} else if token := os.Getenv("GIT_FIRE_BACKUP_API_TOKEN"); token != "" {
+		cfg.Backup.APIToken = token
 	}
 	if passphrase := os.Getenv("GIT_FIRE_SSH_PASSPHRASE"); passphrase != "" {
+		cfg.Auth.SSHPassphrase = passphrase
+	} else if passphrase := os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE"); passphrase != "" {
 		cfg.Auth.SSHPassphrase = passphrase
 	}
 
@@ -85,6 +103,30 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+type fileSecretSnapshot struct {
+	backupAPIToken    string
+	sshPassphrase     string
+	hasBackupAPIToken bool
+	hasSSHPassphrase  bool
+}
+
+func readFileSecretSnapshot(configPath string) (fileSecretSnapshot, error) {
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	v.SetConfigType("toml")
+	if err := v.ReadInConfig(); err != nil {
+		return fileSecretSnapshot{}, err
+	}
+	backup := v.GetString("backup.api_token")
+	ssh := v.GetString("auth.ssh_passphrase")
+	return fileSecretSnapshot{
+		backupAPIToken:    backup,
+		sshPassphrase:     ssh,
+		hasBackupAPIToken: backup != "",
+		hasSSHPassphrase:  ssh != "",
+	}, nil
 }
 
 // LoadOrDefault loads config or returns defaults if no config found
@@ -332,17 +374,6 @@ func resolvedUserConfigDir() (string, string) {
 	if dir, err := fallbackUserConfigDir(); err == nil {
 		return dir, fmt.Sprintf("using fallback user config directory %q", dir)
 	}
-	if wd, err := os.Getwd(); err == nil {
-		if !filepath.IsAbs(wd) {
-			if abs, absErr := filepath.Abs(wd); absErr == nil {
-				wd = abs
-			}
-		}
-		if filepath.IsAbs(wd) {
-			dir := filepath.Join(wd, "git-fire")
-			return dir, fmt.Sprintf("using working-directory config fallback %q", dir)
-		}
-	}
 	tempBase := os.TempDir()
 	if !filepath.IsAbs(tempBase) {
 		if abs, absErr := filepath.Abs(tempBase); absErr == nil {
@@ -381,16 +412,44 @@ func tomlUnmarshal(data []byte, v interface{}) error {
 	return toml.Unmarshal(data, v)
 }
 
+// sanitizeSecretsForSave clears secret fields that may be sourced from the
+// environment so they are never written to disk (avoids persisting GIT_FIRE_*
+// credentials into config.toml). When secrets were loaded from the file,
+// restores the file-backed snapshot so unrelated edits do not erase them.
+func sanitizeSecretsForSave(cfg *Config) {
+	if os.Getenv("GIT_FIRE_API_TOKEN") != "" || os.Getenv("GIT_FIRE_BACKUP_API_TOKEN") != "" {
+		if cfg.hasFileBackupAPIToken {
+			cfg.Backup.APIToken = cfg.fileBackupAPIToken
+		} else {
+			cfg.Backup.APIToken = ""
+		}
+	}
+	if os.Getenv("GIT_FIRE_SSH_PASSPHRASE") != "" || os.Getenv("GIT_FIRE_AUTH_SSH_PASSPHRASE") != "" {
+		if cfg.hasFileSSHPassphrase {
+			cfg.Auth.SSHPassphrase = cfg.fileSSHPassphrase
+		} else {
+			cfg.Auth.SSHPassphrase = ""
+		}
+	}
+}
+
 // SaveConfig marshals cfg to TOML and atomically writes it to path.
 // It creates the parent directory if necessary.
 func SaveConfig(cfg *Config, path string) error {
+	if cfg == nil {
+		return fmt.Errorf("nil config")
+	}
+
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	toSave := *cfg
+	sanitizeSecretsForSave(&toSave)
+
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+	if err := toml.NewEncoder(&buf).Encode(&toSave); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
 

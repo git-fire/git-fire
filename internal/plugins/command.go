@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/git-fire/git-fire/internal/safety"
 )
 
 // CommandPlugin executes external commands
@@ -17,6 +19,7 @@ type CommandPlugin struct {
 	env     map[string]string
 	timeout time.Duration
 	when    Trigger
+	failRun bool
 }
 
 // NewCommandPlugin creates a new command plugin
@@ -27,7 +30,7 @@ func NewCommandPlugin(name, command string, args []string) *CommandPlugin {
 		args:    args,
 		env:     make(map[string]string),
 		timeout: 5 * time.Minute, // Default 5 min timeout
-		when:    TriggerAfterPush,
+		when:    TriggerOnSuccess,
 	}
 }
 
@@ -56,6 +59,16 @@ func (p *CommandPlugin) SetTrigger(trigger Trigger) {
 	p.when = trigger
 }
 
+// SetFailRun sets whether plugin failures should fail the overall run.
+func (p *CommandPlugin) SetFailRun(v bool) {
+	p.failRun = v
+}
+
+// FailRun returns whether plugin failures should fail the overall run.
+func (p *CommandPlugin) FailRun() bool {
+	return p.failRun
+}
+
 // Validate checks if the plugin is valid
 func (p *CommandPlugin) Validate() error {
 	if p.name == "" {
@@ -77,8 +90,9 @@ func (p *CommandPlugin) Validate() error {
 // Execute runs the command
 func (p *CommandPlugin) Execute(ctx Context) error {
 	if ctx.DryRun {
-		ctx.Logger.Info(fmt.Sprintf("[DRY RUN] Would execute: %s %s",
-			p.command, strings.Join(p.args, " ")))
+		dryLine := fmt.Sprintf("[DRY RUN] Would execute: %s %s",
+			p.command, strings.Join(p.args, " "))
+		ctx.Logger.Info(safety.SanitizeText(dryLine))
 		return nil
 	}
 
@@ -88,8 +102,8 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 		expandedArgs[i] = p.expandVars(arg, ctx)
 	}
 
-	ctx.Logger.Info(fmt.Sprintf("Executing: %s %s",
-		p.command, strings.Join(expandedArgs, " ")))
+	ctx.Logger.Info(safety.SanitizeText(fmt.Sprintf("Executing: %s %s",
+		p.command, strings.Join(expandedArgs, " "))))
 
 	// Create command
 	cmd := exec.Command(p.command, expandedArgs...)
@@ -118,20 +132,21 @@ func (p *CommandPlugin) Execute(ctx Context) error {
 
 	select {
 	case <-time.After(p.timeout):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return fmt.Errorf("command timed out after %v", p.timeout)
 
 	case err := <-done:
 		if err != nil {
-			ctx.Logger.Error(fmt.Sprintf("Command failed: %s", stderr.String()), err)
-			return fmt.Errorf("command failed: %w\nStderr: %s", err, stderr.String())
+			sanitizedStderr := safety.SanitizeText(stderr.String())
+			ctx.Logger.Error(fmt.Sprintf("Command failed: %s", sanitizedStderr), err)
+			return fmt.Errorf("command failed: %w\nStderr: %s", err, sanitizedStderr)
 		}
 
 		if stdout.Len() > 0 {
-			ctx.Logger.Debug(fmt.Sprintf("Output: %s", stdout.String()))
+			ctx.Logger.Debug(fmt.Sprintf("Output: %s", safety.SanitizeText(stdout.String())))
 		}
 
-		ctx.Logger.Success(fmt.Sprintf("Command completed successfully"))
+		ctx.Logger.Success("Command completed successfully")
 		return nil
 	}
 }
@@ -156,6 +171,9 @@ func (p *CommandPlugin) expandVars(s string, ctx Context) string {
 
 	result := s
 	for key, value := range replacements {
+		if value == "" {
+			continue
+		}
 		result = strings.ReplaceAll(result, key, value)
 	}
 

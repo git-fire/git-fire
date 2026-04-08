@@ -10,7 +10,7 @@ Core value: in a panic (or at end-of-day), run one command to discover repositor
 - **Repository:** `github.com/git-fire/git-fire`
 - **Language:** Go 1.24.2
 - **License:** MIT
-- **Status:** Alpha
+- **Status:** Beta
 
 ## User Promise
 
@@ -28,6 +28,7 @@ Core value: in a panic (or at end-of-day), run one command to discover repositor
 - `git-fire --skip-auto-commit` (push existing commits only)
 - `git-fire --status` (auth/repo status)
 - `git-fire --init` (generate config template)
+- `git-fire repos …` (list / scan / ignore / unignore / remove registry entries)
 
 ## Core Functionality
 
@@ -67,7 +68,7 @@ See [REGISTRY.md](REGISTRY.md).
 ### 6) Safety Model
 
 - Normal flows avoid force pushes.
-- Conflict safety branches (`git-fire-backup-*`) are used when needed.
+- Conflict safety branches (`git-fire-backup-*`) are used for `push-current-branch` conflict flows.
 - Dry-run mode supports preflight verification.
 - Secret-pattern detection blocks by default (configurable).
 
@@ -88,13 +89,16 @@ See [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md).
 
 ### 9) Extensibility and Plugins
 
-- Plugin internals exist, but default CLI auto-loading is not yet wired.
+- Command plugins defined in config.toml are loaded and executed automatically after each run.
+- Webhook plugin loading is planned and not implemented yet.
 - Plugin execution is non-fatal (errors are logged and run continues).
 - Typical use cases: object storage sync, notifications, archive steps.
 
 See [../PLUGINS.md](../PLUGINS.md).
 
 ## Architecture
+
+For Mermaid sequence and flow diagrams (CLI routing, default stream path, dry-run, TUI, registry), see [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md).
 
 - `main.go`
 - `cmd/root.go` (Cobra orchestration and flags)
@@ -122,10 +126,18 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Coverage is tracked per package with a risk-based focus, not a single global gate.
 - UI testing remains intentionally limited compared to non-UI packages.
 - Integration tests using real `git` are preferred over mocking.
+- Manual smoke fixtures for OSS testers live in `scripts/setup-manual-smoke-fixtures.sh`, `scripts/setup-manual-smoke-stages.sh`, and `scripts/run-manual-smoke-stage.sh`.
+- Future enhancement target: add stage outcome verification script for pass/fail assertions after manual runs.
+
+### Post-Release OS Polish Backlog (Low Risk)
+
+- Keep Unix-first shell script assumptions for manual smoke tooling, while documenting expected behavior for non-Unix users.
+- Consider expanding config/cache path tests around Windows `USERPROFILE`/`APPDATA` edge cases in isolated test environments.
+- Revisit non-critical path/layout fallback behavior for additional cross-OS consistency after launch feedback.
 
 ## Maturity and Risk
 
-- Alpha, but stable for many common flows.
+- Beta, but stable for many common flows.
 - Not intended to be a sole backup system yet.
 - Users should run dry-runs, verify results, and keep independent backup layers.
 
@@ -142,8 +154,10 @@ See [../PLUGINS.md](../PLUGINS.md).
 - Broaden package manager publication.
 - Tighten edge-case handling and operational confidence.
 - Improve onboarding and safe-usage documentation.
+- Add per-repo branch targeting controls (explicit include/ignore branch lists).
+- Expand config docs/examples to cover all currently supported global and per-repo options.
 
-### 1.0 (Target: next 2-4 months)
+### 1.0 (timing depends on beta feedback)
 
 - Close beta-critical issues.
 - Ship stable production-ready core flows.

@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -18,6 +19,10 @@ func (l *testLogger) Success(msg string) {
 }
 
 func (l *testLogger) Error(msg string, err error) {
+	if err != nil {
+		l.messages = append(l.messages, "ERROR: "+msg+" "+err.Error())
+		return
+	}
 	l.messages = append(l.messages, "ERROR: "+msg)
 }
 
@@ -127,6 +132,30 @@ func TestCommandPlugin_DryRun(t *testing.T) {
 	}
 }
 
+func TestCommandPlugin_DryRun_SanitizesArgs(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   true,
+	}
+
+	plugin := NewCommandPlugin("test", "git", []string{"clone", "https://user:leakme@github.com/org/repo.git"})
+
+	err := plugin.Execute(ctx)
+	if err != nil {
+		t.Errorf("Execute() failed: %v", err)
+	}
+
+	if len(logger.messages) != 1 {
+		t.Fatalf("Expected 1 log message, got %d", len(logger.messages))
+	}
+	if contains(logger.messages[0], "leakme") {
+		t.Errorf("Dry-run log should not contain raw URL credentials, got %q", logger.messages[0])
+	}
+}
+
 func TestCommandPlugin_VariableExpansion(t *testing.T) {
 	plugin := NewCommandPlugin("test", "echo", []string{
 		"{repo_name}",
@@ -152,6 +181,38 @@ func TestCommandPlugin_VariableExpansion(t *testing.T) {
 
 	if !contains(expanded, "20260212") {
 		t.Error("Expected expanded string to contain timestamp")
+	}
+}
+
+func TestCommandPlugin_VariableExpansion_PreservesUnknownRepoVars(t *testing.T) {
+	plugin := NewCommandPlugin("test", "echo", []string{
+		"{repo_path}",
+		"{repo_name}",
+		"{branch}",
+		"{commit_sha}",
+	})
+
+	ctx := Context{
+		// Timestamp still expands, but run-level contexts may not have repo fields.
+		Timestamp: time.Date(2026, 2, 12, 15, 30, 0, 0, time.UTC),
+	}
+
+	expanded := plugin.expandVars("{repo_path}-{repo_name}-{branch}-{commit_sha}-{timestamp}", ctx)
+
+	if !contains(expanded, "{repo_path}") {
+		t.Error("Expected missing repo_path to remain as placeholder")
+	}
+	if !contains(expanded, "{repo_name}") {
+		t.Error("Expected missing repo_name to remain as placeholder")
+	}
+	if !contains(expanded, "{branch}") {
+		t.Error("Expected missing branch to remain as placeholder")
+	}
+	if !contains(expanded, "{commit_sha}") {
+		t.Error("Expected missing commit_sha to remain as placeholder")
+	}
+	if !contains(expanded, "20260212") {
+		t.Error("Expected timestamp to still be expanded")
 	}
 }
 
@@ -182,6 +243,66 @@ func TestCommandPlugin_Cleanup(t *testing.T) {
 	plugin := NewCommandPlugin("cleanup-test", "echo", []string{"ok"})
 	if err := plugin.Cleanup(); err != nil {
 		t.Fatalf("Cleanup() should return nil, got %v", err)
+	}
+}
+
+func TestCommandPlugin_Execute_SanitizesStderr(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   false,
+	}
+
+	plugin := NewCommandPlugin("test-stderr", "sh", []string{"-c", "echo 'fatal https://user:secret@github.com/repo.git' 1>&2; exit 1"})
+
+	err := plugin.Execute(ctx)
+	if err == nil {
+		t.Fatal("Expected command error")
+	}
+
+	if contains(err.Error(), "user:secret@") {
+		t.Fatalf("Expected sanitized error, got %q", err.Error())
+	}
+	if !contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("Expected masked secret marker in error, got %q", err.Error())
+	}
+}
+
+func TestCommandPlugin_Execute_SanitizesStdoutDebug(t *testing.T) {
+	logger := &testLogger{}
+
+	ctx := Context{
+		RepoPath: "/test/repo",
+		Logger:   logger,
+		DryRun:   false,
+	}
+
+	plugin := NewCommandPlugin("test-stdout", "sh", []string{"-c", "echo 'https://user:secret@github.com/repo.git'"})
+
+	err := plugin.Execute(ctx)
+	if err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+
+	joined := ""
+	for _, m := range logger.messages {
+		joined += m
+	}
+	if contains(joined, "user:secret@") {
+		t.Fatalf("Expected sanitized logger output, got %q", joined)
+	}
+	if !contains(joined, "[REDACTED]") {
+		t.Fatalf("Expected masked secret marker in logger output, got %q", joined)
+	}
+}
+
+func TestTestLoggerErrorIncludesErr(t *testing.T) {
+	logger := &testLogger{}
+	logger.Error("boom", errors.New("details"))
+	if !contains(logger.messages[0], "details") {
+		t.Fatalf("expected logger to include error details, got %q", logger.messages[0])
 	}
 }
 

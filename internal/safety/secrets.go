@@ -26,18 +26,18 @@ type SuspiciousFile struct {
 
 // SecretScanner scans for potential secrets in files
 type SecretScanner struct {
-	patterns          []SecretPattern
-	suspiciousNames   []string
-	suspiciousExts    []string
+	patterns           []SecretPattern
+	suspiciousNames    []string
+	suspiciousExts     []string
 	suspiciousKeywords []string
 }
 
 // NewSecretScanner creates a scanner with default patterns
 func NewSecretScanner() *SecretScanner {
 	return &SecretScanner{
-		patterns:          defaultPatterns(),
-		suspiciousNames:   defaultSuspiciousNames(),
-		suspiciousExts:    defaultSuspiciousExtensions(),
+		patterns:           defaultPatterns(),
+		suspiciousNames:    defaultSuspiciousNames(),
+		suspiciousExts:     defaultSuspiciousExtensions(),
 		suspiciousKeywords: defaultSuspiciousKeywords(),
 	}
 }
@@ -74,6 +74,11 @@ func defaultPatterns() []SecretPattern {
 			Name:        "GitHub OAuth",
 			Pattern:     regexp.MustCompile(`gho_[0-9a-zA-Z]{36}`),
 			Description: "GitHub OAuth Token",
+		},
+		{
+			Name:        "GitLab Personal Access Token",
+			Pattern:     regexp.MustCompile(`(?i)glpat-[0-9a-zA-Z_\-]{20,}`),
+			Description: "GitLab personal access token",
 		},
 		{
 			Name:        "Private Key Header",
@@ -269,13 +274,6 @@ func (s *SecretScanner) scanFileContent(path string) ([]SuspiciousFile, error) {
 	return results, nil
 }
 
-// GetUncommittedFiles returns list of uncommitted files in a repo
-func GetUncommittedFiles(repoPath string) ([]string, error) {
-	// This would normally shell out to git, but for now return empty
-	// to avoid coupling with git operations in this package
-	return []string{}, nil
-}
-
 // FormatWarning formats a warning message for suspicious files
 func FormatWarning(files []SuspiciousFile) string {
 	if len(files) == 0 {
@@ -287,8 +285,8 @@ func FormatWarning(files []SuspiciousFile) string {
 	sb.WriteString("The following files may contain sensitive information:\n\n")
 
 	for _, file := range files {
-		sb.WriteString(fmt.Sprintf("  ❌ %s\n", file.Path))
-		sb.WriteString(fmt.Sprintf("     Reason: %s\n", file.Reason))
+		fmt.Fprintf(&sb, "  ❌ %s\n", file.Path)
+		fmt.Fprintf(&sb, "     Reason: %s\n", file.Reason)
 
 		if len(file.Patterns) > 0 {
 			sb.WriteString("     Patterns matched: ")
@@ -297,7 +295,7 @@ func FormatWarning(files []SuspiciousFile) string {
 		}
 
 		if len(file.LineNumbers) > 0 {
-			sb.WriteString(fmt.Sprintf("     Lines: %v\n", file.LineNumbers))
+			fmt.Fprintf(&sb, "     Lines: %v\n", file.LineNumbers)
 		}
 
 		sb.WriteString("\n")

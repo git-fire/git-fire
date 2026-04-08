@@ -387,6 +387,165 @@ func TestRunner_Execute_UsesDualBranchPushes(t *testing.T) {
 	}
 }
 
+func TestRunner_Execute_AutoCommitWithOnlySkipActions_DoesNotInjectFallbackPushes(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+
+	// Make repo dirty so auto-commit creates backup branches.
+	repo.AddFile("staged.txt", "staged\n")
+	repo.StageFile("staged.txt")
+	repo.AddFile("unstaged.txt", "unstaged\n")
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: repo.Path(),
+					Name: "dirty-repo",
+					Remotes: []git.Remote{
+						{Name: "origin", URL: remote.Path()},
+					},
+				},
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
+					{Type: ActionSkip, Description: "Skip push to origin due to conflict_strategy=abort"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
+	}
+	if result.Success != 0 || result.Skipped != 1 {
+		t.Fatalf("expected skip classification when only skip actions remain, got success=%d skipped=%d", result.Success, result.Skipped)
+	}
+
+	rr := result.RepoResults[0]
+	if rr.Success {
+		t.Fatalf("repo result should not be marked success when no executable actions remain: %#v", rr)
+	}
+	for _, action := range rr.Actions {
+		if action.Type == ActionAutoCommit {
+			t.Fatalf("expected auto-commit to be skipped when no push actions remain, got actions=%#v", rr.Actions)
+		}
+	}
+	for _, action := range rr.Actions {
+		if action.Type == ActionPushBranch {
+			t.Fatalf("expected no injected push-branch actions when only skip actions remain, got actions=%#v", rr.Actions)
+		}
+	}
+}
+
+func TestRunner_Execute_AutoCommitReplacesPushAllAndPushKnown(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("dirty").
+		WithRemote("origin", remote).
+		AddFile("base.txt", "base\n").
+		Commit("base commit")
+	currentBranch := repo.GetDefaultBranch()
+	repo.Push("origin", currentBranch)
+
+	// Ensure dual-branch auto-commit generates both staged and full backups.
+	repo.AddFile("staged.txt", "staged\n")
+	repo.StageFile("staged.txt")
+	repo.AddFile("unstaged.txt", "unstaged\n")
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: repo.Path(),
+					Name: "dirty-repo",
+					Remotes: []git.Remote{
+						{Name: "origin", URL: remote.Path()},
+					},
+				},
+				Actions: []Action{
+					{Type: ActionAutoCommit, Description: "Auto-commit uncommitted changes"},
+					{Type: ActionPushAll, Description: "Push all branches (origin)", Remote: "origin"},
+					{Type: ActionPushKnown, Description: "Push known branches (origin)", Remote: "origin"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("Expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	rr := result.RepoResults[0]
+	pushBranchCount := 0
+	for _, action := range rr.Actions {
+		if action.Type == ActionPushAll || action.Type == ActionPushKnown {
+			t.Fatalf("expected push-all/push-known actions to be replaced after auto-commit, got %#v", rr.Actions)
+		}
+		if action.Type == ActionPushBranch {
+			pushBranchCount++
+		}
+	}
+	if pushBranchCount == 0 {
+		t.Fatalf("expected replacement backup branch pushes, got %#v", rr.Actions)
+	}
+}
+
+func TestRunner_Execute_AllSkipActionsCountAsSkipped(t *testing.T) {
+	cfg := config.DefaultConfig()
+	runner := NewRunner(&cfg)
+
+	plan := &PushPlan{
+		Repos: []RepoPlan{
+			{
+				Repo: git.Repository{
+					Path: "/tmp/skip-only",
+					Name: "skip-only",
+				},
+				Actions: []Action{
+					{Type: ActionSkip, Description: "Skip push to origin due to conflict_strategy=abort"},
+				},
+			},
+		},
+	}
+
+	result, err := runner.Execute(plan)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Success != 0 || result.Skipped != 1 || result.Failed != 0 {
+		t.Fatalf("expected success=0 skipped=1 failed=0, got success=%d skipped=%d failed=%d", result.Success, result.Skipped, result.Failed)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("expected 1 repo result, got %d", len(result.RepoResults))
+	}
+	if result.RepoResults[0].Success {
+		t.Fatalf("skip-only repo should not be marked successful: %#v", result.RepoResults[0])
+	}
+	if result.RepoResults[0].Error != nil {
+		t.Fatalf("skip-only repo should not have error: %#v", result.RepoResults[0])
+	}
+}
+
 func TestRunner_ExecuteActionPushBranch(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)
@@ -851,7 +1010,7 @@ func TestRunner_ExecuteStream(t *testing.T) {
 	close(repoChan)
 
 	planner := NewPlanner(&cfg)
-	var total int64 = int64(len(repos))
+	total := int64(len(repos))
 
 	result, err := runner.ExecuteStream(repoChan, planner, false, &total)
 	if err != nil {
@@ -902,6 +1061,61 @@ func TestRunner_ExecuteStream_DryRun_SkippedNotCountedAsSuccess(t *testing.T) {
 	}
 }
 
+func TestRunner_ExecuteStream_DryRun_SkipsConflictDetection(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	runner := NewRunner(&cfg)
+	defer runner.Close()
+
+	go func() {
+		for range runner.ProgressChan() {
+		}
+	}()
+
+	_, local, remote := testutil.CreateConflictScenario(t)
+
+	repoChan := make(chan git.Repository, 1)
+	repoChan <- git.Repository{
+		Path:     local.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote.Path()}},
+	}
+	close(repoChan)
+
+	planner := NewPlanner(&cfg)
+	var total int64 = 1
+	result, err := runner.ExecuteStream(repoChan, planner, true, &total)
+	if err != nil {
+		t.Fatalf("ExecuteStream() error = %v", err)
+	}
+	if len(result.RepoResults) != 1 {
+		t.Fatalf("expected one repo result, got %d", len(result.RepoResults))
+	}
+
+	repoResult := result.RepoResults[0]
+	if !repoResult.Success {
+		t.Fatalf("expected dry-run repo result to be success, got %+v", repoResult)
+	}
+
+	var sawPush bool
+	for _, action := range repoResult.Actions {
+		if action.Type == ActionCreateFireBranch {
+			t.Fatalf("dry-run stream should skip conflict detection and fire branch planning: %#v", repoResult.Actions)
+		}
+		if action.Type == ActionPushBranch {
+			sawPush = true
+			if action.Branch == fireBranchPlaceholder {
+				t.Fatalf("dry-run stream should not include placeholder fire-branch push: %#v", repoResult.Actions)
+			}
+		}
+	}
+	if !sawPush {
+		t.Fatalf("expected a normal push action, got %#v", repoResult.Actions)
+	}
+}
+
 func TestDryRunExecute_SkippedAggregatesLikeLiveRun(t *testing.T) {
 	cfg := config.DefaultConfig()
 	runner := NewRunner(&cfg)
@@ -910,10 +1124,10 @@ func TestDryRunExecute_SkippedAggregatesLikeLiveRun(t *testing.T) {
 		DryRun: true,
 		Repos: []RepoPlan{
 			{
-				Repo:        git.Repository{Path: "/tmp/skipped", Name: "skipped"},
-				Skip:        true,
-				SkipReason:  "No remotes configured",
-				Actions:     []Action{{Type: ActionPushAll, Description: "noop"}},
+				Repo:       git.Repository{Path: "/tmp/skipped", Name: "skipped"},
+				Skip:       true,
+				SkipReason: "No remotes configured",
+				Actions:    []Action{{Type: ActionPushAll, Description: "noop"}},
 			},
 			{
 				Repo: git.Repository{Path: "/tmp/fake-repo", Name: "would-run"},

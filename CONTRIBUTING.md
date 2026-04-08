@@ -2,7 +2,9 @@
 
 Thanks for your interest in contributing!
 
-For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Behavioral expectations and edge-case semantics live in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md).
+Your feedback, feature requests, and ideas are genuinely wanted — no idea is too small or too ambitious to discuss. If you're thinking about forking to add something, please open an issue first. The goal is a tool the community actually relies on, and I'd rather build it with you than have it fragment. Open an issue, open a PR, or just tell me what you need.
+
+For project orientation, start with [README.md](README.md) and the docs hub at [docs/README.md](docs/README.md). Detailed behavior expectations, edge cases, and validation targets are documented in [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md); user-facing summaries and shipped code on `main` are the practical source of truth when wording drifts during beta.
 
 ## Prerequisites
 
@@ -41,7 +43,7 @@ All tests must pass before submitting a PR.
 
 ## Maintainer
 
-The main project maintainer is `TBRX103`.
+Maintainers are listed on the GitHub repository: `github.com/git-fire/git-fire`.
 
 ## Package Overview
 
@@ -57,12 +59,12 @@ The main project maintainer is `TBRX103`.
 | `internal/plugins` | Plugin system — command execution and registry |
 | `internal/testutil` | Shared test helpers: repo fixtures, scenarios, snapshots |
 
-## Current Alpha Limitations
+## Current Beta Limitations
 
-- Plugin auto-loading from config is not yet wired into the default CLI run path (`v0.2` target).
+- Command plugin auto-loading from config is now shipped: plugins defined under `[[plugins.command]]` in config.toml are loaded and executed automatically after each run.
 - `--backup-to` is exposed but not yet implemented (`v0.2` target).
 - Webhook/reference plugin execution paths are planned but not implemented in the runtime path yet (`v0.2` target).
 
 ## Reporting Issues
 
-Open a GitHub issue with a minimal reproduction case. For security issues, please email the maintainer directly rather than opening a public issue.
+Open a GitHub issue with a minimal reproduction case. For security issues, do not open a public issue; use the private reporting path in [SECURITY.md](SECURITY.md).

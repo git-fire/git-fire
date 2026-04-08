@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 310 120" width="310" height="120">
+  <defs>
+    <linearGradient id="v5ld-fill" x1="0.2" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#CC3400"/>
+      <stop offset="50%"  stop-color="#F07010"/>
+      <stop offset="100%" stop-color="#F9DC50"/>
+    </linearGradient>
+    <linearGradient id="v5ld-inner" x1="0.3" y1="1" x2="0.5" y2="0">
+      <stop offset="0%"   stop-color="#FF6020" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFE878" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <path d="
+    M50,108
+    C30,98 16,78 18,54
+    C20,32 34,14 50,8
+    C66,14 80,32 82,54
+    C84,78 70,98 50,108
+    Z"
+    fill="url(#v5ld-fill)" stroke="#0E0500" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="
+    M50,94
+    C36,85 28,68 30,50
+    C32,34 40,20 50,14
+    C60,21 68,36 69,52
+    C70,70 62,84 50,94
+    Z"
+    fill="url(#v5ld-inner)" opacity="0.55"/>
+  <circle cx="50" cy="38" r="7" fill="#0E0500"/>
+  <circle cx="50" cy="38" r="4.5" fill="#F8D040"/>
+  <line x1="50" y1="45" x2="50" y2="65"
+        stroke="#0E0500" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="50" cy="72" r="7" fill="#0E0500"/>
+  <circle cx="50" cy="72" r="3.5" fill="#FFFFFF" opacity="0.80"/>
+  <rect x="38" y="108" width="24" height="10" rx="3" ry="3"
+        fill="#FFFFFF" opacity="0.12"/>
+  <text
+    x="102" y="58"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="36"
+    font-weight="500"
+    letter-spacing="-0.2"
+    fill="#E6EDF3"
+    dominant-baseline="middle">git-fire</text>
+</svg>

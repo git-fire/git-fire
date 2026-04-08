@@ -2,16 +2,20 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/git-fire/git-fire/internal/usb"
 )
@@ -155,12 +159,7 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 func TestHandleInit(t *testing.T) {
 	// Create temp directory for config
 	tmpHome := t.TempDir()
-
-	// Save original HOME and restore after test
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Run handleInit
 	err := handleInit()
@@ -198,35 +197,96 @@ func TestHandleInit(t *testing.T) {
 	}
 }
 
-func TestHandleInit_ExistingConfig(t *testing.T) {
-	// Create temp directory for config
+func TestHandleInit_UsesExplicitConfigPath(t *testing.T) {
 	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
 
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
+	resetFlags()
+	customPath := filepath.Join(tmpHome, "custom", "my-git-fire.toml")
+	configFile = customPath
+	defer func() { configFile = "" }()
 
-	os.Setenv("HOME", tmpHome)
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with explicit config: %v", err)
+	}
+	if _, err := os.Stat(customPath); os.IsNotExist(err) {
+		t.Fatalf("expected config at %s", customPath)
+	}
+	// Default user path must not be created when using --config
+	defaultPath := config.DefaultConfigPath()
+	if _, err := os.Stat(defaultPath); err == nil {
+		t.Fatalf("did not expect default config at %s when --config was set", defaultPath)
+	}
+}
 
-	// Create config directory and file
-	configDir := filepath.Join(tmpHome, ".config", "git-fire")
-	err := os.MkdirAll(configDir, 0755)
-	if err != nil {
+func TestHandleInit_ExistingConfig_NonInteractive(t *testing.T) {
+	// Simulate a non-interactive environment by replacing os.Stdin with a pipe.
+	// handleInit should return an error rather than prompt when stdin is not a tty.
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		t.Fatalf("Failed to create config dir: %v", err)
 	}
+	if err := os.WriteFile(configPath, []byte("# Existing config\n"), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
+	}
 
-	configPath := filepath.Join(configDir, "config.toml")
-	existingContent := "# Existing config\n"
-	err = os.WriteFile(configPath, []byte(existingContent), 0644)
+	// Replace stdin with a pipe so Stat() returns non-character-device mode.
+	r, w, err := os.Pipe()
 	if err != nil {
-		t.Fatalf("Failed to create existing config: %v", err)
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	w.Close()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin; r.Close() }()
+
+	resetFlags()
+	gotErr := handleInit()
+	if gotErr == nil {
+		t.Fatal("handleInit() should return error when config exists in non-interactive env")
+	}
+	if !strings.Contains(gotErr.Error(), "already exists") {
+		t.Errorf("expected 'already exists' error, got: %v", gotErr)
+	}
+}
+
+func TestHandleInit_ForceOverwrite(t *testing.T) {
+	// --force should overwrite an existing config without prompting.
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	configPath := config.DefaultConfigPath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte("# Old config\n"), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
 	}
 
-	// handleInit should detect existing config
-	// Note: In real usage, it would prompt the user
-	// For testing, we can verify the file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Error("Existing config file should be detected")
+	resetFlags()
+	forceInit = true
+	defer func() { forceInit = false }()
+
+	if err := handleInit(); err != nil {
+		t.Fatalf("handleInit() with --force error = %v", err)
 	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config after force overwrite: %v", err)
+	}
+	if strings.Contains(string(content), "# Old config") {
+		t.Error("Config was not overwritten by --force")
+	}
+}
+
+func TestCmdPluginLogger_Debug(t *testing.T) {
+	// Debug is a no-op — just confirm it doesn't panic.
+	l := &cmdPluginLogger{}
+	l.Debug("should not panic")
 }
 
 func TestHandleStatus(t *testing.T) {
@@ -243,9 +303,7 @@ func TestHandleStatus(t *testing.T) {
 func TestRunGitFire_DryRun(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -277,9 +335,7 @@ func TestRunGitFire_DryRun(t *testing.T) {
 func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create a test scenario with repos
 	scenario := testutil.NewScenario(t)
@@ -311,12 +367,62 @@ func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_DryRun_EmitsSecretWarningStderr(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("secret-repo").
+		WithRemote("origin", remote).
+		AddFile("test.txt", "content\n").
+		Commit("Initial commit")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	secretFile := filepath.Join(repo.Path(), "token.env")
+	if err := os.WriteFile(secretFile, []byte("GITLAB_TOKEN=glpat-abcdefghij1234567890\n"), 0644); err != nil {
+		t.Fatalf("write secret file: %v", err)
+	}
+
+	resetFlags()
+	dryRun = true
+	scanPath = filepath.Dir(repo.Path())
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	runErr := runGitFire(rootCmd, []string{})
+
+	os.Stderr = oldStderr
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	stderr := string(stderrBytes)
+
+	if runErr != nil {
+		t.Fatalf("runGitFire() dry-run: %v", runErr)
+	}
+	if !strings.Contains(stderr, "Potential secrets detected") {
+		t.Fatalf("expected secret warning on stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "GitLab") {
+		t.Fatalf("expected GitLab pattern in stderr, got: %q", stderr)
+	}
+}
+
 func TestRunGitFire_NoRepos(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Create empty directory
 	emptyDir := t.TempDir()
@@ -339,9 +445,7 @@ func TestRunGitFire_NoRepos(t *testing.T) {
 func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	emptyDir := t.TempDir()
 
@@ -368,9 +472,7 @@ func TestRunGitFire_NoRepos_DoesNotPrintWaterMessage(t *testing.T) {
 func TestRunGitFire_FireDrillFlag(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -399,9 +501,7 @@ func TestRunGitFire_FireDrillFlag(t *testing.T) {
 func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -428,9 +528,7 @@ func TestRunGitFire_SkipAutoCommit(t *testing.T) {
 func TestRunGitFire_WithInit(t *testing.T) {
 	// Setup temp home
 	tmpHome := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpHome)
+	setTestUserDirs(t, tmpHome)
 
 	// Reset flags
 	resetFlags()
@@ -518,6 +616,34 @@ func TestBackupToExecuteError(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_FireAndDryRunMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	dryRun = true
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --dry-run are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunGitFire_FireAndFireDrillMutuallyExclusive(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	fireDrill = true // aliases to --dry-run in runGitFire
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire and --fire-drill are both enabled")
+	}
+	if !strings.Contains(err.Error(), "--fire and --dry-run cannot be used together") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRootCommand_CombinedFlags(t *testing.T) {
 	// Reset flags
 	resetFlags()
@@ -590,6 +716,463 @@ func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	}
 	if entry.Mode != git.ModePushAll.String() {
 		t.Fatalf("expected stored mode %q, got %q", git.ModePushAll.String(), entry.Mode)
+	}
+	if !updated.IsNewRegistryEntry {
+		t.Fatal("expected IsNewRegistryEntry for first upsert")
+	}
+}
+
+func TestUpsertRepoIntoRegistry_SecondUpsertNotNew(t *testing.T) {
+	reg := &registry.Registry{}
+	now := time.Now()
+	repo := git.Repository{
+		Path: "/tmp/repo-twice",
+		Name: "repo-twice",
+	}
+	first, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if !first.IsNewRegistryEntry {
+		t.Fatal("first upsert should be new to registry")
+	}
+	second, _ := upsertRepoIntoRegistry(reg, repo, now, git.ModePushAll)
+	if second.IsNewRegistryEntry {
+		t.Fatal("second upsert should not mark IsNewRegistryEntry")
+	}
+}
+
+func TestTruncateScanProgressPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		maxLen    int
+		wantEqual string
+		wantLen   int
+		wantPref  string
+		checkUTF8 bool
+	}{
+		{
+			name:      "short path unchanged",
+			path:      "/home/u/proj",
+			maxLen:    72,
+			wantEqual: "/home/u/proj",
+		},
+		{
+			name:     "long path truncated",
+			path:     strings.Repeat("/x", 80),
+			maxLen:   20,
+			wantLen:  20,
+			wantPref: "...",
+		},
+		{
+			name:      "multibyte path truncated safely",
+			path:      "/tmp/" + strings.Repeat("世界", 20),
+			maxLen:    14,
+			wantPref:  "...",
+			checkUTF8: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateScanProgressPath(tt.path, tt.maxLen)
+			if tt.wantEqual != "" && got != tt.wantEqual {
+				t.Fatalf("got %q want %q", got, tt.wantEqual)
+			}
+			if tt.wantLen > 0 && len(got) != tt.wantLen {
+				t.Fatalf("len=%d want %d", len(got), tt.wantLen)
+			}
+			if tt.wantPref != "" && !strings.HasPrefix(got, tt.wantPref) {
+				t.Fatalf("expected prefix %q, got %q", tt.wantPref, got)
+			}
+			if runewidth.StringWidth(got) > tt.maxLen {
+				t.Fatalf("display width=%d exceeds max=%d for %q", runewidth.StringWidth(got), tt.maxLen, got)
+			}
+			if tt.checkUTF8 && !utf8.ValidString(got) {
+				t.Fatalf("expected valid UTF-8 output, got %q", got)
+			}
+		})
+	}
+}
+
+func TestCmdPluginLoggerError_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStderr := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = oldStderr }()
+
+	logger := &cmdPluginLogger{}
+	logger.Error(
+		"plugin failed for https://user:supersecret@github.com/org/repo.git",
+		errors.New("fatal: could not read from https://user:supersecret@github.com/org/repo.git"),
+	)
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stderr pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
+func TestCmdPluginLoggerInfo_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	logger := &cmdPluginLogger{}
+	logger.Info("plugin info: https://user:supersecret@github.com/org/repo.git")
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stdout pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
+func TestCmdPluginLoggerSuccess_SanitizesOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
+
+	logger := &cmdPluginLogger{}
+	logger.Success("plugin success: https://user:supersecret@github.com/org/repo.git")
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer failed: %v", err)
+	}
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed reading stdout pipe: %v", err)
+	}
+
+	got := string(out)
+	if strings.Contains(got, "supersecret") {
+		t.Fatalf("expected sanitized output, got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in output, got %q", got)
+	}
+}
+
+func TestShouldRunPostRunPlugins(t *testing.T) {
+	tests := []struct {
+		name     string
+		dryRun   bool
+		runErr   error
+		expected bool
+	}{
+		{name: "success run", dryRun: false, runErr: nil, expected: true},
+		{name: "dry run", dryRun: true, runErr: nil, expected: false},
+		{name: "aborted run", dryRun: false, runErr: errRunAborted, expected: false},
+		{name: "noop run", dryRun: false, runErr: errRunNoop, expected: false},
+		{name: "failed run", dryRun: false, runErr: errors.New("boom"), expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldRunPostRunPlugins(tt.dryRun, tt.runErr)
+			if got != tt.expected {
+				t.Fatalf("shouldRunPostRunPlugins(%v, %v) = %v, want %v", tt.dryRun, tt.runErr, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRunGitFire_OnFailurePluginErrorKeepsRunError(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("plugin-failure-run-error").
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	// Intentionally configure a broken remote so the main run fails.
+	brokenRemoteDir := filepath.Join(t.TempDir(), "missing-remote.git")
+	if err := os.MkdirAll(filepath.Dir(brokenRemoteDir), 0o755); err != nil {
+		t.Fatalf("mkdir broken remote parent: %v", err)
+	}
+	testutil.RunGitCmd(t, repo.Path(), "remote", "add", "origin", brokenRemoteDir)
+
+	pluginName := "fail-on-failure-plugin-keep-run-error"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "echo plugin failure https://user:supersecret@github.com/org/repo.git 1>&2; exit 1"]
+when = "on-failure"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+
+	runErr := runGitFire(rootCmd, []string{})
+	if runErr == nil {
+		t.Fatal("expected runGitFire() to fail")
+	}
+	if !strings.Contains(runErr.Error(), "some repositories failed") {
+		t.Fatalf("expected returned error to include original run failure, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "plugin "+pluginName+" failed") {
+		t.Fatalf("expected returned error to include plugin failure, got: %v", runErr)
+	}
+	if strings.Contains(runErr.Error(), "supersecret") {
+		t.Fatalf("expected plugin error in returned error to be sanitized, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "[REDACTED]") {
+		t.Fatalf("expected sanitized plugin error marker in returned error, got: %v", runErr)
+	}
+}
+
+func TestRunGitFire_OnSuccessPluginFailRunFailsRun(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("plugin-on-success").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	// Make the repo dirty so the run performs a real backup path.
+	if err := os.WriteFile(filepath.Join(repo.Path(), "dirty.txt"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	pluginName := "fail-on-success-plugin"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "exit 7"]
+when = "on-success"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	runErr := runGitFire(rootCmd, []string{})
+
+	os.Stderr = oldStderr
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	stderr := string(stderrBytes)
+	if runErr == nil {
+		t.Fatal("expected runGitFire() to fail when on-success fail_run plugin fails")
+	}
+	if !strings.Contains(runErr.Error(), "plugin "+pluginName+" failed") {
+		t.Fatalf("expected returned error to include plugin failure, got: %v", runErr)
+	}
+	if strings.Contains(runErr.Error(), "some repositories failed") {
+		t.Fatalf("expected core backup to succeed and only plugin to fail run, got: %v", runErr)
+	}
+	if strings.Contains(stderr, "plugin "+pluginName+":") {
+		t.Fatalf("expected fail_run plugin errors to avoid duplicate stderr logging, got: %q", stderr)
+	}
+}
+
+func TestRunGitFire_DryRun_SkipsPostRunPlugins(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("plugin-dry-run-skip").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	// Keep repo dirty so dry-run still plans work.
+	if err := os.WriteFile(filepath.Join(repo.Path(), "dirty.txt"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	marker := filepath.Join(t.TempDir(), "plugin-ran.marker")
+	pluginName := "should-not-run-in-dry-run"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "printf ran > \"$1\"", "plugin", "` + marker + `"]
+when = "always"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+	dryRun = true
+
+	if err := runGitFire(rootCmd, []string{}); err != nil {
+		t.Fatalf("runGitFire() dry-run should not fail from post-run plugins: %v", err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatalf("expected post-run plugins to be skipped in dry-run; marker %q exists", marker)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat marker: %v", err)
+	}
+}
+
+func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scanRoot := t.TempDir()
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = scanRoot
+
+	ctx := buildPostRunPluginContext(cfg, false, true)
+
+	if ctx.RepoPath != scanRoot {
+		t.Fatalf("expected RepoPath %q, got %q", scanRoot, ctx.RepoPath)
+	}
+	if ctx.RepoName != filepath.Base(scanRoot) {
+		t.Fatalf("expected RepoName %q, got %q", filepath.Base(scanRoot), ctx.RepoName)
+	}
+	if !ctx.Emergency {
+		t.Fatalf("expected Emergency=true")
+	}
+	if ctx.DryRun {
+		t.Fatalf("expected DryRun=false")
+	}
+}
+
+func TestBuildPostRunPluginContext_ReadsGitBranchAndCommitWhenScanRootIsRepo(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("scan-root-repo").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = repo.Path()
+
+	ctx := buildPostRunPluginContext(cfg, false, false)
+
+	if ctx.Branch == "" {
+		t.Fatalf("expected Branch to be populated for git scan root")
+	}
+	if ctx.CommitSHA == "" {
+		t.Fatalf("expected CommitSHA to be populated for git scan root")
+	}
+}
+
+func TestBuildPostRunPluginContext_DoesNotReadParentRepoMetadata(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	parentRepo := scenario.CreateRepo("parent-repo").
+		WithRemote("origin", remote).
+		AddFile("README.md", "parent\n").
+		Commit("init")
+	defaultBranch := parentRepo.GetDefaultBranch()
+	parentRepo.Push("origin", defaultBranch)
+
+	scanRoot := filepath.Join(parentRepo.Path(), "projects")
+	if err := os.MkdirAll(scanRoot, 0o755); err != nil {
+		t.Fatalf("mkdir scan root: %v", err)
+	}
+
+	cfg := config.LoadOrDefault()
+	cfg.Global.ScanPath = scanRoot
+
+	ctx := buildPostRunPluginContext(cfg, false, false)
+
+	if ctx.RepoPath != scanRoot {
+		t.Fatalf("expected RepoPath %q, got %q", scanRoot, ctx.RepoPath)
+	}
+	if ctx.RepoName != filepath.Base(scanRoot) {
+		t.Fatalf("expected RepoName %q, got %q", filepath.Base(scanRoot), ctx.RepoName)
+	}
+	if ctx.Branch != "" {
+		t.Fatalf("expected Branch to be empty when scan root is not a git repo, got %q", ctx.Branch)
+	}
+	if ctx.CommitSHA != "" {
+		t.Fatalf("expected CommitSHA to be empty when scan root is not a git repo, got %q", ctx.CommitSHA)
 	}
 }
 

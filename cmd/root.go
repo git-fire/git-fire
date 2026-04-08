@@ -9,18 +9,21 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 
 	"github.com/git-fire/git-fire/internal/auth"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/executor"
 	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/plugins"
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-fire/internal/safety"
 	"github.com/git-fire/git-fire/internal/ui"
@@ -84,7 +87,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip filesystem scan; back up only known (registry) repos this run")
 	rootCmd.Flags().BoolVar(&initConfig, "init", false, "Generate example configuration file")
 	rootCmd.Flags().BoolVar(&forceInit, "force", false, "Overwrite existing config without prompting (use with --init)")
-	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (planned v0.2; not yet implemented)")
+	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (not yet implemented)")
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 	rootCmd.Flags().StringArrayVar(&usbTargets, "usb", nil, "USB/folder backup target root (repeatable)")
@@ -105,6 +108,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if showStatus {
 		return handleStatus()
 	}
+
+	// --fire-drill is an alias for --dry-run.
+	if fireDrill {
+		dryRun = true
+	}
+	if fireMode && dryRun {
+		return fmt.Errorf("--fire and --dry-run cannot be used together")
+	}
+
 	var cfg *config.Config
 	failRun := func(err error) error {
 		if err != nil {
@@ -146,9 +158,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return failRun(fmt.Errorf("invalid flag overrides: %s", safety.SanitizeText(err.Error())))
 	}
 
-	// Fire drill is same as dry run
-	if fireDrill {
-		dryRun = true
+	// Load plugins from config (non-fatal: warn and continue on failure)
+	if loadErr := plugins.LoadFromConfig(cfg); loadErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to load plugins from config: %s\n", safety.SanitizeText(loadErr.Error()))
 	}
 
 	// Show security notice
@@ -207,7 +219,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Routing:
 	//   --fire         → streaming TUI (repos appear as discovered)
-	//   --dry-run      → batch collect then plan summary (no changes made)
+	//   --dry-run      → batch collect, plan summary, then dry-run execute (no git mutations; secret warnings)
 	//   default        → streaming backup pipeline
 	var runErr error
 	targets := resolveUSBTargets(cfg, usbTargets)
@@ -219,6 +231,48 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		runErr = runBatch(cfg, reg, regPath, opts)
 	} else {
 		runErr = runStream(cfg, reg, regPath, opts)
+	}
+
+	// Fire post-run plugins (non-fatal unless fail_run is enabled;
+	// skipped on dry-run, user abort, and no-op runs).
+	var postRunPluginErr error
+	if shouldRunPostRunPlugins(dryRun, runErr) {
+		pluginCtx := buildPostRunPluginContext(cfg, dryRun, fireMode)
+		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
+		if enabledErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
+		} else {
+			var pluginErr error
+			runPlugins := func(trigger plugins.Trigger) {
+				for _, p := range plugins.FilterPluginsByTrigger(enabledPlugins, trigger) {
+					if pErr := p.Execute(pluginCtx); pErr != nil {
+						sanitizedPluginErr := safety.SanitizeText(pErr.Error())
+						if cmdPlugin, ok := p.(*plugins.CommandPlugin); ok && cmdPlugin.FailRun() {
+							failErr := fmt.Errorf(
+								"%w: plugin %s failed: %s",
+								plugins.ErrPluginFailed,
+								p.Name(),
+								sanitizedPluginErr,
+							)
+							pluginErr = errors.Join(pluginErr, failErr)
+							continue
+						}
+						fmt.Fprintf(os.Stderr, "plugin %s: %s\n", p.Name(), sanitizedPluginErr)
+					}
+				}
+			}
+
+			if runErr != nil && !errors.Is(runErr, errRunNoop) {
+				runPlugins(plugins.TriggerOnFailure)
+			} else {
+				runPlugins(plugins.TriggerOnSuccess)
+			}
+
+			runPlugins(plugins.TriggerAlways)
+			if pluginErr != nil {
+				postRunPluginErr = pluginErr
+			}
+		}
 	}
 
 	if errors.Is(runErr, errRunAborted) {
@@ -234,7 +288,13 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if FlavorQuotesEnabled(cfg) {
 			printFailedRunEmberMessage()
 		}
+		if postRunPluginErr != nil {
+			return errors.Join(runErr, postRunPluginErr)
+		}
 		return runErr
+	}
+	if postRunPluginErr != nil {
+		return postRunPluginErr
 	}
 
 	if FlavorQuotesEnabled(cfg) {
@@ -536,7 +596,8 @@ func runUSB(cfg *config.Config, reg *registry.Registry, regPath string, opts git
 
 // runBatch is used for --fire (TUI) and --dry-run. It collects the full repo
 // list before proceeding, which is necessary for the interactive selector and
-// for showing a complete plan summary before any changes are made.
+// for showing a complete plan summary. --dry-run then runs the executor dry-run
+// path (e.g. secret scans) without mutating repositories.
 func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
 	var (
 		repos     []git.Repository
@@ -598,7 +659,13 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Printf("✓ Found %d repositories\n", len(repos))
 	fmt.Printf("✓ SSH Status: %d keys available", len(sshStatus.AvailableKeys))
 	if sshStatus.Agent.Running {
-		fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		if sshStatus.Agent.KeysKnown {
+			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+		} else if sshStatus.Agent.Error != "" {
+			fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+		} else {
+			fmt.Printf(" (agent key status unknown)")
+		}
 	}
 	fmt.Println()
 	fmt.Println()
@@ -640,6 +707,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Println()
 
 	if dryRun {
+		runner := executor.NewRunner(cfg)
+		defer runner.Close()
+		if _, err := runner.Execute(plan); err != nil {
+			return fmt.Errorf("dry run failed: %w", err)
+		}
 		fmt.Println("🔥 Fire Drill Complete - No changes were made")
 		return errRunNoop
 	}
@@ -649,7 +721,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	// Execute plan
 	fmt.Println()
@@ -797,7 +869,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	fmt.Println("🔥 Pushing repositories...")
 	fmt.Println()
@@ -882,11 +954,39 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		scanErr = git.ScanRepositoriesStream(opts, scanChan)
 	}()
 
-	// Drain folder-progress in the background (TUI uses it; CLI discards it).
-	go func() {
-		for range folderProgress {
-		}
-	}()
+	// Folder progress: TUI consumes paths live; default stream prints periodic
+	// updates so long walks are not silent.
+	var lastFolder atomic.Pointer[string]
+	if !opts.DisableScan {
+		go func() {
+			for p := range folderProgress {
+				pp := p
+				lastFolder.Store(&pp)
+			}
+		}()
+		go func() {
+			tick := time.NewTicker(2 * time.Second)
+			defer tick.Stop()
+			const scanPrefix = "   🔍 Scanning… "
+			for {
+				select {
+				case <-scanDone:
+					return
+				case <-tick.C:
+					ptr := lastFolder.Load()
+					if ptr != nil && *ptr != "" {
+						maxPathLen := scanProgressPathMaxLen(scanPrefix)
+						fmt.Printf("%s%s\n", scanPrefix, truncateScanProgressPath(*ptr, maxPathLen))
+					}
+				}
+			}
+		}()
+	} else {
+		go func() {
+			for range folderProgress {
+			}
+		}()
+	}
 
 	// Goroutine 2: upsert + filter → repoChan (closed when scanChan drains)
 	now := time.Now()
@@ -909,7 +1009,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	if err != nil {
 		return fmt.Errorf("failed to setup logger: %w", err)
 	}
-	defer logger.Close()
+	defer func() { _ = logger.Close() }()
 
 	planner := executor.NewPlanner(cfg)
 	runner := executor.NewRunner(cfg)
@@ -981,7 +1081,13 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	case sshStatus := <-sshChan:
 		fmt.Printf("\n✓ SSH: %d keys available", len(sshStatus.AvailableKeys))
 		if sshStatus.Agent.Running {
-			fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			if sshStatus.Agent.KeysKnown {
+				fmt.Printf(" (%d loaded in agent)", len(sshStatus.Agent.Keys))
+			} else if sshStatus.Agent.Error != "" {
+				fmt.Printf(" (agent key status unknown: %s)", safety.SanitizeText(sshStatus.Agent.Error))
+			} else {
+				fmt.Printf(" (agent key status unknown)")
+			}
 		}
 		fmt.Println()
 	case sshErr := <-sshErrChan:
@@ -1007,6 +1113,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	absPath, err := filepath.Abs(repo.Path)
 	if err != nil {
 		// Can't resolve path — include repo to be safe (never silently drop backups).
+		repo.IsNewRegistryEntry = false
 		return repo, true
 	}
 	var modeStr string
@@ -1021,6 +1128,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		e.Status = registry.StatusActive
 	})
 	if found {
+		repo.IsNewRegistryEntry = false
 		if modeStr != "" {
 			repo.Mode = git.ParseMode(modeStr)
 		} else {
@@ -1030,6 +1138,7 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 	}
 	// New discovery — register it immediately (opt-out model).
 	repo.Mode = defaultMode
+	repo.IsNewRegistryEntry = true
 	reg.Upsert(registry.RegistryEntry{
 		Path:     absPath,
 		Name:     repo.Name,
@@ -1039,6 +1148,50 @@ func upsertRepoIntoRegistry(reg *registry.Registry, repo git.Repository, now tim
 		LastSeen: now,
 	})
 	return repo, true
+}
+
+// truncateScanProgressPath shortens a filesystem path for one-line CLI output.
+func truncateScanProgressPath(path string, maxLen int) string {
+	if maxLen <= 0 || runewidth.StringWidth(path) <= maxLen {
+		return path
+	}
+	ellipsis := "..."
+	ellipsisWidth := runewidth.StringWidth(ellipsis)
+	if maxLen <= ellipsisWidth {
+		return runewidth.Truncate(path, maxLen, "")
+	}
+	remaining := maxLen - ellipsisWidth
+	runes := []rune(path)
+	start := len(runes)
+	width := 0
+	for i := len(runes) - 1; i >= 0; i-- {
+		rw := runewidth.RuneWidth(runes[i])
+		if width+rw > remaining {
+			break
+		}
+		width += rw
+		start = i
+	}
+	return ellipsis + string(runes[start:])
+}
+
+func scanProgressPathMaxLen(prefix string) int {
+	const (
+		fallback = 72
+		minLen   = 8
+	)
+	cols, err := strconv.Atoi(os.Getenv("COLUMNS"))
+	if err != nil || cols <= 0 {
+		return fallback
+	}
+	dynamic := cols - runewidth.StringWidth(prefix)
+	if dynamic < minLen {
+		return minLen
+	}
+	if dynamic > fallback {
+		return fallback
+	}
+	return dynamic
 }
 
 // saveRegistry persists the registry and logs a warning on failure.
@@ -1186,6 +1339,9 @@ func printResult(result *executor.ExecutionResult, logPath string) {
 
 func handleInit() error {
 	configPath := config.DefaultConfigPath()
+	if configFile != "" {
+		configPath = configFile
+	}
 
 	// Check if config already exists
 	if _, err := os.Stat(configPath); err == nil {
@@ -1279,4 +1435,71 @@ func handleStatus() error {
 	fmt.Printf("Dirty repositories: %d\n", dirtyCount)
 
 	return nil
+}
+
+// cmdPluginLogger satisfies plugins.Logger for post-run plugin execution.
+type cmdPluginLogger struct{}
+
+func (l *cmdPluginLogger) Info(msg string)    { fmt.Println(" ", safety.SanitizeText(msg)) }
+func (l *cmdPluginLogger) Success(msg string) { fmt.Println(" ", safety.SanitizeText(msg)) }
+func (l *cmdPluginLogger) Error(msg string, err error) {
+	safeMsg := safety.SanitizeText(msg)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "  %s\n", safeMsg)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "  %s: %s\n", safeMsg, safety.SanitizeText(err.Error()))
+}
+func (l *cmdPluginLogger) Debug(_ string) {}
+
+func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
+	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
+}
+
+func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) plugins.Context {
+	ctx := plugins.Context{
+		Timestamp: time.Now(),
+		DryRun:    isDryRun,
+		Emergency: isEmergency,
+		Logger:    &cmdPluginLogger{},
+	}
+
+	// Post-run hooks execute at the run level, so we seed repo vars from the
+	// configured scan root as a best-effort context instead of leaving them blank.
+	scanRoot, err := filepath.Abs(cfg.Global.ScanPath)
+	if err != nil {
+		return ctx
+	}
+	ctx.RepoPath = scanRoot
+	ctx.RepoName = filepath.Base(scanRoot)
+
+	// Only read git metadata when scanRoot is itself the repository root.
+	// Bound local git subprocess time so a wedged repo cannot stall post-run hooks.
+	gitCmdCtx, cancelGitCmd := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelGitCmd()
+
+	topLevelOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return ctx
+	}
+	topLevelPath := filepath.Clean(strings.TrimSpace(string(topLevelOut)))
+	scanRootPath := filepath.Clean(scanRoot)
+	if resolved, err := filepath.EvalSymlinks(topLevelPath); err == nil {
+		topLevelPath = filepath.Clean(resolved)
+	}
+	if resolved, err := filepath.EvalSymlinks(scanRootPath); err == nil {
+		scanRootPath = filepath.Clean(resolved)
+	}
+	if topLevelPath != scanRootPath {
+		return ctx
+	}
+
+	if branchOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
+		ctx.Branch = strings.TrimSpace(string(branchOut))
+	}
+	if commitOut, err := exec.CommandContext(gitCmdCtx, "git", "-C", scanRoot, "rev-parse", "HEAD").Output(); err == nil {
+		ctx.CommitSHA = strings.TrimSpace(string(commitOut))
+	}
+
+	return ctx
 }

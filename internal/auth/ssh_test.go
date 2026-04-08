@@ -120,6 +120,131 @@ func TestCheckSSHAgent(t *testing.T) {
 	// So we only test the "not running" case reliably
 }
 
+func TestCheckSSHAgent_ProbeFailureIsNonFatalAndVisible(t *testing.T) {
+	tmpBin := t.TempDir()
+	if err := writeFakeSshAdd(t, tmpBin, "probe_failure"); err != nil {
+		t.Fatalf("write fake ssh-add: %v", err)
+	}
+
+	t.Setenv("PATH", tmpBin)
+	t.Setenv("SSH_AUTH_SOCK", "/tmp/fake.sock")
+
+	agent, err := CheckSSHAgent()
+	if err != nil {
+		t.Fatalf("CheckSSHAgent() error = %v", err)
+	}
+	if !agent.Running {
+		t.Fatal("Expected running=true when SSH_AUTH_SOCK is set")
+	}
+	if agent.Error == "" {
+		t.Fatal("Expected non-fatal probe warning when ssh-add exits unexpectedly")
+	}
+	if agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=false when probe fails")
+	}
+}
+
+func TestCheckSSHAgent_NoKeysExitCodeIsTreatedAsHealthy(t *testing.T) {
+	tmpBin := t.TempDir()
+	if err := writeFakeSshAdd(t, tmpBin, "no_keys"); err != nil {
+		t.Fatalf("write fake ssh-add: %v", err)
+	}
+
+	t.Setenv("PATH", tmpBin)
+	t.Setenv("SSH_AUTH_SOCK", "/tmp/fake.sock")
+
+	agent, err := CheckSSHAgent()
+	if err != nil {
+		t.Fatalf("CheckSSHAgent() error = %v", err)
+	}
+	if !agent.Running {
+		t.Fatal("Expected running=true when SSH_AUTH_SOCK is set")
+	}
+	if agent.Error != "" {
+		t.Fatalf("Expected no warning for no-identities case, got %q", agent.Error)
+	}
+	if len(agent.Keys) != 0 {
+		t.Fatalf("Expected no loaded keys, got %d", len(agent.Keys))
+	}
+	if !agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=true for successful no-identities probe")
+	}
+}
+
+func TestCheckSSHAgent_MissingSshAddIsVisible(t *testing.T) {
+	tmpBin := t.TempDir()
+	t.Setenv("PATH", tmpBin) // intentionally empty of ssh-add
+	t.Setenv("SSH_AUTH_SOCK", "/tmp/fake.sock")
+
+	agent, err := CheckSSHAgent()
+	if err != nil {
+		t.Fatalf("CheckSSHAgent() error = %v", err)
+	}
+	if !agent.Running {
+		t.Fatal("Expected running=true when SSH_AUTH_SOCK is set")
+	}
+	if !strings.Contains(agent.Error, "ssh-add not found") {
+		t.Fatalf("Expected missing ssh-add warning, got %q", agent.Error)
+	}
+	if agent.KeysKnown {
+		t.Fatal("Expected KeysKnown=false when ssh-add is missing")
+	}
+}
+
+func TestFindSSHKeys_FingerprintFailureIsSurfaced(t *testing.T) {
+	tmpHome := t.TempDir()
+	sshDir := filepath.Join(tmpHome, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatalf("mkdir .ssh: %v", err)
+	}
+
+	keyPath := filepath.Join(sshDir, "id_ed25519")
+	// Minimal placeholder key bytes; fingerprint command is expected to fail.
+	if err := os.WriteFile(keyPath, []byte("not-a-real-key"), 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("USERPROFILE", tmpHome)
+	t.Setenv("PATH", t.TempDir()) // prevent ssh-keygen lookup for deterministic failure
+
+	keys, err := FindSSHKeys()
+	if err != nil {
+		t.Fatalf("FindSSHKeys() error = %v", err)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("Expected one key, got %d", len(keys))
+	}
+	if keys[0].Fingerprint != "" {
+		t.Fatalf("Expected empty fingerprint on failure, got %q", keys[0].Fingerprint)
+	}
+	if keys[0].FingerprintError == "" {
+		t.Fatal("Expected FingerprintError to be populated when fingerprint probe fails")
+	}
+}
+
+func writeFakeSshAdd(t *testing.T, dir, mode string) error {
+	t.Helper()
+
+	name := "ssh-add"
+	var content string
+	if runtime.GOOS == "windows" {
+		name = "ssh-add.cmd"
+		if mode == "no_keys" {
+			content = "@echo off\r\necho The agent has no identities.\r\nexit /b 1\r\n"
+		} else {
+			content = "@echo off\r\necho broken-agent 1>&2\r\nexit /b 2\r\n"
+		}
+	} else {
+		if mode == "no_keys" {
+			content = "#!/bin/sh\necho The agent has no identities.\nexit 1\n"
+		} else {
+			content = "#!/bin/sh\necho broken-agent >&2\nexit 2\n"
+		}
+	}
+	return os.WriteFile(filepath.Join(dir, name), []byte(content), 0o700)
+}
+
 func TestIsKeyEncrypted(t *testing.T) {
 	tmpDir := t.TempDir()
 

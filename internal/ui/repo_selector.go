@@ -19,13 +19,6 @@ import (
 var ErrCancelled = errors.New("cancelled")
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FF6600")).
-			Background(lipgloss.Color("#1A1A1A")).
-			Padding(0, 2).
-			MarginBottom(1)
-
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00FF00")).
 			Bold(true)
@@ -176,7 +169,9 @@ type RepoSelectorModel struct {
 	scanDisabled        bool   // disable_scan = true in config OR --no-scan flag
 	scanDisabledRunOnly bool   // true when disabled by --no-scan flag (not persisted config)
 	scanCurrentPath     string // latest folder the scanner is visiting
-	scanNewCount        int    // repos discovered during this TUI session
+	// Streaming scan: repos shown in the TUI list (after registry upsert).
+	scanNewRegistryCount int // first-time registry entries this session
+	scanKnownRegistryCount int // paths already in registry before upsert
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
 	showFire bool
@@ -335,7 +330,11 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		idx := len(m.repos)
 		m.repos = append(m.repos, repo)
 		m.selected[idx] = true
-		m.scanNewCount++
+		if repo.IsNewRegistryEntry {
+			m.scanNewRegistryCount++
+		} else {
+			m.scanKnownRegistryCount++
+		}
 		if m.scanChan != nil {
 			cmds = append(cmds, waitForRepo(m.scanChan))
 		}
@@ -509,6 +508,8 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case git.ModePushKnownBranches:
 				repo.Mode = git.ModePushAll
 			case git.ModePushAll:
+				repo.Mode = git.ModePushCurrentBranch
+			case git.ModePushCurrentBranch:
 				repo.Mode = git.ModeLeaveUntouched
 			}
 			m.persistMode(repo.Path, repo.Mode)
@@ -991,15 +992,6 @@ func (m RepoSelectorModel) View() string {
 		end = len(m.repos)
 	}
 
-	// Fixed parts of a repo line (before the path): "> [✓]  [mode] (N remotes) 💥"
-	// "> " (2) + "[✓] " (4) + "  [" (3) + mode + "] " (2) + remotes + " 💥" (4) ≈ 15 + mode + remotes
-	// Reserve ~35 cols for the non-path parts; remainder goes to the path.
-	const nonPathCols = 35
-	maxPathCols := cw - nonPathCols
-	if maxPathCols < 0 {
-		maxPathCols = 0
-	}
-
 	if hasAbove {
 		s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↑ %d more", scrollOffset)))
 		s.WriteString("\n")
@@ -1123,7 +1115,14 @@ func (m RepoSelectorModel) renderScanStatus() string {
 		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanWarn).Render(label))
 
 	case m.scanDone:
-		msg := fmt.Sprintf("✅ Scan Complete  (%d new repos found)", m.scanNewCount)
+		total := m.scanNewRegistryCount + m.scanKnownRegistryCount
+		var msg string
+		if total == 0 {
+			msg = "✅ Scan Complete  (no repos in list)"
+		} else {
+			msg = fmt.Sprintf("✅ Scan Complete  (%d in list: %d new to registry, %d known)",
+				total, m.scanNewRegistryCount, m.scanKnownRegistryCount)
+		}
 		return scanStyle.Render(lipgloss.NewStyle().Foreground(activeProfile().scanDone).Render(msg))
 
 	default:
@@ -1137,7 +1136,9 @@ func (m RepoSelectorModel) renderScanStatus() string {
 			folder = "..." + folder[len(folder)-maxLen+3:]
 		}
 		line1 := fmt.Sprintf("🔍 Scanning: %s", folder)
-		line2 := fmt.Sprintf("   New repos found this session: %d", m.scanNewCount)
+		total := m.scanNewRegistryCount + m.scanKnownRegistryCount
+		line2 := fmt.Sprintf("   In list: %d  (%d new to registry, %d known)",
+			total, m.scanNewRegistryCount, m.scanKnownRegistryCount)
 		return scanStyle.Render(line1 + "\n" + line2)
 	}
 }
@@ -1222,7 +1223,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 			} else if len([]rune(displayPath)) > maxPathCols {
 				displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
 			}
-			s.WriteString(fmt.Sprintf("%s %s\n", cur, displayPath))
+			fmt.Fprintf(&s, "%s %s\n", cur, displayPath)
 		}
 
 		if hasBelow {

@@ -81,7 +81,7 @@ func (l *Logger) Log(entry LogEntry) error {
 
 // Info logs an info message
 func (l *Logger) Info(repo, action, description string) {
-	l.Log(LogEntry{
+	_ = l.Log(LogEntry{
 		Level:       "info",
 		Repo:        repo,
 		Action:      action,
@@ -102,12 +102,12 @@ func (l *Logger) Error(repo, action, description string, err error) {
 	if err != nil {
 		entry.Error = safety.SanitizeText(err.Error())
 	}
-	l.Log(entry)
+	_ = l.Log(entry)
 }
 
 // Success logs a successful action with duration
 func (l *Logger) Success(repo, action, description string, duration time.Duration) {
-	l.Log(LogEntry{
+	_ = l.Log(LogEntry{
 		Level:       "success",
 		Repo:        repo,
 		Action:      action,
