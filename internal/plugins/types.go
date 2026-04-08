@@ -79,8 +79,8 @@ type Result struct {
 type Trigger string
 
 const (
-	TriggerBeforePush Trigger = "before-push"
-	TriggerAfterPush  Trigger = "after-push"
+	TriggerBeforePush Trigger = TriggerOnSuccess
+	TriggerAfterPush  Trigger = TriggerOnSuccess
 	TriggerOnSuccess  Trigger = "on-success"
 	TriggerOnFailure  Trigger = "on-failure"
 	TriggerAlways     Trigger = "always"
