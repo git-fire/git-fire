@@ -367,9 +367,11 @@ To report security issues privately, use [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome — and genuinely wanted. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API.
+Your feedback, feature requests, and ideas matter here. No idea is too small or too ambitious to discuss. If you're thinking about forking to add something, open an issue first. The goal is a tool the community actually relies on, and I'd rather build it with you than have it fragment.
+
+Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API. Python and Java interfaces in development.
 
 ## License
 
