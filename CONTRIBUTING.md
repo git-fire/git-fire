@@ -59,7 +59,7 @@ Maintainers are listed on the GitHub repository: `github.com/git-fire/git-fire`.
 
 ## Current Beta Limitations
 
-- Plugin auto-loading from config is not yet wired into the default CLI run path (`v0.2` target).
+- Command plugin auto-loading from config is now shipped: plugins defined under `[[plugins.command]]` in config.toml are loaded and executed automatically after each run.
 - `--backup-to` is exposed but not yet implemented (`v0.2` target).
 - Webhook/reference plugin execution paths are planned but not implemented in the runtime path yet (`v0.2` target).
 

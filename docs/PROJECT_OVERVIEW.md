@@ -89,7 +89,7 @@ See [../GIT_FIRE_SPEC.md](../GIT_FIRE_SPEC.md).
 
 ### 9) Extensibility and Plugins
 
-- Command-plugin scaffolding exists, but default CLI auto-loading is not yet wired.
+- Command plugins defined in config.toml are loaded and executed automatically after each run.
 - Webhook plugin loading is planned and not implemented yet.
 - Plugin execution is non-fatal (errors are logged and run continues).
 - Typical use cases: object storage sync, notifications, archive steps.

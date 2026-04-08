@@ -37,27 +37,28 @@ AWS_PROFILE = "default"
 # Dry run to preview git-fire actions (plugins are not executed)
 git-fire --dry-run
 
-# Actually execute core backup flow
-# NOTE: Plugin loading is currently under implementation in the main CLI path.
+# Execute backup — plugins run automatically after push completes
 git-fire
 ```
 
 ## What It Does
 
 1. After git push completes successfully
-2. Syncs entire repo (except .git/, node_modules/, etc.) to S3
-3. Creates timestamped backup: `s3://bucket/repo-name-20260212-150405/`
+2. Syncs your scan root directory (all repos) to S3 as a timestamped backup
+3. Creates path: s3://bucket/projects-20260407-150405/
 4. Times out after 10 minutes if taking too long
 
 ## Variables Available
 
-- `{repo_path}` - Full path to repository
-- `{repo_name}` - Repository directory name
+Post-run plugins fire once per session, seeded from the configured scan root:
+
+- `{repo_path}` - Absolute path of the scan root (e.g. /home/user/projects)
+- `{repo_name}` - Basename of the scan root (e.g. projects)
+- `{branch}` - Branch of the scan root (if it is itself a git repo)
+- `{commit_sha}` - HEAD commit of the scan root (if it is itself a git repo)
 - `{timestamp}` - Current timestamp (20060102-150405 format)
 - `{date}` - Current date (2006-01-02)
 - `{time}` - Current time (15:04:05)
-- `{branch}` - Current git branch
-- `{commit_sha}` - Latest commit SHA
 
 ## Cost Estimate
 

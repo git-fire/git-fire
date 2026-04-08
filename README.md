@@ -60,7 +60,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 
 ## Beta Status
 
-`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
+`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to` and USB destination mode).
 
 ## Project Snapshot
 
@@ -333,7 +333,6 @@ Custom hex palettes are planned but not enabled yet.
 
 ### Coming Soon
 
-- **Plugin auto-loading in CLI (`v0.2` target):** command plugin internals exist, but default config-driven auto-loading is still in progress.
 - **USB mode:** planned as a first-class destination for repo backups (git-native incremental updates + destination marker/config).
 - **Integration-first direction:** practical integrations and redundancy layers for high-pressure moments.
 
