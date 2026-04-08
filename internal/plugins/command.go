@@ -19,6 +19,7 @@ type CommandPlugin struct {
 	env     map[string]string
 	timeout time.Duration
 	when    Trigger
+	failRun bool
 }
 
 // NewCommandPlugin creates a new command plugin
@@ -56,6 +57,16 @@ func (p *CommandPlugin) SetEnv(key, value string) {
 // SetTrigger sets when the plugin should run
 func (p *CommandPlugin) SetTrigger(trigger Trigger) {
 	p.when = trigger
+}
+
+// SetFailRun sets whether plugin failures should fail the overall run.
+func (p *CommandPlugin) SetFailRun(v bool) {
+	p.failRun = v
+}
+
+// FailRun returns whether plugin failures should fail the overall run.
+func (p *CommandPlugin) FailRun() bool {
+	return p.failRun
 }
 
 // Validate checks if the plugin is valid

@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"errors"
 	"time"
 
 	"github.com/git-fire/git-fire/internal/executor"
@@ -33,26 +34,28 @@ const (
 	PluginTypeGo      PluginType = "go"
 )
 
+var ErrPluginFailed = errors.New("plugin failed")
+
 // Context provides execution context to plugins
 type Context struct {
 	// Repository information
-	RepoPath string
-	RepoName string
-	Branch   string
+	RepoPath  string
+	RepoName  string
+	Branch    string
 	CommitSHA string
-	Remotes  []string
+	Remotes   []string
 
 	// Execution context
-	Timestamp   time.Time
-	DryRun      bool
-	Emergency   bool // True if running in emergency mode
+	Timestamp time.Time
+	DryRun    bool
+	Emergency bool // True if running in emergency mode
 
 	// Resources
-	Logger      Logger
-	Config      map[string]interface{} // Plugin-specific config
+	Logger Logger
+	Config map[string]interface{} // Plugin-specific config
 
 	// Results from previous steps
-	PushResult  *executor.RepoResult
+	PushResult *executor.RepoResult
 }
 
 // Logger interface for plugin logging
@@ -65,10 +68,10 @@ type Logger interface {
 
 // Result represents the result of plugin execution
 type Result struct {
-	Success bool
-	Message string
-	Error   error
-	Data    map[string]interface{} // Plugin-specific result data
+	Success  bool
+	Message  string
+	Error    error
+	Data     map[string]interface{} // Plugin-specific result data
 	Duration time.Duration
 }
 
@@ -76,20 +79,20 @@ type Result struct {
 type Trigger string
 
 const (
-	TriggerBeforePush  Trigger = "before-push"
-	TriggerAfterPush   Trigger = "after-push"
-	TriggerOnSuccess   Trigger = "on-success"
-	TriggerOnFailure   Trigger = "on-failure"
-	TriggerAlways      Trigger = "always"
+	TriggerBeforePush Trigger = "before-push"
+	TriggerAfterPush  Trigger = "after-push"
+	TriggerOnSuccess  Trigger = "on-success"
+	TriggerOnFailure  Trigger = "on-failure"
+	TriggerAlways     Trigger = "always"
 )
 
 // PluginConfig represents plugin configuration from config file
 type PluginConfig struct {
-	Name     string                 `mapstructure:"name"`
-	Type     string                 `mapstructure:"type"`
-	When     string                 `mapstructure:"when"`
-	Enabled  bool                   `mapstructure:"enabled"`
-	Config   map[string]interface{} `mapstructure:"config"`
+	Name    string                 `mapstructure:"name"`
+	Type    string                 `mapstructure:"type"`
+	When    string                 `mapstructure:"when"`
+	Enabled bool                   `mapstructure:"enabled"`
+	Config  map[string]interface{} `mapstructure:"config"`
 }
 
 // TemplateVars contains variables available for template substitution

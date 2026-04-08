@@ -58,6 +58,7 @@ func createCommandPlugin(cfg config.CommandPluginConfig) (*CommandPlugin, error)
 		trigger := parseTrigger(cfg.When)
 		plugin.SetTrigger(trigger)
 	}
+	plugin.SetFailRun(cfg.FailRun)
 
 	return plugin, nil
 }

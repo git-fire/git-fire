@@ -230,10 +230,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if enabledErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to resolve enabled plugins: %s\n", safety.SanitizeText(enabledErr.Error()))
 		} else {
+			var pluginErr error
 			runPlugins := func(trigger plugins.Trigger) {
 				for _, p := range plugins.FilterPluginsByTrigger(enabledPlugins, trigger) {
 					if pErr := p.Execute(pluginCtx); pErr != nil {
 						fmt.Fprintf(os.Stderr, "plugin %s: %s\n", p.Name(), safety.SanitizeText(pErr.Error()))
+						if cmdPlugin, ok := p.(*plugins.CommandPlugin); ok && cmdPlugin.FailRun() {
+							failErr := fmt.Errorf("%w: plugin %s failed: %s", plugins.ErrPluginFailed, p.Name(), pErr.Error())
+							pluginErr = errors.Join(pluginErr, failErr)
+						}
 					}
 				}
 			}
@@ -245,6 +250,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 			}
 
 			runPlugins(plugins.TriggerAlways)
+			if pluginErr != nil {
+				return pluginErr
+			}
 		}
 	}
 
