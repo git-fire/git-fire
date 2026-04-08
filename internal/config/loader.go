@@ -163,6 +163,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("backup.repo_template", defaults.Backup.RepoTemplate)
 	v.SetDefault("backup.generate_manifest", defaults.Backup.GenerateManifest)
 
+	// USB defaults
+	v.SetDefault("usb.strategy", defaults.USB.Strategy)
+	v.SetDefault("usb.workers", defaults.USB.Workers)
+	v.SetDefault("usb.target_workers", defaults.USB.TargetWorkers)
+	v.SetDefault("usb.create_on_first_use", defaults.USB.CreateOnFirst)
+	v.SetDefault("usb.sync_policy", defaults.USB.SyncPolicy)
+
 	// Auth defaults
 	v.SetDefault("auth.use_ssh_agent", defaults.Auth.UseSSHAgent)
 
@@ -206,6 +213,42 @@ func (c *Config) Validate() error {
 		}
 		if !validPlatforms[c.Backup.Platform] {
 			return fmt.Errorf("invalid platform: %s (must be github, gitlab, or gitea)", c.Backup.Platform)
+		}
+	}
+
+	if c.USB.Strategy == "" {
+		c.USB.Strategy = "git-mirror"
+	}
+	switch c.USB.Strategy {
+	case "git-mirror", "git-clone":
+	default:
+		return fmt.Errorf("invalid usb.strategy: %s (must be git-mirror or git-clone)", c.USB.Strategy)
+	}
+	if c.USB.Workers <= 0 {
+		c.USB.Workers = DefaultUSBWorkers
+	} else if c.USB.Workers < MinUSBWorkers {
+		c.USB.Workers = MinUSBWorkers
+	} else if c.USB.Workers > MaxUSBWorkers {
+		c.USB.Workers = MaxUSBWorkers
+	}
+	if c.USB.TargetWorkers <= 0 {
+		c.USB.TargetWorkers = DefaultUSBTargetWorkers
+	} else if c.USB.TargetWorkers < MinUSBTargetWorkers {
+		c.USB.TargetWorkers = MinUSBTargetWorkers
+	} else if c.USB.TargetWorkers > MaxUSBTargetWorkers {
+		c.USB.TargetWorkers = MaxUSBTargetWorkers
+	}
+	if c.USB.SyncPolicy == "" {
+		c.USB.SyncPolicy = "keep"
+	}
+	switch c.USB.SyncPolicy {
+	case "keep", "prune":
+	default:
+		return fmt.Errorf("invalid usb.sync_policy: %s (must be keep or prune)", c.USB.SyncPolicy)
+	}
+	for i := range c.USB.Targets {
+		if c.USB.Targets[i].Path == "" {
+			return fmt.Errorf("invalid usb.targets[%d].path: cannot be empty", i)
 		}
 	}
 

@@ -7,6 +7,7 @@ type Config struct {
 	Global  GlobalConfig   `mapstructure:"global"   toml:"global"`
 	UI      UIConfig       `mapstructure:"ui"       toml:"ui"`
 	Backup  BackupConfig   `mapstructure:"backup"   toml:"backup"`
+	USB     USBConfig      `mapstructure:"usb"      toml:"usb"`
 	Auth    AuthConfig     `mapstructure:"auth"     toml:"auth"`
 	Plugins PluginsConfig  `mapstructure:"plugins"  toml:"plugins"`
 	Repos   []RepoOverride `mapstructure:"repos"    toml:"repos"`
@@ -69,6 +70,23 @@ type BackupConfig struct {
 
 	// Generate backup manifest
 	GenerateManifest bool `mapstructure:"generate_manifest" toml:"generate_manifest"`
+}
+
+// USBConfig contains usb-target backup settings.
+type USBConfig struct {
+	Targets       []USBTargetConfig `mapstructure:"targets" toml:"targets"`
+	Strategy      string            `mapstructure:"strategy" toml:"strategy"`
+	Workers       int               `mapstructure:"workers" toml:"workers"`
+	TargetWorkers int               `mapstructure:"target_workers" toml:"target_workers"`
+	CreateOnFirst bool              `mapstructure:"create_on_first_use" toml:"create_on_first_use"`
+	SyncPolicy    string            `mapstructure:"sync_policy" toml:"sync_policy"`
+}
+
+// USBTargetConfig defines one usb/folder target.
+type USBTargetConfig struct {
+	Name    string `mapstructure:"name" toml:"name"`
+	Path    string `mapstructure:"path" toml:"path"`
+	Enabled bool   `mapstructure:"enabled" toml:"enabled"`
 }
 
 // AuthConfig contains authentication settings

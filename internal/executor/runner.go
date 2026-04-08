@@ -708,6 +708,11 @@ func checkSecrets(repoPath string, block bool) error {
 	return nil
 }
 
+// CheckSecrets scans uncommitted files for secrets and optionally blocks execution.
+func CheckSecrets(repoPath string, block bool) error {
+	return checkSecrets(repoPath, block)
+}
+
 func sequenceCapHint(total *int64) int {
 	if total == nil {
 		return 0

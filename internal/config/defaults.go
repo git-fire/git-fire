@@ -5,6 +5,12 @@ import "time"
 const DefaultPushWorkers = 4
 const DefaultUIFireTickMS = 180
 const DefaultUIStartupQuoteIntervalSec = 10
+const DefaultUSBWorkers = 1
+const MinUSBWorkers = 1
+const MaxUSBWorkers = 64
+const DefaultUSBTargetWorkers = 1
+const MinUSBTargetWorkers = 1
+const MaxUSBTargetWorkers = 64
 
 // MinUIFireTickMS and MaxUIFireTickMS clamp ui.fire_tick_ms after load (see
 // Config.Validate). That field becomes the Bubble Tea program's tick period: the
@@ -54,6 +60,14 @@ func DefaultConfig() Config {
 			Platform:         "github",
 			RepoTemplate:     "backup-{repo}-{date}",
 			GenerateManifest: true,
+		},
+		USB: USBConfig{
+			Strategy:      "git-mirror",
+			Workers:       DefaultUSBWorkers,
+			TargetWorkers: DefaultUSBTargetWorkers,
+			CreateOnFirst: false,
+			SyncPolicy:    "keep",
+			Targets:       []USBTargetConfig{},
 		},
 		Auth: AuthConfig{
 			UseSSHAgent: true,
@@ -164,6 +178,29 @@ organization = ""
 
 # Generate backup manifest (JSON metadata file)
 generate_manifest = true
+
+[usb]
+# Default strategy for USB mode.
+# Options: "git-mirror", "git-clone" (git-mirror currently implemented)
+strategy = "git-mirror"
+
+# Number of concurrent repos processed per target
+workers = 1
+
+# Number of USB targets processed concurrently
+target_workers = 1
+
+# Create a missing target marker file (<target>/.git-fire) automatically
+create_on_first_use = false
+
+# USB sync policy: "keep" or "prune"
+sync_policy = "keep"
+
+# USB/folder targets (repeatable)
+#[[usb.targets]]
+#name = "travel-stick"
+#path = "/media/user/TRAVEL"
+#enabled = true
 
 [auth]
 # SSH passphrase (prefer env var: GIT_FIRE_SSH_PASSPHRASE)

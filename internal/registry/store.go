@@ -100,6 +100,15 @@ func (r *Registry) Upsert(entry RegistryEntry) {
 			if entry.RescanSubmodules == nil {
 				entry.RescanSubmodules = e.RescanSubmodules
 			}
+			if entry.USBStrategy == "" {
+				entry.USBStrategy = e.USBStrategy
+			}
+			if entry.USBRepoPath == "" {
+				entry.USBRepoPath = e.USBRepoPath
+			}
+			if entry.USBSyncPolicy == "" {
+				entry.USBSyncPolicy = e.USBSyncPolicy
+			}
 			r.Repos[i] = entry
 			return
 		}
