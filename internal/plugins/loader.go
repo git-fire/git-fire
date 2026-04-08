@@ -77,7 +77,7 @@ func parseTrigger(when string) Trigger {
 	case "always":
 		return TriggerAlways
 	default:
-		return TriggerAfterPush // Default
+		return TriggerOnSuccess // Default
 	}
 }
 

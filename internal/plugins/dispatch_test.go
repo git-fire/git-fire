@@ -25,7 +25,7 @@ func TestParseTrigger(t *testing.T) {
 		{"on-success", TriggerOnSuccess},
 		{"on-failure", TriggerOnFailure},
 		{"always", TriggerAlways},
-		{"unknown", TriggerAfterPush},
+		{"unknown", TriggerOnSuccess},
 	}
 
 	for _, tt := range tests {

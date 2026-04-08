@@ -30,7 +30,7 @@ func NewCommandPlugin(name, command string, args []string) *CommandPlugin {
 		args:    args,
 		env:     make(map[string]string),
 		timeout: 5 * time.Minute, // Default 5 min timeout
-		when:    TriggerAfterPush,
+		when:    TriggerOnSuccess,
 	}
 }
 

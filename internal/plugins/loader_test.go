@@ -134,6 +134,22 @@ func TestCreateCommandPlugin(t *testing.T) {
 	}
 }
 
+func TestCreateCommandPlugin_DefaultTriggerOnSuccess(t *testing.T) {
+	cfg := config.CommandPluginConfig{
+		Name:    "default-trigger",
+		Command: "echo",
+		Args:    []string{"hello"},
+	}
+
+	plugin, err := createCommandPlugin(cfg)
+	if err != nil {
+		t.Fatalf("createCommandPlugin() error = %v", err)
+	}
+	if plugin.when != TriggerOnSuccess {
+		t.Fatalf("expected default trigger %q, got %q", TriggerOnSuccess, plugin.when)
+	}
+}
+
 func TestGetEnabledPlugins(t *testing.T) {
 	globalRegistry.Clear()
 
