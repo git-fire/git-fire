@@ -236,7 +236,7 @@ Remotes: planner schedules pushes across **each** configured remote on the repo 
 
 ## Plugins
 
-- **Command plugins:** implemented in `internal/plugins` (command execution, triggers, template vars). **`LoadFromConfig` is not invoked from the default `git-fire` root path** — CLI auto-loading is **planned (v0.2)** per [PLUGINS.md](PLUGINS.md).
+- **Command plugins:** implemented in `internal/plugins` (command execution, triggers, template vars) and loaded from config in the default CLI flow via `plugins.LoadFromConfig(cfg)` in `cmd/root.go`.
 - **Webhook plugins:** TOML types exist; `loader.go` has a TODO — **deferred**.
 - **Go `.so` plugins:** removed from roadmap (see PLUGINS.md).
 
@@ -269,7 +269,7 @@ internal/git         # scan + native git exec
 internal/executor    # planner, runner, logger, rate limiter
 internal/auth        # SSH
 internal/safety      # secrets, redaction
-internal/plugins     # command plugins (load from config not wired on default path)
+internal/plugins     # command plugins (loaded from config in default CLI flow)
 internal/ui          # Bubble Tea
 internal/testutil    # tests
 ```
@@ -294,7 +294,7 @@ Authoritative definitions live in `internal/git/types.go`, `internal/executor/ty
 | `GIT_FIRE_CONFIG` | Not bound; use `--config`. |
 | JSON `repos-cache.json`, quick-scan-only paths | Replaced by registry + full walk under `scan_path`. |
 | Webhook plugin loading | TODO in `plugins/loader.go`. |
-| Plugin auto-run from config on default CLI | v0.2 target. |
+| Per-repo plugin dispatch context (`{repo_path}`/`{repo_name}` per repo) | Planned follow-up; current post-run hooks fire once per session with scan-root context. |
 | `preferred_remotes` / remote subset toggles | Not implemented. |
 
 ---

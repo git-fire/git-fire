@@ -60,7 +60,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 
 ## Beta Status
 
-`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to`, default plugin CLI auto-loading, and USB destination mode).
+`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to` and USB destination mode).
 
 ## Project Snapshot
 
@@ -333,7 +333,6 @@ Custom hex palettes are planned but not enabled yet.
 
 ### Coming Soon
 
-- **Plugin auto-loading in CLI (`v0.2` target):** command plugin internals exist, but default config-driven auto-loading is still in progress.
 - **USB mode:** planned as a first-class destination for repo backups (git-native incremental updates + destination marker/config).
 - **Integration-first direction:** practical integrations and redundancy layers for high-pressure moments.
 
@@ -345,6 +344,7 @@ Plugin docs:
 
 Start with [docs/README.md](docs/README.md).
 
+- Architecture diagrams (Mermaid): [docs/ARCHITECTURE_DIAGRAMS.md](docs/ARCHITECTURE_DIAGRAMS.md)
 - Build from source: [docs/BUILD_FROM_SOURCE.md](docs/BUILD_FROM_SOURCE.md)
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
@@ -368,9 +368,11 @@ To report security issues privately, use [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome — and genuinely wanted. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API.
+Your feedback, feature requests, and ideas matter here. No idea is too small or too ambitious to discuss. If you're thinking about forking to add something, open an issue first. The goal is a tool the community actually relies on, and I'd rather build it with you than have it fragment.
+
+Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API. Python and Java interfaces in development.
 
 ## License
 

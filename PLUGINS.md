@@ -1,6 +1,6 @@
-# Git-Fire Plugins: Status + Planned API (RFC)
+# Git-Fire Plugins: Status + API Reference
 
-Plugin support is in active development. Command plugin internals exist but are not auto-loaded in the default CLI path yet. This is a v0.2 target.
+Command plugins defined in config.toml are now auto-loaded and executed automatically after each run. This page documents the current plugin API and planned extensions.
 
 For quick project onboarding, see [README.md](README.md). For docs navigation, see [docs/README.md](docs/README.md). For a working example, see [examples/plugins/s3-upload.md](examples/plugins/s3-upload.md).
 
@@ -10,17 +10,17 @@ For quick project onboarding, see [README.md](README.md). For docs navigation, s
 |---------|--------|
 | Plugin type definitions | ✅ Implemented |
 | Internal executor | ✅ Implemented |
-| CLI auto-loading from config | 🔜 v0.2 |
-| Reference plugins (S3, webhook) | 🔜 v0.2 |
+| CLI auto-loading from config | ✅ Shipped |
+| Webhook plugins | 🔜 Planned |
 | Go `.so` dynamic plugins | ❌ Removed from roadmap |
 
-Only command plugin internals are implemented today. End-to-end plugin loading/execution in the default CLI path is still being wired.
+Command plugins (`[[plugins.command]]`) in config.toml are loaded and executed automatically after each run. The `when` field selects the dispatch phase: `after-push` (default), `on-success`, `on-failure`, and `always`. Post-run plugins are skipped on dry-run, user-aborted runs, and no-op runs (the run finished with no backup actions).
 
 ---
 
-## Planned API / RFC
+## API Reference
 
-The rest of this document is design documentation for the planned plugin API. It reflects intended behavior and config shape for v0.2+, not current default CLI behavior.
+The rest of this document describes the current plugin config shape and planned extensions.
 
 ### Philosophy
 
@@ -61,12 +61,12 @@ args = ["czf", "/backups/{repo_name}-{timestamp}.tar.gz", "-C", "{repo_path}", "
 when = "always"
 ```
 
-**Variables available:**
-- `{repo_path}` - Full path to repository
-- `{repo_name}` - Repository directory name
-- `{timestamp}` - ISO8601 timestamp
-- `{branch}` - Current branch name
-- `{commit_sha}` - Latest commit SHA
+**Variables available (seeded from configured scan root):**
+- `{repo_path}` - Absolute path of the scan root
+- `{repo_name}` - Basename of the scan root
+- `{timestamp}` - Current timestamp (20060102-150405 format)
+- `{branch}` - Branch of scan root (if it is a git repo)
+- `{commit_sha}` - HEAD commit of scan root (if it is a git repo)
 
 ---
 
@@ -407,19 +407,21 @@ on_failure = "ignore"  # Don't fail if USB not mounted
 
 ---
 
-## CLI Integration (Planned)
+## CLI Integration
 
-Planned runtime behavior is automatic plugin execution during backup when configured in `~/.config/git-fire/config.toml`. That flow is not yet wired in the default CLI path; use this section as target behavior/reference.
+Plugins run automatically after each backup run when configured in ~/.config/git-fire/config.toml. Dry-run skips the post-run plugin flow entirely: post-run plugins are not executed and nothing is printed for them, so you cannot validate plugin wiring with `--dry-run` alone.
 
 ```bash
-# Preview backup plan including plugin actions
+# Preview backup plan (post-run plugins are not run on dry-run)
 git-fire --dry-run
 
 # Generate a config file to add plugins to
 git-fire --init
 ```
 
-> **Planned CLI flags** (not yet implemented): `--list-plugins`, `--plugin <name>`, `--no-plugins`, `--test-plugin`, `--show-plugins`. These are roadmap items for the v0.2 plugin wiring work.
+> **Note on template variables:** Post-run plugins fire once per session, seeded from the configured scan root: {repo_path} is the absolute scan root path, {repo_name} is its basename, and {branch}/{commit_sha} are populated when the scan root is itself a git repo. Use {timestamp} for per-run unique paths.
+
+> **Planned CLI flags** (not yet implemented): --list-plugins, --plugin <name>, --no-plugins, --test-plugin, --show-plugins.
 
 ---
 
@@ -435,9 +437,8 @@ git-fire --init
    - Require explicit plugin enable in config
 
 3. **Dry-Run Support**
-   - All plugins MUST respect `DryRun` flag
-   - Show what would be executed
-   - Validate credentials without executing
+   - Post-run command plugins are not invoked on `--dry-run` (the CLI never enters the post-run plugin path).
+   - Command plugins that do run with `DryRun: true` in context should log intent only and not execute side effects.
 
 ---
 
@@ -467,9 +468,9 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
 
 ---
 
-## Getting Started (Planned)
+## Getting Started
 
-**To add your first plugin (once v0.2 wiring lands):**
+**To add your first plugin:**
 
 1. Create config file:
    ```bash
@@ -485,14 +486,12 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
    when = "after-push"
    ```
 
-3. Test it:
+3. Preview the backup plan (plugins are still skipped on dry-run):
    ```bash
    git-fire --dry-run
    ```
 
-4. Run for real:
+4. Run for real (post-run plugins execute after the backup flow):
    ```bash
    git-fire
    ```
-
-If you want plugin support today, use `git-fire && your-script` as the practical workaround.

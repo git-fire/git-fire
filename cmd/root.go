@@ -223,7 +223,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		runErr = runStream(cfg, reg, regPath, opts)
 	}
 
-	// Fire post-run plugins (non-fatal, skipped on dry-run, user abort, and no-op runs)
+	// Fire post-run plugins (non-fatal unless fail_run is enabled;
+	// skipped on dry-run, user abort, and no-op runs).
+	var postRunPluginErr error
 	if shouldRunPostRunPlugins(dryRun, runErr) {
 		pluginCtx := buildPostRunPluginContext(cfg, dryRun, fireMode)
 		enabledPlugins, enabledErr := plugins.GetEnabledPlugins(cfg)
@@ -236,7 +238,12 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 					if pErr := p.Execute(pluginCtx); pErr != nil {
 						fmt.Fprintf(os.Stderr, "plugin %s: %s\n", p.Name(), safety.SanitizeText(pErr.Error()))
 						if cmdPlugin, ok := p.(*plugins.CommandPlugin); ok && cmdPlugin.FailRun() {
-							failErr := fmt.Errorf("%w: plugin %s failed: %s", plugins.ErrPluginFailed, p.Name(), pErr.Error())
+							failErr := fmt.Errorf(
+								"%w: plugin %s failed: %s",
+								plugins.ErrPluginFailed,
+								p.Name(),
+								safety.SanitizeText(pErr.Error()),
+							)
 							pluginErr = errors.Join(pluginErr, failErr)
 						}
 					}
@@ -251,7 +258,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 			runPlugins(plugins.TriggerAlways)
 			if pluginErr != nil {
-				return pluginErr
+				postRunPluginErr = pluginErr
 			}
 		}
 	}
@@ -269,7 +276,13 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		if FlavorQuotesEnabled(cfg) {
 			printFailedRunEmberMessage()
 		}
+		if postRunPluginErr != nil {
+			return errors.Join(runErr, postRunPluginErr)
+		}
 		return runErr
+	}
+	if postRunPluginErr != nil {
+		return postRunPluginErr
 	}
 
 	if FlavorQuotesEnabled(cfg) {
