@@ -169,6 +169,76 @@ func TestStaleLock_InvalidPIDContent(t *testing.T) {
 	}
 }
 
+func TestLockPath(t *testing.T) {
+	reg := filepath.Join(t.TempDir(), "repos.toml")
+	want := reg + ".lock"
+	if got := LockPath(reg); got != want {
+		t.Fatalf("LockPath: got %q want %q", got, want)
+	}
+}
+
+func TestReadLockFile_NotPresent(t *testing.T) {
+	reg := filepath.Join(t.TempDir(), "repos.toml")
+	info, err := ReadLockFile(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info != nil {
+		t.Fatalf("expected nil info, got %+v", info)
+	}
+}
+
+func TestReadLockFile_CurrentPIDAlive(t *testing.T) {
+	reg := filepath.Join(t.TempDir(), "repos.toml")
+	lockPath := LockPath(reg)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ReadLockFile(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected lock info")
+	}
+	if info.LockPath != lockPath {
+		t.Errorf("LockPath: got %q", info.LockPath)
+	}
+	if info.PID != os.Getpid() {
+		t.Errorf("PID: got %d want %d", info.PID, os.Getpid())
+	}
+	if !info.OwnerAppearsAlive {
+		t.Error("expected owner to appear alive for current PID")
+	}
+}
+
+func TestReadLockFile_InvalidPIDContent(t *testing.T) {
+	reg := filepath.Join(t.TempDir(), "repos.toml")
+	lockPath := LockPath(reg)
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte("garbage\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := ReadLockFile(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil {
+		t.Fatal("expected lock info")
+	}
+	if info.PID != 0 {
+		t.Errorf("PID: got %d want 0", info.PID)
+	}
+	if info.OwnerAppearsAlive {
+		t.Error("invalid PID should not appear alive")
+	}
+}
+
 func TestStaleLock_CurrentPIDIsNotStale(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "live.lock")
 	content := fmt.Sprintf("%d\n", os.Getpid())

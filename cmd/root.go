@@ -45,6 +45,8 @@ var (
 	backupTo   string
 	configFile string
 	showStatus bool
+	// forceUnlockRegistry removes repos.toml.lock without prompting (dangerous if another instance runs).
+	forceUnlockRegistry bool
 )
 
 var errRunAborted = errors.New("run aborted")
@@ -83,6 +85,7 @@ func init() {
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (not yet implemented)")
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
+	rootCmd.PersistentFlags().BoolVar(&forceUnlockRegistry, "force-unlock-registry", false, "Remove stale registry lock file without prompting (only if no other git-fire is running)")
 }
 
 func runGitFire(cmd *cobra.Command, args []string) error {
@@ -166,6 +169,8 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	regPath := ""
 	if p, err := registry.DefaultRegistryPath(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: registry disabled: %v\n", err)
+	} else if err := maybeOfferRegistryUnlock(p); err != nil {
+		return failRun(err)
 	} else if loaded, err := registry.Load(p); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: ignoring unreadable registry %s: %v\n", p, err)
 	} else {
@@ -984,6 +989,8 @@ func handleStatus() error {
 	reg := &registry.Registry{}
 	if p, err := registry.DefaultRegistryPath(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: registry disabled: %v\n", err)
+	} else if err := maybeOfferRegistryUnlock(p); err != nil {
+		return err
 	} else if loaded, err := registry.Load(p); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: ignoring unreadable registry %s: %v\n", p, err)
 	} else {
