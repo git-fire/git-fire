@@ -68,13 +68,23 @@ func TestFilterPluginsByTrigger_AfterPushAliasesOnSuccess(t *testing.T) {
 	}
 }
 
-func TestFilterPluginsByTrigger_AfterPushConstantAliasesOnSuccess(t *testing.T) {
-	plugin := NewCommandPlugin("alias-constant", "echo", []string{"ok"})
+func TestFilterPluginsByTrigger_ProgrammaticAfterPushMatchesOnSuccess(t *testing.T) {
+	plugin := NewCommandPlugin("programmatic-after", "echo", []string{"ok"})
 	plugin.SetTrigger(TriggerAfterPush)
 
 	filtered := FilterPluginsByTrigger([]Plugin{plugin}, TriggerOnSuccess)
-	if len(filtered) != 1 || filtered[0].Name() != "alias-constant" {
-		t.Fatalf("expected TriggerAfterPush alias to match on-success, got %d plugins", len(filtered))
+	if len(filtered) != 1 || filtered[0].Name() != "programmatic-after" {
+		t.Fatalf("expected TriggerAfterPush to match on-success dispatch, got %d plugins", len(filtered))
+	}
+}
+
+func TestFilterPluginsByTrigger_ProgrammaticBeforePushMatchesOnSuccess(t *testing.T) {
+	plugin := NewCommandPlugin("programmatic-before", "echo", []string{"ok"})
+	plugin.SetTrigger(TriggerBeforePush)
+
+	filtered := FilterPluginsByTrigger([]Plugin{plugin}, TriggerOnSuccess)
+	if len(filtered) != 1 || filtered[0].Name() != "programmatic-before" {
+		t.Fatalf("expected TriggerBeforePush to match on-success dispatch, got %d plugins", len(filtered))
 	}
 }
 

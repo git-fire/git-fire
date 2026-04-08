@@ -103,13 +103,23 @@ func GetEnabledPlugins(cfg *config.Config) ([]Plugin, error) {
 // FilterPluginsByTrigger filters plugins by when they should run
 func FilterPluginsByTrigger(plugins []Plugin, trigger Trigger) []Plugin {
 	var filtered []Plugin
+	want := canonicalTrigger(trigger)
 	for _, p := range plugins {
 		// Check if plugin is a command plugin (has trigger)
 		if cmd, ok := p.(*CommandPlugin); ok {
-			if cmd.when == trigger {
+			if canonicalTrigger(cmd.when) == want {
 				filtered = append(filtered, p)
 			}
 		}
 	}
 	return filtered
+}
+
+func canonicalTrigger(trigger Trigger) Trigger {
+	switch trigger {
+	case TriggerOnFailure, TriggerAlways:
+		return trigger
+	default:
+		return TriggerOnSuccess
+	}
 }
