@@ -911,6 +911,60 @@ func TestShouldRunPostRunPlugins(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_OnFailurePluginErrorKeepsRunError(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("plugin-failure-run-error").
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	// Intentionally configure a broken remote so the main run fails.
+	brokenRemoteDir := filepath.Join(t.TempDir(), "missing-remote.git")
+	if err := os.MkdirAll(filepath.Dir(brokenRemoteDir), 0o755); err != nil {
+		t.Fatalf("mkdir broken remote parent: %v", err)
+	}
+	testutil.RunGitCmd(t, repo.Path(), "remote", "add", "origin", brokenRemoteDir)
+
+	pluginName := "fail-on-failure-plugin-keep-run-error"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "echo plugin failure https://user:supersecret@github.com/org/repo.git 1>&2; exit 1"]
+when = "on-failure"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+
+	runErr := runGitFire(rootCmd, []string{})
+	if runErr == nil {
+		t.Fatal("expected runGitFire() to fail")
+	}
+	if !strings.Contains(runErr.Error(), "some repositories failed") {
+		t.Fatalf("expected returned error to include original run failure, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "plugin "+pluginName+" failed") {
+		t.Fatalf("expected returned error to include plugin failure, got: %v", runErr)
+	}
+	if strings.Contains(runErr.Error(), "supersecret") {
+		t.Fatalf("expected plugin error in returned error to be sanitized, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "[REDACTED]") {
+		t.Fatalf("expected sanitized plugin error marker in returned error, got: %v", runErr)
+	}
+}
+
 func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)
