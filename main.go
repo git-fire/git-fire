@@ -1,3 +1,4 @@
+// Package main is the entrypoint for the git-fire CLI binary.
 package main
 
 import (

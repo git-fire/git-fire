@@ -1,3 +1,4 @@
+// Package plugins loads and runs optional command and webhook hooks around backup runs.
 package plugins
 
 import (

@@ -1,3 +1,4 @@
+// Package executor plans backup actions, runs them with concurrency limits, and logs results.
 package executor
 
 import (

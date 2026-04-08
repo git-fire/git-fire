@@ -345,7 +345,7 @@ func (p *PushPlan) Summary() string {
 	return summary
 }
 
-// ValidatePlan checks if a plan is valid and safe to execute
+// Validate checks that the plan has repositories with actions and remotes where needed.
 func (p *PushPlan) Validate() error {
 	if len(p.Repos) == 0 {
 		return fmt.Errorf("no repositories in plan")

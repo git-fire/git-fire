@@ -170,7 +170,7 @@ func (fb *FireBackground) Render() string {
 	return result.String()
 }
 
-// RenderWave creates a sine wave fire effect at the top
+// RenderFireWave renders a sine-wave fire strip for the given terminal width and animation frame.
 func RenderFireWave(width int, frame int) string {
 	var result strings.Builder
 	styles := fireColorStyles()

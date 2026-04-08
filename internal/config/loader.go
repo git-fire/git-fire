@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// LoadOptions configures LoadWithOptions (e.g. explicit config file path).
 type LoadOptions struct {
 	ConfigFile string
 }
