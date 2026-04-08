@@ -911,6 +911,182 @@ func TestShouldRunPostRunPlugins(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_OnFailurePluginErrorKeepsRunError(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	repo := scenario.CreateRepo("plugin-failure-run-error").
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	// Intentionally configure a broken remote so the main run fails.
+	brokenRemoteDir := filepath.Join(t.TempDir(), "missing-remote.git")
+	if err := os.MkdirAll(filepath.Dir(brokenRemoteDir), 0o755); err != nil {
+		t.Fatalf("mkdir broken remote parent: %v", err)
+	}
+	testutil.RunGitCmd(t, repo.Path(), "remote", "add", "origin", brokenRemoteDir)
+
+	pluginName := "fail-on-failure-plugin-keep-run-error"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "echo plugin failure https://user:supersecret@github.com/org/repo.git 1>&2; exit 1"]
+when = "on-failure"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+
+	runErr := runGitFire(rootCmd, []string{})
+	if runErr == nil {
+		t.Fatal("expected runGitFire() to fail")
+	}
+	if !strings.Contains(runErr.Error(), "some repositories failed") {
+		t.Fatalf("expected returned error to include original run failure, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "plugin "+pluginName+" failed") {
+		t.Fatalf("expected returned error to include plugin failure, got: %v", runErr)
+	}
+	if strings.Contains(runErr.Error(), "supersecret") {
+		t.Fatalf("expected plugin error in returned error to be sanitized, got: %v", runErr)
+	}
+	if !strings.Contains(runErr.Error(), "[REDACTED]") {
+		t.Fatalf("expected sanitized plugin error marker in returned error, got: %v", runErr)
+	}
+}
+
+func TestRunGitFire_OnSuccessPluginFailRunFailsRun(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("plugin-on-success").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	// Make the repo dirty so the run performs a real backup path.
+	if err := os.WriteFile(filepath.Join(repo.Path(), "dirty.txt"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	pluginName := "fail-on-success-plugin"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "exit 7"]
+when = "on-success"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
+	runErr := runGitFire(rootCmd, []string{})
+
+	os.Stderr = oldStderr
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	stderr := string(stderrBytes)
+	if runErr == nil {
+		t.Fatal("expected runGitFire() to fail when on-success fail_run plugin fails")
+	}
+	if !strings.Contains(runErr.Error(), "plugin "+pluginName+" failed") {
+		t.Fatalf("expected returned error to include plugin failure, got: %v", runErr)
+	}
+	if strings.Contains(runErr.Error(), "some repositories failed") {
+		t.Fatalf("expected core backup to succeed and only plugin to fail run, got: %v", runErr)
+	}
+	if strings.Contains(stderr, "plugin "+pluginName+":") {
+		t.Fatalf("expected fail_run plugin errors to avoid duplicate stderr logging, got: %q", stderr)
+	}
+}
+
+func TestRunGitFire_DryRun_SkipsPostRunPlugins(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("plugin-dry-run-skip").
+		WithRemote("origin", remote).
+		AddFile("README.md", "hello\n").
+		Commit("init")
+	defaultBranch := repo.GetDefaultBranch()
+	repo.Push("origin", defaultBranch)
+
+	// Keep repo dirty so dry-run still plans work.
+	if err := os.WriteFile(filepath.Join(repo.Path(), "dirty.txt"), []byte("dirty\n"), 0o644); err != nil {
+		t.Fatalf("write dirty file: %v", err)
+	}
+
+	marker := filepath.Join(t.TempDir(), "plugin-ran.marker")
+	pluginName := "should-not-run-in-dry-run"
+	cfgPath := filepath.Join(tmpHome, "config.toml")
+	cfgText := `
+[plugins]
+enabled = ["` + pluginName + `"]
+
+[[plugins.command]]
+name = "` + pluginName + `"
+command = "sh"
+args = ["-c", "printf ran > \"$1\"", "plugin", "` + marker + `"]
+when = "always"
+fail_run = true
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	configFile = cfgPath
+	scanPath = filepath.Dir(repo.Path())
+	dryRun = true
+
+	if err := runGitFire(rootCmd, []string{}); err != nil {
+		t.Fatalf("runGitFire() dry-run should not fail from post-run plugins: %v", err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatalf("expected post-run plugins to be skipped in dry-run; marker %q exists", marker)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat marker: %v", err)
+	}
+}
+
 func TestBuildPostRunPluginContext_UsesScanRootMetadata(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)

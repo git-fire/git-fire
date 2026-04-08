@@ -163,6 +163,7 @@ type CommandPluginConfig struct {
 	Env     map[string]string `mapstructure:"env"     toml:"env"`
 	When    string            `mapstructure:"when"    toml:"when"`
 	Timeout string            `mapstructure:"timeout" toml:"timeout"`
+	FailRun bool              `mapstructure:"fail_run" toml:"fail_run"`
 }
 
 // WebhookPluginConfig configures a webhook plugin
