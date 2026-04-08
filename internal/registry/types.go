@@ -1,3 +1,4 @@
+// Package registry persists the set of known repository paths in repos.toml.
 package registry
 
 import "time"

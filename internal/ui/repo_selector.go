@@ -1,3 +1,4 @@
+// Package ui implements the Bubble Tea TUI for interactive repository selection and theming.
 package ui
 
 import (

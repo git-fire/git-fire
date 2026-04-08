@@ -1,3 +1,4 @@
+// Package cmd implements the git-fire Cobra CLI: flags, subcommands, and run orchestration.
 package cmd
 
 import (

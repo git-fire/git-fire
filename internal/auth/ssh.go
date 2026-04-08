@@ -1,3 +1,4 @@
+// Package auth inspects SSH configuration and agent state for backup operations.
 package auth
 
 import (

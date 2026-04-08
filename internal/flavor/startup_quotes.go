@@ -1,3 +1,4 @@
+// Package flavor provides small helpers for optional motivational UI copy.
 package flavor
 
 var startupFireQuotes = []string{

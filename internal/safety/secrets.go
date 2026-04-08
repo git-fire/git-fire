@@ -1,3 +1,4 @@
+// Package safety detects secrets in repo output and redacts sensitive text from logs and errors.
 package safety
 
 import (

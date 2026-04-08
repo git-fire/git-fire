@@ -1,3 +1,4 @@
+// Package config defines the git-fire configuration schema and related constants.
 package config
 
 import "time"

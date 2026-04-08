@@ -614,7 +614,7 @@ func (r *Runner) sendProgress(p Progress) {
 	}
 }
 
-// Progress returns the progress channel
+// ProgressChan returns the channel that receives non-blocking execution progress updates.
 func (r *Runner) ProgressChan() <-chan Progress {
 	return r.progress
 }

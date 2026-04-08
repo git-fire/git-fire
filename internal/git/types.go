@@ -1,3 +1,4 @@
+// Package git discovers repositories and runs git operations by shelling out to the git binary.
 package git
 
 import (
