@@ -409,10 +409,10 @@ on_failure = "ignore"  # Don't fail if USB not mounted
 
 ## CLI Integration
 
-Plugins run automatically after each backup run when configured in ~/.config/git-fire/config.toml. Dry-run mode prints what plugins would execute without running them.
+Plugins run automatically after each backup run when configured in ~/.config/git-fire/config.toml. Dry-run skips the post-run plugin flow entirely: post-run plugins are not executed and nothing is printed for them, so you cannot validate plugin wiring with `--dry-run` alone.
 
 ```bash
-# Preview backup plan including plugin actions
+# Preview backup plan (post-run plugins are not run on dry-run)
 git-fire --dry-run
 
 # Generate a config file to add plugins to
@@ -437,9 +437,8 @@ git-fire --init
    - Require explicit plugin enable in config
 
 3. **Dry-Run Support**
-   - All plugins MUST respect `DryRun` flag
-   - Show what would be executed
-   - Validate credentials without executing
+   - Post-run command plugins are not invoked on `--dry-run` (the CLI never enters the post-run plugin path).
+   - Command plugins that do run with `DryRun: true` in context should log intent only and not execute side effects.
 
 ---
 
@@ -469,9 +468,9 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
 
 ---
 
-## Getting Started (Planned)
+## Getting Started
 
-**To add your first plugin (once v0.2 wiring lands):**
+**To add your first plugin:**
 
 1. Create config file:
    ```bash
@@ -487,14 +486,12 @@ plugins = ["create-tarball", "encrypt-tarball", "upload-tarball"]
    when = "after-push"
    ```
 
-3. Test it:
+3. Preview the backup plan (plugins are still skipped on dry-run):
    ```bash
    git-fire --dry-run
    ```
 
-4. Run for real:
+4. Run for real (post-run plugins execute after the backup flow):
    ```bash
    git-fire
    ```
-
-If you want plugin support today, use `git-fire && your-script` as the practical workaround.
