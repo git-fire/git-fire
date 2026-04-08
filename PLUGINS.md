@@ -14,7 +14,7 @@ For quick project onboarding, see [README.md](README.md). For docs navigation, s
 | Webhook plugins | 🔜 Planned |
 | Go `.so` dynamic plugins | ❌ Removed from roadmap |
 
-Command plugins (`[[plugins.command]]`) in config.toml are loaded and executed automatically after each run. on-success, on-failure, and always triggers are supported. Dry-run and user-aborted runs skip plugin execution.
+Command plugins (`[[plugins.command]]`) in config.toml are loaded and executed automatically after each run. The `when` field selects the dispatch phase: `after-push` (default), `on-success`, `on-failure`, and `always`. Post-run plugins are skipped on dry-run, user-aborted runs, and no-op runs (the run finished with no backup actions).
 
 ---
 
