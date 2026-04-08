@@ -1004,7 +1004,24 @@ fail_run = true
 	configFile = cfgPath
 	scanPath = filepath.Dir(repo.Path())
 
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	oldStderr := os.Stderr
+	os.Stderr = w
+
 	runErr := runGitFire(rootCmd, []string{})
+
+	os.Stderr = oldStderr
+	if err := w.Close(); err != nil {
+		t.Fatalf("close pipe writer: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	stderr := string(stderrBytes)
 	if runErr == nil {
 		t.Fatal("expected runGitFire() to fail when on-success fail_run plugin fails")
 	}
@@ -1013,6 +1030,9 @@ fail_run = true
 	}
 	if strings.Contains(runErr.Error(), "some repositories failed") {
 		t.Fatalf("expected core backup to succeed and only plugin to fail run, got: %v", runErr)
+	}
+	if strings.Contains(stderr, "plugin "+pluginName+":") {
+		t.Fatalf("expected fail_run plugin errors to avoid duplicate stderr logging, got: %q", stderr)
 	}
 }
 
