@@ -238,9 +238,6 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			// after-push is the default trigger for command plugins.
-			runPlugins(plugins.TriggerAfterPush)
-
 			if runErr != nil && !errors.Is(runErr, errRunNoop) {
 				runPlugins(plugins.TriggerOnFailure)
 			} else {

@@ -66,9 +66,9 @@ func createCommandPlugin(cfg config.CommandPluginConfig) (*CommandPlugin, error)
 func parseTrigger(when string) Trigger {
 	switch when {
 	case "before-push":
-		return TriggerBeforePush
-	case "after-push":
 		return TriggerAfterPush
+	case "after-push":
+		return TriggerOnSuccess
 	case "on-success":
 		return TriggerOnSuccess
 	case "on-failure":
