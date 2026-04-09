@@ -88,13 +88,6 @@ func TestRootCommand_Flags(t *testing.T) {
 				return backupTo == "git@github.com:user/backup"
 			},
 		},
-		{
-			name: "rain risky flag",
-			args: []string{"rain", "--risky"},
-			checkVar: func() bool {
-				return rainRisky == true
-			},
-		},
 	}
 
 	for _, tt := range tests {

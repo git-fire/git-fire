@@ -22,7 +22,7 @@ func TestRainRepository_FastForwardsCurrentBranchPreservingUnstaged(t *testing.T
 
 	cloneBase := t.TempDir()
 	peerDir := filepath.Join(cloneBase, "peer")
-	testutil.RunGitCmd(t, cloneBase, "clone", remote, peerDir)
+	testutil.RunGitCmd(t, cloneBase, "clone", remote.Path(), peerDir)
 	testutil.RunGitCmd(t, peerDir, "config", "user.email", "test@example.com")
 	testutil.RunGitCmd(t, peerDir, "config", "user.name", "Test User")
 	if err := os.WriteFile(filepath.Join(peerDir, "remote-only.txt"), []byte("from remote\n"), 0o644); err != nil {
@@ -168,7 +168,7 @@ func TestRainRepository_UpdatesNonCurrentBranchWhileCurrentDirty(t *testing.T) {
 	// Advance remote feature branch from a peer clone.
 	cloneBase := t.TempDir()
 	peerDir := filepath.Join(cloneBase, "peer")
-	testutil.RunGitCmd(t, cloneBase, "clone", remote, peerDir)
+	testutil.RunGitCmd(t, cloneBase, "clone", remote.Path(), peerDir)
 	testutil.RunGitCmd(t, peerDir, "config", "user.email", "test@example.com")
 	testutil.RunGitCmd(t, peerDir, "config", "user.name", "Test User")
 	testutil.RunGitCmd(t, peerDir, "checkout", "feature")

@@ -19,6 +19,16 @@ func TestRainCommand_Aliases(t *testing.T) {
 	}
 }
 
+func TestRainCommand_FlagParsing_Risky(t *testing.T) {
+	resetFlags()
+	if err := rainCmd.ParseFlags([]string{"--risky"}); err != nil {
+		t.Fatalf("rainCmd.ParseFlags(--risky) error = %v", err)
+	}
+	if !rainRisky {
+		t.Fatal("expected rainRisky flag to be set")
+	}
+}
+
 func TestRunRain_SafeModeSkipsLocalAheadBranch(t *testing.T) {
 	tmpHome := t.TempDir()
 	setTestUserDirs(t, tmpHome)

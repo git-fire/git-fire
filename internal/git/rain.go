@@ -16,17 +16,18 @@ type RainOptions struct {
 }
 
 const (
-	RainOutcomeUpdated                = "updated"
-	RainOutcomeUpdatedRisky           = "updated-risky"
-	RainOutcomeUpToDate               = "up-to-date"
-	RainOutcomeSkippedNoUpstream      = "skipped-no-upstream"
-	RainOutcomeSkippedUpstreamMissing = "skipped-upstream-missing"
-	RainOutcomeSkippedCheckedOut      = "skipped-checked-out"
-	RainOutcomeSkippedLocalAhead      = "skipped-local-ahead"
-	RainOutcomeSkippedDiverged        = "skipped-diverged"
-	RainOutcomeSkippedUnsafeMerge     = "skipped-unsafe-merge"
-	RainOutcomeSkippedUnsafeDirty     = "skipped-unsafe-dirty"
-	RainOutcomeFailed                 = "failed"
+	RainOutcomeUpdated                  = "updated"
+	RainOutcomeUpdatedRisky             = "updated-risky"
+	RainOutcomeUpToDate                 = "up-to-date"
+	RainOutcomeSkippedNoUpstream        = "skipped-no-upstream"
+	RainOutcomeSkippedAmbiguousUpstream = "skipped-ambiguous-upstream"
+	RainOutcomeSkippedUpstreamMissing   = "skipped-upstream-missing"
+	RainOutcomeSkippedCheckedOut        = "skipped-checked-out"
+	RainOutcomeSkippedLocalAhead        = "skipped-local-ahead"
+	RainOutcomeSkippedDiverged          = "skipped-diverged"
+	RainOutcomeSkippedUnsafeMerge       = "skipped-unsafe-merge"
+	RainOutcomeSkippedUnsafeDirty       = "skipped-unsafe-dirty"
+	RainOutcomeFailed                   = "failed"
 )
 
 // RainBranchResult reports the outcome for one local branch.
@@ -121,8 +122,17 @@ func RainRepository(repoPath string, opts RainOptions) (RainResult, error) {
 		}
 
 		if branch.Upstream == "" {
-			record(RainOutcomeSkippedNoUpstream, "branch has no upstream", "")
-			continue
+			inferred, inferErr := inferUpstreamRef(repoPath, branch.Branch)
+			if inferErr != nil {
+				record(RainOutcomeFailed, fmt.Sprintf("infer upstream: %v", inferErr), "")
+				continue
+			}
+			if inferred == "" {
+				record(RainOutcomeSkippedNoUpstream, "branch has no upstream", "")
+				continue
+			}
+			branch.Upstream = inferred
+			entry.Upstream = inferred
 		}
 
 		localSHA, localErr := getCommitSHA(repoPath, branch.Branch)
@@ -231,6 +241,45 @@ func repoHasAnyRemote(repoPath string) (bool, error) {
 		return false, commandError("git remote", err, out)
 	}
 	return strings.TrimSpace(string(out)) != "", nil
+}
+
+func inferUpstreamRef(repoPath, branch string) (string, error) {
+	remotes, err := listRepoRemotes(repoPath)
+	if err != nil {
+		return "", err
+	}
+	candidates := make([]string, 0, len(remotes))
+	for _, remote := range remotes {
+		ref := fmt.Sprintf("%s/%s", remote, branch)
+		if _, refErr := getCommitSHA(repoPath, ref); refErr == nil {
+			candidates = append(candidates, ref)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+	if len(candidates) == 0 {
+		return "", nil
+	}
+	return "", fmt.Errorf("multiple candidate upstream refs for %s: %s", branch, strings.Join(candidates, ", "))
+}
+
+func listRepoRemotes(repoPath string) ([]string, error) {
+	cmd := exec.Command("git", "remote")
+	cmd.Dir = repoPath
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, commandError("git remote", err, out)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	remotes := make([]string, 0, len(lines))
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			remotes = append(remotes, name)
+		}
+	}
+	return remotes, nil
 }
 
 func listLocalBranchesWithUpstream(repoPath string) ([]localBranchTracking, error) {
