@@ -228,6 +228,25 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 	return m, tea.Batch(cmds...)
 }
 
+// updateConfigViewMouse handles scroll-wheel movement on the settings screen.
+func (m RepoSelectorModel) updateConfigViewMouse(ev tea.MouseEvent, cmds []tea.Cmd) (tea.Model, tea.Cmd) {
+	if ev.Action != tea.MouseActionPress || !ev.IsWheel() {
+		return m, tea.Batch(cmds...)
+	}
+	d := mouseWheelVerticalDelta(ev)
+	if d == 0 {
+		return m, tea.Batch(cmds...)
+	}
+	if d < 0 {
+		if m.configCursor > 0 {
+			m.configCursor--
+		}
+	} else if m.configCursor < len(configRows)-1 {
+		m.configCursor++
+	}
+	return m, tea.Batch(cmds...)
+}
+
 // saveConfig writes the current config to disk and records success or failure on the model.
 func (m RepoSelectorModel) saveConfig() RepoSelectorModel {
 	if m.cfg == nil || m.cfgPath == "" {
@@ -303,7 +322,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString(helpStyle.Render(
 			"In-memory settings updated; fix the error above to persist to disk.\n" +
 				"Custom hex palette editing is coming soon.\n" +
-				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+				"Controls:  ↑/k, ↓/j / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	} else {
 		cfgPathStr := m.cfgPath
@@ -315,7 +334,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString(helpStyle.Render(
 			"Changes saved immediately to " + cfgPathStr + "\n" +
 				"Custom hex palette editing is coming soon.\n" +
-				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+				"Controls:  ↑/k, ↓/j / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	}
 

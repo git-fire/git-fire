@@ -22,6 +22,20 @@ func pressSpecial(t tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: t}
 }
 
+func wheelVertical(btn tea.MouseButton) tea.MouseMsg {
+	return tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: btn,
+	}
+}
+
+func wheelHorizontal(btn tea.MouseButton) tea.MouseMsg {
+	return tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: btn,
+	}
+}
+
 // assertUpdateNoPanic runs m.Update(msg) and fails the test if it panics.
 func assertUpdateNoPanic(t *testing.T, m tea.Model, msg tea.Msg) {
 	t.Helper()
@@ -382,6 +396,71 @@ func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeySpace))
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyUp))
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeyDown))
+}
+
+func TestRepoSelectorModel_MouseWheel_NavigateMainList(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	if m.cursor != 0 {
+		t.Fatalf("initial cursor = %d, want 0", m.cursor)
+	}
+	m = updateMain(t, m, wheelVertical(tea.MouseButtonWheelDown))
+	if m.cursor != 1 {
+		t.Errorf("after wheel down cursor = %d, want 1", m.cursor)
+	}
+	m = updateMain(t, m, wheelVertical(tea.MouseButtonWheelUp))
+	if m.cursor != 0 {
+		t.Errorf("after wheel up cursor = %d, want 0", m.cursor)
+	}
+}
+
+func TestRepoSelectorModel_MouseWheel_ConfigViewMovesCursor(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.view = repoViewConfig
+	m.configCursor = 0
+	m = updateMain(t, m, wheelVertical(tea.MouseButtonWheelDown))
+	if m.configCursor != 1 {
+		t.Errorf("config cursor = %d, want 1", m.configCursor)
+	}
+	m = updateMain(t, m, wheelVertical(tea.MouseButtonWheelUp))
+	if m.configCursor != 0 {
+		t.Errorf("config cursor = %d, want 0", m.configCursor)
+	}
+}
+
+func TestRepoSelectorModel_MouseWheel_HorizontalScrollsPath(t *testing.T) {
+	longParent := filepath.Join(
+		os.TempDir(),
+		"gitfire-ui-sample",
+		"very",
+		"long",
+		"parent",
+		"path",
+		"that",
+		"will",
+		"truncate",
+	)
+	repos := []git.Repository{
+		{Path: filepath.Join(longParent, "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
+	}
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.windowWidth = 45
+	m = updateMain(t, m, wheelHorizontal(tea.MouseButtonWheelRight))
+	if m.pathScrollOffset <= 0 {
+		t.Fatalf("expected pathScrollOffset > 0 after wheel right, got %d", m.pathScrollOffset)
+	}
+	off := m.pathScrollOffset
+	m = updateMain(t, m, wheelHorizontal(tea.MouseButtonWheelLeft))
+	if m.pathScrollOffset >= off {
+		t.Fatalf("expected pathScrollOffset to decrease after wheel left, had %d then %d", off, m.pathScrollOffset)
+	}
+}
+
+func TestRepoSelectorLiteModel_MouseWheel_NavigateList(t *testing.T) {
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m = updateLite(t, m, wheelVertical(tea.MouseButtonWheelDown))
+	if m.cursor != 1 {
+		t.Errorf("cursor = %d, want 1", m.cursor)
+	}
 }
 
 func TestRepoSelectorLiteModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {

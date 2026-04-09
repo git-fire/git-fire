@@ -84,6 +84,57 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.withClampedPathScroll()
 		return m, nil
 
+	case tea.MouseMsg:
+		ev := tea.MouseEvent(msg)
+		if ev.Action != tea.MouseActionPress || !ev.IsWheel() {
+			return m, nil
+		}
+		if d := mouseWheelVerticalDelta(ev); d != 0 {
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					return m, nil
+				}
+				if d < 0 && m.ignoredCursor > 0 {
+					m.ignoredCursor--
+				} else if d > 0 && m.ignoredCursor < len(m.ignoredEntries)-1 {
+					m.ignoredCursor++
+				}
+			} else if len(m.repos) > 0 {
+				if d < 0 && m.cursor > 0 {
+					m.cursor--
+					m = m.withResetPathScroll()
+				} else if d > 0 && m.cursor < len(m.repos)-1 {
+					m.cursor++
+					m = m.withResetPathScroll()
+				}
+			}
+		}
+		if h := mouseWheelHorizontalDelta(ev); h != 0 && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+			repo := m.repos[m.cursor]
+			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+			pathLen := len([]rune(parentPath))
+			pWidth := PathWidthFor(m.windowWidth, repo)
+			maxOffset := pathLen - pWidth
+			if maxOffset > 0 {
+				if h < 0 {
+					for range horizontalWheelPathSteps {
+						if m.pathScrollOffset <= 0 {
+							break
+						}
+						m.pathScrollOffset--
+					}
+				} else {
+					for range horizontalWheelPathSteps {
+						if m.pathScrollOffset >= maxOffset {
+							break
+						}
+						m.pathScrollOffset++
+					}
+				}
+			}
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -308,7 +359,7 @@ func (m RepoSelectorLiteModel) View() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
 			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
@@ -344,7 +395,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Excluded from backup. Restore with enter or u.\n" +
-			"↑/k ↓/j  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
+			"↑/k ↓/j / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
 	)
 	s.WriteString(help)
 	if m.lastErr != nil {
@@ -443,7 +494,7 @@ func (m RepoSelectorLiteModel) GetSelectedRepos() []git.Repository {
 // RunRepoSelectorLite runs the lite (non-animated) interactive repo selector.
 func RunRepoSelectorLite(repos []git.Repository, reg *registry.Registry, regPath string) ([]git.Repository, error) {
 	model := NewRepoSelectorLiteModel(repos, reg, regPath)
-	p := tea.NewProgram(model)
+	p := tea.NewProgram(model, tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()
 	if err != nil {
