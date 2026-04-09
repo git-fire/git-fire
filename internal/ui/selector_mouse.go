@@ -6,6 +6,22 @@ import tea "github.com/charmbracelet/bubbletea"
 // horizontal wheel notch (trackpads often emit one event per small scroll).
 const horizontalWheelPathSteps = 3
 
+// liteNavPageStep is the PageUp/PageDown jump size for RepoSelectorLiteModel,
+// which has no viewport-based row count (full list is always rendered).
+func liteNavPageStep(total int) int {
+	if total <= 1 {
+		return 1
+	}
+	step := 10
+	if step > total-1 {
+		step = total - 1
+	}
+	if step < 1 {
+		step = 1
+	}
+	return step
+}
+
 func mouseWheelVerticalDelta(ev tea.MouseEvent) int {
 	switch ev.Button {
 	case tea.MouseButtonWheelUp:

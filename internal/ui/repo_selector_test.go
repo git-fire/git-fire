@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -427,6 +428,96 @@ func TestRepoSelectorModel_MouseWheel_ConfigViewMovesCursor(t *testing.T) {
 	}
 }
 
+func manySampleRepos(n int) []git.Repository {
+	root := filepath.Join(os.TempDir(), "gitfire-ui-many")
+	out := make([]git.Repository, 0, n)
+	for i := range n {
+		name := fmt.Sprintf("repo%d", i)
+		out = append(out, git.Repository{
+			Path:     filepath.Join(root, name),
+			Name:     name,
+			Selected: true,
+			Mode:     git.ModeLeaveUntouched,
+		})
+	}
+	return out
+}
+
+func TestRepoSelectorModel_PageKeys_HomeEnd(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m = updateMain(t, m, pressSpecial(tea.KeyEnd))
+	if m.cursor != 2 {
+		t.Fatalf("after End cursor = %d, want 2", m.cursor)
+	}
+	m = updateMain(t, m, pressSpecial(tea.KeyHome))
+	if m.cursor != 0 {
+		t.Fatalf("after Home cursor = %d, want 0", m.cursor)
+	}
+}
+
+func TestRepoSelectorModel_PageKeys_PgUpPgDown(t *testing.T) {
+	repos := manySampleRepos(30)
+	m := NewRepoSelectorModel(repos, nil, "")
+	m.windowWidth = 80
+	m.windowHeight = 40
+	m.showFire = false // stable list viewport for predictable page step
+
+	m = updateMain(t, m, pressSpecial(tea.KeyPgDown))
+	if m.cursor <= 0 {
+		t.Fatalf("expected PgDown to advance cursor, got %d", m.cursor)
+	}
+	firstJump := m.cursor
+	m = updateMain(t, m, pressSpecial(tea.KeyPgUp))
+	if m.cursor != 0 {
+		t.Fatalf("after PgUp from first page want cursor 0, got %d", m.cursor)
+	}
+	// Second PgDown should land at same index as first (deterministic viewport).
+	m = updateMain(t, m, pressSpecial(tea.KeyPgDown))
+	if m.cursor != firstJump {
+		t.Fatalf("second PgDown cursor = %d, want %d", m.cursor, firstJump)
+	}
+}
+
+func TestRepoSelectorModel_ConfigView_PageKeys(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.view = repoViewConfig
+	cfg := config.DefaultConfig()
+	m.cfg = &cfg
+	m.configCursor = 0
+
+	m = updateMain(t, m, pressSpecial(tea.KeyEnd))
+	wantLast := len(configRows) - 1
+	if m.configCursor != wantLast {
+		t.Fatalf("End: configCursor = %d, want %d", m.configCursor, wantLast)
+	}
+	m = updateMain(t, m, pressSpecial(tea.KeyHome))
+	if m.configCursor != 0 {
+		t.Fatalf("Home: configCursor = %d, want 0", m.configCursor)
+	}
+	step := configViewPageStep()
+	m = updateMain(t, m, pressSpecial(tea.KeyPgDown))
+	if got := m.configCursor; got != step && got != wantLast {
+		t.Fatalf("PgDown from 0: configCursor = %d, want %d or %d", got, step, wantLast)
+	}
+}
+
+func TestRepoSelectorLiteModel_PageKeys(t *testing.T) {
+	repos := manySampleRepos(25)
+	m := NewRepoSelectorLiteModel(repos, nil, "")
+	m = updateLite(t, m, pressSpecial(tea.KeyEnd))
+	if m.cursor != len(repos)-1 {
+		t.Fatalf("End: cursor = %d", m.cursor)
+	}
+	m = updateLite(t, m, pressSpecial(tea.KeyHome))
+	if m.cursor != 0 {
+		t.Fatalf("Home: cursor = %d", m.cursor)
+	}
+	m = updateLite(t, m, pressSpecial(tea.KeyPgDown))
+	if m.cursor <= 0 {
+		t.Fatalf("PgDown should advance, cursor = %d", m.cursor)
+	}
+}
+
 func TestRepoSelectorModel_MouseWheel_HorizontalScrollsPath(t *testing.T) {
 	longParent := filepath.Join(
 		os.TempDir(),
@@ -506,7 +597,8 @@ func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
 	m.windowWidth = 45
 
 	view := m.View()
-	if !strings.Contains(view, "SCROLL PATH") {
+	// Hint may wrap across lines at narrow widths; match parts that stay stable.
+	if !strings.Contains(view, "SCROLL") || !strings.Contains(view, "PATH >>") {
 		t.Fatalf("expected full view to show scroll hint when truncated, got: %q", view)
 	}
 }

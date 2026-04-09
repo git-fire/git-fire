@@ -26,6 +26,22 @@ const (
 	configRowComingSoon
 )
 
+// configViewPageStep is how many settings rows PageUp/PageDown move at once.
+func configViewPageStep() int {
+	n := len(configRows)
+	if n <= 1 {
+		return 1
+	}
+	step := 5
+	if step > n-1 {
+		step = n - 1
+	}
+	if step < 1 {
+		step = 1
+	}
+	return step
+}
+
 var configRows = []configRow{
 	{label: "Default mode", kind: configRowEnum, options: []string{
 		"push-known-branches",
@@ -208,6 +224,25 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 			m.configCursor++
 		}
 
+	case "pgup":
+		step := configViewPageStep()
+		if m.configCursor -= step; m.configCursor < 0 {
+			m.configCursor = 0
+		}
+
+	case "pgdown":
+		step := configViewPageStep()
+		last := len(configRows) - 1
+		if m.configCursor += step; m.configCursor > last {
+			m.configCursor = last
+		}
+
+	case "home":
+		m.configCursor = 0
+
+	case "end":
+		m.configCursor = len(configRows) - 1
+
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
 		if m.cfg != nil {
@@ -322,7 +357,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString(helpStyle.Render(
 			"In-memory settings updated; fix the error above to persist to disk.\n" +
 				"Custom hex palette editing is coming soon.\n" +
-				"Controls:  ↑/k, ↓/j / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+				"Controls:  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	} else {
 		cfgPathStr := m.cfgPath
@@ -334,7 +369,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString(helpStyle.Render(
 			"Changes saved immediately to " + cfgPathStr + "\n" +
 				"Custom hex palette editing is coming soon.\n" +
-				"Controls:  ↑/k, ↓/j / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
+				"Controls:  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	}
 

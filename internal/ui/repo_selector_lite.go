@@ -187,6 +187,64 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = m.withResetPathScroll()
 			}
 
+		case "pgup":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					return m, nil
+				}
+				step := liteNavPageStep(len(m.ignoredEntries))
+				if m.ignoredCursor -= step; m.ignoredCursor < 0 {
+					m.ignoredCursor = 0
+				}
+			} else if len(m.repos) > 0 {
+				step := liteNavPageStep(len(m.repos))
+				if m.cursor -= step; m.cursor < 0 {
+					m.cursor = 0
+				}
+				m = m.withResetPathScroll()
+			}
+
+		case "pgdown":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					return m, nil
+				}
+				step := liteNavPageStep(len(m.ignoredEntries))
+				last := len(m.ignoredEntries) - 1
+				if m.ignoredCursor += step; m.ignoredCursor > last {
+					m.ignoredCursor = last
+				}
+			} else if len(m.repos) > 0 {
+				step := liteNavPageStep(len(m.repos))
+				last := len(m.repos) - 1
+				if m.cursor += step; m.cursor > last {
+					m.cursor = last
+				}
+				m = m.withResetPathScroll()
+			}
+
+		case "home":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					return m, nil
+				}
+				m.ignoredCursor = 0
+			} else if len(m.repos) > 0 {
+				m.cursor = 0
+				m = m.withResetPathScroll()
+			}
+
+		case "end":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					return m, nil
+				}
+				m.ignoredCursor = len(m.ignoredEntries) - 1
+			} else if len(m.repos) > 0 {
+				m.cursor = len(m.repos) - 1
+				m = m.withResetPathScroll()
+			}
+
 		case "left":
 			if m.view == repoViewMain && m.pathScrollOffset > 0 {
 				m.pathScrollOffset--
@@ -359,7 +417,7 @@ func (m RepoSelectorLiteModel) View() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none\n" +
 			"  i  View ignored  |  enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
@@ -395,7 +453,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 	help := liteHelpStyle.Render(
 		"\n" +
 			"Excluded from backup. Restore with enter or u.\n" +
-			"↑/k ↓/j / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
+			"↑/k ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
 	)
 	s.WriteString(help)
 	if m.lastErr != nil {

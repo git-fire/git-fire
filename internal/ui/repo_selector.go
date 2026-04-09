@@ -531,6 +531,72 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
 			}
 
+		case "pgup":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				step := m.ignoredListPageStep()
+				if m.ignoredCursor -= step; m.ignoredCursor < 0 {
+					m.ignoredCursor = 0
+				}
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				step := m.mainListPageStep()
+				if m.cursor -= step; m.cursor < 0 {
+					m.cursor = 0
+				}
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "pgdown":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				step := m.ignoredListPageStep()
+				last := len(m.ignoredEntries) - 1
+				if m.ignoredCursor += step; m.ignoredCursor > last {
+					m.ignoredCursor = last
+				}
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				step := m.mainListPageStep()
+				last := len(m.repos) - 1
+				if m.cursor += step; m.cursor > last {
+					m.cursor = last
+				}
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "home":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				m.ignoredCursor = 0
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				m.cursor = 0
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "end":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				m.ignoredCursor = len(m.ignoredEntries) - 1
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				m.cursor = len(m.repos) - 1
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
 		case "left":
 			if m.view == repoViewMain && m.pathScrollOffset > 0 {
 				m.pathScrollOffset--
@@ -786,7 +852,7 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 	buf.WriteString(helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
@@ -822,7 +888,7 @@ func renderIgnoredViewHelp() string {
 	return helpStyle.Render(
 		"\n" +
 			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
-			"Controls:  ↑/k, ↓/j / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
+			"Controls:  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
 	)
 }
 
@@ -892,6 +958,24 @@ func (m RepoSelectorModel) clampScroll(offset, cursor, visible, total int) int {
 		offset = next
 	}
 	return offset
+}
+
+func (m RepoSelectorModel) mainListPageStep() int {
+	// Reserve two lines for ↑/↓ indicators so PageUp/PageDown stay symmetric even
+	// when the live view toggles between one and two indicator rows.
+	v := m.repoListVisibleCount()
+	if v <= 2 {
+		return 1
+	}
+	return v - 2
+}
+
+func (m RepoSelectorModel) ignoredListPageStep() int {
+	v := m.ignoredListVisibleCount()
+	if v <= 2 {
+		return 1
+	}
+	return v - 2
 }
 
 // contentWidth returns the usable inner width for rendered content (box border+padding = 6 cols).
@@ -1135,7 +1219,7 @@ func (m RepoSelectorModel) View() string {
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
