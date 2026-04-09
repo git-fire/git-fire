@@ -1,8 +1,10 @@
 package ui
 
 import (
-	"github.com/git-fire/git-fire/internal/config"
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
+	"github.com/git-fire/git-fire/internal/config"
 )
 
 type colorProfile struct {
@@ -138,9 +140,15 @@ var profileMap = map[string]colorProfile{
 var activeFireColors = profileMap[config.UIColorProfileClassic].fire
 var activeProfileName = config.UIColorProfileClassic
 
-func applyColorProfile(profile string) string {
+func applyColorProfile(profile string, customPalette []string) string {
 	p, ok := profileMap[profile]
-	if !ok {
+	if profile == config.UIColorProfileCustom {
+		p = profileMap[config.UIColorProfileClassic]
+		p.fire = paletteToLipglossColors(customPalette)
+		if len(p.fire) == 0 {
+			p.fire = profileMap[config.UIColorProfileClassic].fire
+		}
+	} else if !ok {
 		profile = config.UIColorProfileClassic
 		p = profileMap[profile]
 	}
@@ -165,8 +173,28 @@ func applyColorProfile(profile string) string {
 }
 
 func activeProfile() colorProfile {
+	if activeProfileName == config.UIColorProfileCustom {
+		base := profileMap[config.UIColorProfileClassic]
+		base.fire = activeFireColors
+		return base
+	}
 	if p, ok := profileMap[activeProfileName]; ok {
 		return p
 	}
 	return colorProfile{}
+}
+
+func paletteToLipglossColors(colors []string) []lipgloss.Color {
+	if len(colors) == 0 {
+		return nil
+	}
+	result := make([]lipgloss.Color, 0, len(colors))
+	for _, raw := range colors {
+		normalized, err := config.NormalizeHexColor(raw)
+		if err != nil {
+			continue
+		}
+		result = append(result, lipgloss.Color(strings.ToUpper(normalized)))
+	}
+	return result
 }

@@ -1062,18 +1062,21 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 	}
 }
 
-func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
+func TestRepoSelectorModel_CustomPaletteRowReadOnlyPreview(t *testing.T) {
 	cfg := config.DefaultConfig()
 	beforeProfile := cfg.UI.ColorProfile
 
-	// Row 11 is "Custom hex palette" and should be non-editable for now.
+	// Row 11 is "Custom hex palette" and is read-only in the TUI.
 	val := configRowValue(11, &cfg)
 	if val == "" {
-		t.Fatal("configRowValue(11) should show a placeholder/preview string")
+		t.Fatal("configRowValue(11) should show a preview string")
+	}
+	if !strings.Contains(val, "#") {
+		t.Fatalf("configRowValue(11) should show color hex preview, got %q", val)
 	}
 
 	applyConfigChange(11, &cfg, +1)
 	if cfg.UI.ColorProfile != beforeProfile {
-		t.Error("coming-soon row should not mutate config")
+		t.Error("read-only custom palette row should not mutate config")
 	}
 }

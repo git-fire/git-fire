@@ -35,6 +35,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
 	}
+	if len(cfg.UI.CustomFireColors) == 0 {
+		t.Fatal("Expected ui.custom_fire_colors to be non-empty by default")
+	}
 	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
 		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
 	}
@@ -211,6 +214,47 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid custom fire color",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:     UIColorProfileCustom,
+					CustomFireColors: []string{"#ff6600", "not-hex"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "normalize custom fire colors",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:     UIColorProfileCustom,
+					CustomFireColors: []string{"#f60", "00aa11"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty custom fire colors fallback to default palette",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile: UIColorProfileCustom,
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "invalid startup quote behavior",
 			cfg: Config{
 				Global: GlobalConfig{
@@ -331,6 +375,20 @@ func TestValidate(t *testing.T) {
 			}
 			if tt.name == "invalid startup quote interval fallback to default" && tt.cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
 				t.Errorf("StartupQuoteIntervalSec fallback = %d, want %d", tt.cfg.UI.StartupQuoteIntervalSec, DefaultUIStartupQuoteIntervalSec)
+			}
+			if tt.name == "normalize custom fire colors" {
+				want := []string{"#FF6600", "#00AA11"}
+				if len(tt.cfg.UI.CustomFireColors) != len(want) {
+					t.Fatalf("CustomFireColors len=%d, want %d", len(tt.cfg.UI.CustomFireColors), len(want))
+				}
+				for i := range want {
+					if tt.cfg.UI.CustomFireColors[i] != want[i] {
+						t.Fatalf("CustomFireColors[%d]=%q, want %q", i, tt.cfg.UI.CustomFireColors[i], want[i])
+					}
+				}
+			}
+			if tt.name == "empty custom fire colors fallback to default palette" && len(tt.cfg.UI.CustomFireColors) == 0 {
+				t.Fatal("expected fallback default custom palette when ui.custom_fire_colors is empty")
 			}
 		})
 	}
@@ -543,6 +601,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.PushWorkers = 7
 	original.UI.FireTickMS = 150
 	original.UI.ColorProfile = UIColorProfileSynthwave
+	original.UI.CustomFireColors = []string{"#FF6600", "#00AA11", "#3366FF"}
 
 	loaded := saveConfigAndReload(t, &original)
 
@@ -566,6 +625,12 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.UI.FireTickMS != 150 {
 		t.Errorf("UIFireTickMS: want 150, got %d", loaded.UI.FireTickMS)
+	}
+	if len(loaded.UI.CustomFireColors) != 3 {
+		t.Fatalf("UICustomFireColors len: want 3, got %d", len(loaded.UI.CustomFireColors))
+	}
+	if loaded.UI.CustomFireColors[0] != "#FF6600" || loaded.UI.CustomFireColors[1] != "#00AA11" || loaded.UI.CustomFireColors[2] != "#3366FF" {
+		t.Fatalf("UICustomFireColors mismatch: got %v", loaded.UI.CustomFireColors)
 	}
 }
 

@@ -23,7 +23,7 @@ type configRowKind int
 const (
 	configRowBool configRowKind = iota
 	configRowEnum
-	configRowComingSoon
+	configRowReadOnly
 )
 
 var configRows = []configRow{
@@ -67,7 +67,7 @@ var configRows = []configRow{
 		"340",
 	}},
 	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
-	{label: "Custom hex palette", kind: configRowComingSoon},
+	{label: "Custom hex palette", kind: configRowReadOnly},
 }
 
 // configRowValue returns the current string representation of row i for cfg.
@@ -114,7 +114,7 @@ func configRowValue(i int, cfg *config.Config) string {
 	case 10:
 		return cfg.UI.ColorProfile
 	case 11:
-		return palettePreviewString(activeFireColors)
+		return palettePreviewString(paletteToLipglossColors(cfg.UI.CustomFireColors))
 	}
 	return ""
 }
@@ -171,8 +171,8 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 		case 10:
 			cfg.UI.ColorProfile = opts[idx]
 		}
-	case configRowComingSoon:
-		// Reserved for future custom hex palette editing.
+	case configRowReadOnly:
+		// Custom palette values are edited in config.toml for now.
 	}
 }
 
@@ -211,7 +211,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 	case " ", "right", "l":
 		applyConfigChange(m.configCursor, m.cfg, +1)
 		if m.cfg != nil {
-			applyColorProfile(m.cfg.UI.ColorProfile)
+			applyColorProfile(m.cfg.UI.ColorProfile, m.cfg.UI.CustomFireColors)
 		}
 		m = m.saveConfig()
 		m, cmds = m.syncRuntimeFromConfig(cmds)
@@ -219,7 +219,7 @@ func (m RepoSelectorModel) updateConfigView(msg tea.KeyMsg, cmds []tea.Cmd) (tea
 	case "left", "h":
 		applyConfigChange(m.configCursor, m.cfg, -1)
 		if m.cfg != nil {
-			applyColorProfile(m.cfg.UI.ColorProfile)
+			applyColorProfile(m.cfg.UI.ColorProfile, m.cfg.UI.CustomFireColors)
 		}
 		m = m.saveConfig()
 		m, cmds = m.syncRuntimeFromConfig(cmds)
@@ -278,8 +278,8 @@ func (m RepoSelectorModel) viewConfig() string {
 			switch row.kind {
 			case configRowBool:
 				hintStr = dimStyle.Render("  space to toggle")
-			case configRowComingSoon:
-				hintStr = dimStyle.Render("  coming soon")
+			case configRowReadOnly:
+				hintStr = dimStyle.Render("  edit config.toml")
 			default:
 				hintStr = dimStyle.Render("  ←/→ to change")
 			}
@@ -302,7 +302,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		s.WriteString("\n")
 		s.WriteString(helpStyle.Render(
 			"In-memory settings updated; fix the error above to persist to disk.\n" +
-				"Custom hex palette editing is coming soon.\n" +
+				"Custom colors: set [ui].color_profile = \"custom\" and edit [ui].custom_fire_colors in config.toml.\n" +
 				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	} else {
@@ -314,7 +314,7 @@ func (m RepoSelectorModel) viewConfig() string {
 		}
 		s.WriteString(helpStyle.Render(
 			"Changes saved immediately to " + cfgPathStr + "\n" +
-				"Custom hex palette editing is coming soon.\n" +
+				"Custom colors: set [ui].color_profile = \"custom\" and edit [ui].custom_fire_colors in config.toml.\n" +
 				"Controls:  ↑/k, ↓/j  Navigate  |  space/→  Next value  |  ←  Prev value  |  c/Esc  Back  |  q  Quit",
 		))
 	}

@@ -174,6 +174,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ui.startup_quote_interval_sec", defaults.UI.StartupQuoteIntervalSec)
 	v.SetDefault("ui.fire_tick_ms", defaults.UI.FireTickMS)
 	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
+	v.SetDefault("ui.custom_fire_colors", defaults.UI.CustomFireColors)
 }
 
 // Validate checks if the configuration is valid
@@ -217,6 +218,15 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+	normalizedPalette, err := NormalizeCustomFireColors(c.UI.CustomFireColors)
+	if err != nil {
+		return fmt.Errorf("invalid ui.custom_fire_colors: %w", err)
+	}
+	if len(normalizedPalette) == 0 {
+		c.UI.CustomFireColors = DefaultCustomFireColors()
+	} else {
+		c.UI.CustomFireColors = normalizedPalette
 	}
 
 	// Validate/normalize startup quote behavior.
