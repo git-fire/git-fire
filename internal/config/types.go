@@ -48,6 +48,10 @@ type GlobalConfig struct {
 	// Skip filesystem walk; only back up repos already in the registry.
 	// Set via --no-scan flag (this run only) or disable_scan = true in config.
 	DisableScan bool `mapstructure:"disable_scan" toml:"disable_scan"`
+
+	// Allow destructive local branch realignment during `git-fire rain`.
+	// When false, local-only commits are never rewritten.
+	RainRiskyMode bool `mapstructure:"rain_risky_mode" toml:"rain_risky_mode"`
 }
 
 // BackupConfig contains backup mode settings

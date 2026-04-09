@@ -49,6 +49,7 @@ func DefaultConfig() Config {
 			CacheTTL:         24 * time.Hour,
 			RescanSubmodules: false,
 			DisableScan:      false,
+			RainRiskyMode:    false,
 		},
 		Backup: BackupConfig{
 			Platform:         "github",
@@ -116,6 +117,10 @@ rescan_submodules = false
 # Skip filesystem walk; only back up repos already in the registry.
 # Use --no-scan flag to override for a single run without changing this file.
 disable_scan = false
+
+# Allow destructive local branch realignment in git-fire rain.
+# false = preserve local-only commits; true = permit hard resets to remote.
+rain_risky_mode = false
 
 [ui]
 # Show the fire animation in the TUI repo selector.

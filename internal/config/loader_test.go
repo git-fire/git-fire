@@ -32,6 +32,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Global.PushWorkers != DefaultPushWorkers {
 		t.Errorf("Expected push_workers to be %d, got %d", DefaultPushWorkers, cfg.Global.PushWorkers)
 	}
+	if cfg.Global.RainRiskyMode {
+		t.Error("Expected rain_risky_mode to default to false")
+	}
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
 	}
@@ -82,6 +85,7 @@ default_mode = "push-all"
 auto_commit_dirty = false
 scan_workers = 16
 push_workers = 3
+rain_risky_mode = true
 
 [backup]
 platform = "gitlab"
@@ -110,6 +114,9 @@ platform = "gitlab"
 	}
 	if cfg.Global.PushWorkers != 3 {
 		t.Errorf("Expected push_workers to be 3, got %d", cfg.Global.PushWorkers)
+	}
+	if !cfg.Global.RainRiskyMode {
+		t.Error("Expected rain_risky_mode to be true")
 	}
 
 	if cfg.Backup.Platform != "gitlab" {

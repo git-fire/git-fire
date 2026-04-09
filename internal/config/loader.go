@@ -158,6 +158,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("global.cache_ttl", defaults.Global.CacheTTL)
 	v.SetDefault("global.rescan_submodules", defaults.Global.RescanSubmodules)
 	v.SetDefault("global.disable_scan", defaults.Global.DisableScan)
+	v.SetDefault("global.rain_risky_mode", defaults.Global.RainRiskyMode)
 
 	// Backup defaults
 	v.SetDefault("backup.platform", defaults.Backup.Platform)

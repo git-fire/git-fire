@@ -11,7 +11,7 @@ VERSION ?= $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "
 LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
-.PHONY: all build run test test-race lint clean install help
+.PHONY: all build run test test-race test-rain lint clean install help
 
 all: build
 
@@ -30,6 +30,10 @@ test:
 ## test-race: run tests with race detector
 test-race:
 	cd "$(ROOT)" && go test -race -count=1 ./...
+
+## test-rain: run hydrate/rain focused tests
+test-rain:
+	cd "$(ROOT)" && go test -count=1 ./internal/git -run Rain && go test -count=1 ./cmd -run Rain
 
 ## lint: vet the code
 lint:
