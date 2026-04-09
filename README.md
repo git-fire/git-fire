@@ -1,4 +1,4 @@
-# Git Fire - Multi-Repo Checkpoint CLI
+# git-fire - Multi-Repo Checkpoint CLI
 
 <p align="center">
   <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: commit node, edge, flame, wordmark" width="220" height="80">
