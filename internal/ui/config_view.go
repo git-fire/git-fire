@@ -66,6 +66,7 @@ var configRows = []configRow{
 		"280",
 		"340",
 	}},
+	{label: "Fire animation style", kind: configRowEnum, options: config.UIFireAnimationStyles()},
 	{label: "Color profile", kind: configRowEnum, options: config.UIColorProfiles()},
 	{label: "Custom hex palette", kind: configRowComingSoon},
 }
@@ -112,8 +113,10 @@ func configRowValue(i int, cfg *config.Config) string {
 		}
 		return strconv.Itoa(cfg.UI.FireTickMS)
 	case 10:
-		return cfg.UI.ColorProfile
+		return cfg.UI.FireAnimationStyle
 	case 11:
+		return cfg.UI.ColorProfile
+	case 12:
 		return palettePreviewString(activeFireColors)
 	}
 	return ""
@@ -169,6 +172,8 @@ func applyConfigChange(i int, cfg *config.Config, dir int) {
 		case 9:
 			applyFireTickChange(cfg, opts, dir)
 		case 10:
+			cfg.UI.FireAnimationStyle = opts[idx]
+		case 11:
 			cfg.UI.ColorProfile = opts[idx]
 		}
 	case configRowComingSoon:
@@ -248,7 +253,7 @@ func (m RepoSelectorModel) viewConfig() string {
 	if m.fireVisible() {
 		s.WriteString(m.fireBg.Render())
 		s.WriteString("\n")
-		s.WriteString(RenderFireWave(min(m.windowWidth-4, 70), m.frameIndex))
+		s.WriteString(RenderFireWaveStyled(min(m.windowWidth-4, 70), m.frameIndex, m.fireAnimationStyle))
 		s.WriteString("\n\n")
 	}
 
@@ -368,6 +373,12 @@ func (m RepoSelectorModel) syncRuntimeFromConfig(cmds []tea.Cmd) (RepoSelectorMo
 	wasShowingStartupQuote := m.showStartupQuote
 	m.showFire = m.cfg.UI.ShowFireAnimation
 	m.fireTick = time.Duration(m.cfg.UI.FireTickMS) * time.Millisecond
+	m.fireAnimationStyle = m.cfg.UI.FireAnimationStyle
+	if m.fireBg == nil {
+		m.fireBg = NewFireBackgroundWithStyle(min(m.windowWidth-4, 70), 5, m.fireAnimationStyle)
+	} else {
+		m.fireBg.SetStyle(m.fireAnimationStyle)
+	}
 	m.showStartupQuote = m.cfg.UI.ShowStartupQuote
 	m.startupQuoteBehavior = m.cfg.UI.StartupQuoteBehavior
 	m.startupQuoteInterval = time.Duration(m.cfg.UI.StartupQuoteIntervalSec) * time.Second

@@ -25,6 +25,7 @@ func DefaultConfig() Config {
 			StartupQuoteBehavior:    UIQuoteBehaviorRefresh,
 			StartupQuoteIntervalSec: DefaultUIStartupQuoteIntervalSec,
 			FireTickMS:              DefaultUIFireTickMS,
+			FireAnimationStyle:      UIFireAnimationStyleClassic,
 			ColorProfile:            UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
@@ -139,6 +140,10 @@ startup_quote_interval_sec = 10
 # Lower = faster/smoother but higher CPU usage. Recommended: 120-300.
 # Values outside 30-60000 ms are clamped when the config is loaded.
 fire_tick_ms = 180
+
+# Built-in fire animation style for the TUI.
+# Options: "classic", "ember-storm", "torch"
+fire_animation_style = "classic"
 
 # Built-in color profile for fire + borders/accents in the TUI.
 # Options: "classic", "synthwave", "forest", "arctic"

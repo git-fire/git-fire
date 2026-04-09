@@ -238,6 +238,54 @@ func TestRenderFireWave_DifferentFrames(t *testing.T) {
 	}
 }
 
+func TestRenderFireWaveStyled_DifferentStyles(t *testing.T) {
+	classic := RenderFireWaveStyled(50, 5, config.UIFireAnimationStyleClassic)
+	ember := RenderFireWaveStyled(50, 5, config.UIFireAnimationStyleEmberStorm)
+	torch := RenderFireWaveStyled(50, 5, config.UIFireAnimationStyleTorch)
+	if classic == ember {
+		t.Error("classic and ember-storm waves should differ")
+	}
+	if classic == torch {
+		t.Error("classic and torch waves should differ")
+	}
+	if ember == torch {
+		t.Error("ember-storm and torch waves should differ")
+	}
+}
+
+func TestRenderFireWaveStyled_UnknownStyleFallsBack(t *testing.T) {
+	fallback := RenderFireWaveStyled(40, 9, "not-a-style")
+	classic := RenderFireWaveStyled(40, 9, config.UIFireAnimationStyleClassic)
+	if fallback != classic {
+		t.Error("unknown fire style should fall back to classic wave rendering")
+	}
+}
+
+func TestFireBackground_SetStyle_ResetsAndChangesStyle(t *testing.T) {
+	fb := NewFireBackgroundWithStyle(30, 6, config.UIFireAnimationStyleClassic)
+	if fb.Style != fireAnimationClassic {
+		t.Fatalf("initial style = %v, want classic", fb.Style)
+	}
+	fb.Update()
+	if fb.Frame == 0 {
+		t.Fatal("expected frame to advance before style change")
+	}
+	fb.SetStyle(config.UIFireAnimationStyleTorch)
+	if fb.Style != fireAnimationTorch {
+		t.Fatalf("style after SetStyle = %v, want torch", fb.Style)
+	}
+	if fb.Frame != 0 {
+		t.Errorf("frame should reset on style change, got %d", fb.Frame)
+	}
+}
+
+func TestNewFireBackgroundWithStyle_UnknownStyleFallsBack(t *testing.T) {
+	fb := NewFireBackgroundWithStyle(20, 4, "unknown-style")
+	if fb.Style != fireAnimationClassic {
+		t.Fatalf("unknown style should fallback to classic, got %v", fb.Style)
+	}
+}
+
 func TestRenderFireWave_UsesActiveColorProfile(t *testing.T) {
 	prevProfile := activeProfileName
 	defer applyColorProfile(prevProfile)

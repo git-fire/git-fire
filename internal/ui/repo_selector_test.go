@@ -506,6 +506,16 @@ func TestRepoSelectorModel_FireTickFromConfig(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_FireStyleFromConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireAnimationStyle = config.UIFireAnimationStyleEmberStorm
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	if m.fireAnimationStyle != config.UIFireAnimationStyleEmberStorm {
+		t.Fatalf("fireAnimationStyle = %q, want %q", m.fireAnimationStyle, config.UIFireAnimationStyleEmberStorm)
+	}
+}
+
 func TestRepoSelectorModel_StartupQuoteConfigFromStreamModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowStartupQuote = true
@@ -637,12 +647,15 @@ func TestRepoSelectorModel_SyncRuntimeFromConfig_DoesNotDuplicateQuoteTickOrResh
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowStartupQuote = true
 	cfg.UI.StartupQuoteIntervalSec = 10
+	cfg.UI.FireAnimationStyle = config.UIFireAnimationStyleTorch
 
 	m := NewRepoSelectorModel(sampleRepos(), nil, "")
 	m.cfg = &cfg
 	m.showStartupQuote = true
 	m.startupQuoteVisible = false
 	m.quoteTickActive = true
+	m.fireAnimationStyle = config.UIFireAnimationStyleClassic
+	m.fireBg = NewFireBackgroundWithStyle(70, 5, config.UIFireAnimationStyleClassic)
 
 	updated, cmds := m.syncRuntimeFromConfig(nil)
 
@@ -654,6 +667,13 @@ func TestRepoSelectorModel_SyncRuntimeFromConfig_DoesNotDuplicateQuoteTickOrResh
 	}
 	if !updated.quoteTickActive {
 		t.Fatal("quote tick should remain active when already running")
+	}
+	if updated.fireAnimationStyle != config.UIFireAnimationStyleTorch {
+		t.Fatalf("syncRuntimeFromConfig should apply fire style from config: got %q want %q",
+			updated.fireAnimationStyle, config.UIFireAnimationStyleTorch)
+	}
+	if updated.fireBg.Style != fireAnimationTorch {
+		t.Fatalf("fire background style should update with syncRuntimeFromConfig; got %v", updated.fireBg.Style)
 	}
 }
 
@@ -747,6 +767,57 @@ func TestRepoSelectorModel_FKeyNoOpInIgnoredView(t *testing.T) {
 	m = updateMain(t, m, press('f'))
 	if !m.showFire {
 		t.Error("'f' in ignored view should not toggle showFire")
+	}
+}
+
+func TestRepoSelectorModel_TKeyCyclesFireStyle(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.view = repoViewMain
+	m.fireAnimationStyle = config.UIFireAnimationStyleClassic
+	m.fireBg.SetStyle(config.UIFireAnimationStyleClassic)
+
+	m = updateMain(t, m, press('t'))
+	if m.fireAnimationStyle != config.UIFireAnimationStyleEmberStorm {
+		t.Fatalf("after first 't', fireAnimationStyle = %q, want %q", m.fireAnimationStyle, config.UIFireAnimationStyleEmberStorm)
+	}
+	if m.fireBg.Style != fireAnimationEmberStorm {
+		t.Fatalf("fireBg style should follow model style; got %v", m.fireBg.Style)
+	}
+
+	m = updateMain(t, m, press('t'))
+	if m.fireAnimationStyle != config.UIFireAnimationStyleTorch {
+		t.Fatalf("after second 't', fireAnimationStyle = %q, want %q", m.fireAnimationStyle, config.UIFireAnimationStyleTorch)
+	}
+
+	m = updateMain(t, m, press('t'))
+	if m.fireAnimationStyle != config.UIFireAnimationStyleClassic {
+		t.Fatalf("after third 't', fireAnimationStyle = %q, want %q", m.fireAnimationStyle, config.UIFireAnimationStyleClassic)
+	}
+}
+
+func TestRepoSelectorModel_TKeyNoOpInIgnoredView(t *testing.T) {
+	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.fireAnimationStyle = config.UIFireAnimationStyleClassic
+
+	m = updateMain(t, m, press('t'))
+	if m.fireAnimationStyle != config.UIFireAnimationStyleClassic {
+		t.Error("'t' in ignored view should not cycle fire style")
+	}
+}
+
+func TestRepoSelectorModel_TKeyPersistsToConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireAnimationStyle = config.UIFireAnimationStyleClassic
+
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m.windowHeight = 40
+
+	m = updateMain(t, m, press('t'))
+
+	if m.cfg.UI.FireAnimationStyle != config.UIFireAnimationStyleEmberStorm {
+		t.Errorf("cfg.UI.FireAnimationStyle should be %q after first cycle, got %q",
+			config.UIFireAnimationStyleEmberStorm, m.cfg.UI.FireAnimationStyle)
 	}
 }
 
@@ -1009,6 +1080,22 @@ func TestRepoSelectorModel_FireSpeedConfigRow(t *testing.T) {
 	}
 }
 
+func TestRepoSelectorModel_FireAnimationStyleConfigRow(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.UI.FireAnimationStyle = config.UIFireAnimationStyleClassic
+
+	// Row 10 is "Fire animation style"
+	val := configRowValue(10, &cfg)
+	if val != config.UIFireAnimationStyleClassic {
+		t.Errorf("configRowValue(10) = %q, want %q", val, config.UIFireAnimationStyleClassic)
+	}
+
+	applyConfigChange(10, &cfg, +1)
+	if cfg.UI.FireAnimationStyle != config.UIFireAnimationStyleEmberStorm {
+		t.Errorf("applyConfigChange(10,+1) = %q, want %q", cfg.UI.FireAnimationStyle, config.UIFireAnimationStyleEmberStorm)
+	}
+}
+
 func TestRepoSelectorModel_FireSpeedConfigRow_FromCustomOverride(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.FireTickMS = 175 // manual override not present in presets
@@ -1050,15 +1137,15 @@ func TestRepoSelectorModel_ColorProfileConfigRow(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ColorProfile = config.UIColorProfileClassic
 
-	// Row 10 is "Color profile"
-	val := configRowValue(10, &cfg)
+	// Row 11 is "Color profile"
+	val := configRowValue(11, &cfg)
 	if val != config.UIColorProfileClassic {
-		t.Errorf("configRowValue(10) = %q, want %q", val, config.UIColorProfileClassic)
+		t.Errorf("configRowValue(11) = %q, want %q", val, config.UIColorProfileClassic)
 	}
 
-	applyConfigChange(10, &cfg, +1)
+	applyConfigChange(11, &cfg, +1)
 	if cfg.UI.ColorProfile == config.UIColorProfileClassic {
-		t.Error("applyConfigChange(10,+1) should move to next color profile")
+		t.Error("applyConfigChange(11,+1) should move to next color profile")
 	}
 }
 
@@ -1066,13 +1153,13 @@ func TestRepoSelectorModel_CustomPaletteRowComingSoon(t *testing.T) {
 	cfg := config.DefaultConfig()
 	beforeProfile := cfg.UI.ColorProfile
 
-	// Row 11 is "Custom hex palette" and should be non-editable for now.
-	val := configRowValue(11, &cfg)
+	// Row 12 is "Custom hex palette" and should be non-editable for now.
+	val := configRowValue(12, &cfg)
 	if val == "" {
-		t.Fatal("configRowValue(11) should show a placeholder/preview string")
+		t.Fatal("configRowValue(12) should show a placeholder/preview string")
 	}
 
-	applyConfigChange(11, &cfg, +1)
+	applyConfigChange(12, &cfg, +1)
 	if cfg.UI.ColorProfile != beforeProfile {
 		t.Error("coming-soon row should not mutate config")
 	}
