@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// Show interactive selector
-	selected, err := ui.RunRepoSelector(repos)
+	selected, err := ui.RunRepoSelector(repos, nil, "", "")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\n%v\n", err)
 		os.Exit(1)

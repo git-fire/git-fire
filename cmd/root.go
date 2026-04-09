@@ -19,6 +19,7 @@ import (
 
 	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/git-fire/git-fire/internal/auth"
 	"github.com/git-fire/git-fire/internal/config"
@@ -28,6 +29,7 @@ import (
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-fire/internal/safety"
 	"github.com/git-fire/git-fire/internal/ui"
+	"github.com/git-fire/git-fire/pkg/updatecheck"
 )
 
 // Version is set at build time via -ldflags "-X github.com/git-fire/git-fire/cmd.Version=vX.Y.Z"
@@ -52,6 +54,50 @@ var (
 
 var errRunAborted = errors.New("run aborted")
 var errRunNoop = errors.New("run completed with no backup actions")
+
+// cliUpdateHint is set asynchronously after a delayed GitHub release check (CLI mode).
+var cliUpdateHint atomic.Value // string
+
+func startCLIUpdateCheck(version string) {
+	cliUpdateHint.Store("")
+	if version == "" || strings.EqualFold(version, "dev") {
+		return
+	}
+	go func() {
+		time.Sleep(5 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		defer cancel()
+		latest, newer, err := updatecheck.LatestReleaseNewerThan(ctx, version)
+		if err != nil || !newer {
+			return
+		}
+		cliUpdateHint.Store(fmt.Sprintf("update available: %s (current %s)", latest, version))
+	}()
+}
+
+func printCLIUpdateHintIfAny() {
+	v, ok := cliUpdateHint.Load().(string)
+	if !ok || v == "" {
+		return
+	}
+	line := v
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		line = "\033[2m" + line + "\033[0m"
+	}
+	fmt.Println(line)
+}
+
+func printDiscreetCLIVersion() {
+	v := CLIVersion()
+	if v == "" {
+		return
+	}
+	line := fmt.Sprintf("  version %s", v)
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		line = "\033[2m" + line + "\033[0m"
+	}
+	fmt.Println(line)
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "git-fire",
@@ -100,6 +146,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return handleStatus()
 	}
 
+	defer printCLIUpdateHintIfAny()
+	startCLIUpdateCheck(CLIVersion())
+
 	// --fire-drill is an alias for --dry-run.
 	if fireDrill {
 		dryRun = true
@@ -119,6 +168,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+	printDiscreetCLIVersion()
 
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
@@ -509,6 +559,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		filepath.Join(userCfgDir, "config.toml"),
 		reg,
 		regPath,
+		CLIVersion(),
 	)
 	// Drain both channels BEFORE cancelling so neither the upsert goroutine
 	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block

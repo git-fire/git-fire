@@ -312,7 +312,7 @@ func TestRepoSelectorLiteModel_Key_EmptyRepos_NoPanic(t *testing.T) {
 
 func TestNewRepoSelectorModel_DefaultSelection(t *testing.T) {
 	repos := sampleRepos()
-	m := NewRepoSelectorModel(repos, nil, "")
+	m := NewRepoSelectorModel(repos, nil, "", "")
 
 	if !m.selected[0] {
 		t.Error("repo 0 (Selected=true) should be selected initially")
@@ -323,7 +323,7 @@ func TestNewRepoSelectorModel_DefaultSelection(t *testing.T) {
 }
 
 func TestRepoSelectorModel_GetSelectedRepos(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	selected := m.GetSelectedRepos()
 
 	if len(selected) != 2 {
@@ -337,7 +337,7 @@ func TestRepoSelectorModel_GetSelectedRepos(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_Confirmed(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.quitting = true
 	m.confirmed = true
 
@@ -348,7 +348,7 @@ func TestRepoSelectorModel_View_Confirmed(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.quitting = true
 	m.confirmed = false
 
@@ -360,7 +360,7 @@ func TestRepoSelectorModel_View_Cancelled(t *testing.T) {
 
 func TestRepoSelectorModel_View_ShowsRepos(t *testing.T) {
 	repos := sampleRepos()
-	m := NewRepoSelectorModel(repos, nil, "")
+	m := NewRepoSelectorModel(repos, nil, "", "")
 	view := m.View()
 
 	for _, r := range repos {
@@ -376,7 +376,7 @@ func TestRepoSelectorModel_View_ShowsRepos(t *testing.T) {
 }
 
 func TestRepoSelectorModel_Key_EmptyRepos_NoPanic(t *testing.T) {
-	m := NewRepoSelectorModel(nil, nil, "")
+	m := NewRepoSelectorModel(nil, nil, "", "")
 
 	assertUpdateNoPanic(t, m, press('m'))
 	assertUpdateNoPanic(t, m, pressSpecial(tea.KeySpace))
@@ -423,7 +423,7 @@ func TestRepoSelectorModel_View_ShowsScrollHintWhenPathTruncated(t *testing.T) {
 	repos := []git.Repository{
 		{Path: filepath.Join(longParent, "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
 	}
-	m := NewRepoSelectorModel(repos, nil, "")
+	m := NewRepoSelectorModel(repos, nil, "", "")
 	m.windowWidth = 45
 
 	view := m.View()
@@ -437,7 +437,7 @@ func TestRepoSelectorModel_View_SmallHeightStillShowsAtLeastOneRepoRow(t *testin
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
 	}
-	m := NewRepoSelectorModel(repos, nil, "")
+	m := NewRepoSelectorModel(repos, nil, "", "")
 	m.windowWidth = 80
 	m.windowHeight = 26 // small terminal — exercises the at-least-one-row floor
 
@@ -452,7 +452,7 @@ func TestRepoSelectorModel_View_HandlesSuppressedIndicatorsInTinyViewport(t *tes
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "alpha"), Name: "alpha", Selected: true, Mode: git.ModeLeaveUntouched},
 		{Path: filepath.Join(os.TempDir(), "gitfire-ui-sample", "beta"), Name: "beta", Selected: true, Mode: git.ModeLeaveUntouched},
 	}
-	m := NewRepoSelectorModel(repos, nil, "")
+	m := NewRepoSelectorModel(repos, nil, "", "")
 	m.showFire = false
 	m.windowWidth = 80
 	m.windowHeight = 12 // intentionally tiny to force suppressed indicators and warning fallback behavior
@@ -480,7 +480,7 @@ func updateMain(t *testing.T, m RepoSelectorModel, msg tea.Msg) RepoSelectorMode
 }
 
 func TestRepoSelectorModel_DefaultShowFire(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	if !m.showFire {
 		t.Error("showFire should be true by default")
 	}
@@ -490,7 +490,7 @@ func TestRepoSelectorModel_ShowFireFromConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowFireAnimation = false
 
-	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "", "")
 	if m.showFire {
 		t.Error("showFire should be false when cfg.UI.ShowFireAnimation = false")
 	}
@@ -500,7 +500,7 @@ func TestRepoSelectorModel_FireTickFromConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.FireTickMS = 150
 
-	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "", "")
 	if got, want := m.fireTick.Milliseconds(), int64(150); got != want {
 		t.Errorf("fireTick = %dms, want %dms", got, want)
 	}
@@ -512,7 +512,7 @@ func TestRepoSelectorModel_StartupQuoteConfigFromStreamModel(t *testing.T) {
 	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorHide
 	cfg.UI.StartupQuoteIntervalSec = 10
 
-	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "", "")
 	if !m.showStartupQuote {
 		t.Fatal("showStartupQuote should be true from config")
 	}
@@ -528,7 +528,7 @@ func TestRepoSelectorModel_StartupQuoteConfigFromStreamModel(t *testing.T) {
 }
 
 func TestRepoSelectorModel_QuoteTick_HideBehavior(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = true
 	m.startupQuoteBehavior = config.UIQuoteBehaviorHide
 	m.startupQuoteInterval = 10 * time.Second
@@ -558,7 +558,7 @@ func TestRepoSelectorModel_QuoteTick_HideDeferredWhileScanStreaming(t *testing.T
 	cfg.UI.StartupQuoteBehavior = config.UIQuoteBehaviorHide
 	cfg.UI.StartupQuoteIntervalSec = 10
 
-	m := NewRepoSelectorModelStream(scanCh, progCh, false, false, &cfg, "", nil, "")
+	m := NewRepoSelectorModelStream(scanCh, progCh, false, false, &cfg, "", nil, "", "")
 	if m.scanDone {
 		t.Fatal("sanity: scan should not be done at stream start")
 	}
@@ -592,7 +592,7 @@ func TestRepoSelectorModel_QuoteTick_HideDeferredWhileScanStreaming(t *testing.T
 }
 
 func TestRepoSelectorModel_QuoteTick_NoOpWhenQuotesDisabled(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = false
 	m.startupQuoteBehavior = config.UIQuoteBehaviorRefresh
 	m.startupQuoteInterval = 10 * time.Second
@@ -613,7 +613,7 @@ func TestRepoSelectorModel_QuoteTick_NoOpWhenQuotesDisabled(t *testing.T) {
 }
 
 func TestRepoSelectorModel_QuoteTick_RefreshBehavior(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = true
 	m.startupQuoteBehavior = config.UIQuoteBehaviorRefresh
 	m.startupQuoteInterval = 10 * time.Second
@@ -638,7 +638,7 @@ func TestRepoSelectorModel_SyncRuntimeFromConfig_DoesNotDuplicateQuoteTickOrResh
 	cfg.UI.ShowStartupQuote = true
 	cfg.UI.StartupQuoteIntervalSec = 10
 
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.cfg = &cfg
 	m.showStartupQuote = true
 	m.startupQuoteVisible = false
@@ -662,7 +662,7 @@ func TestRepoSelectorModel_SyncRuntimeFromConfig_ToggleOnReshowsAndSchedulesTick
 	cfg.UI.ShowStartupQuote = true
 	cfg.UI.StartupQuoteIntervalSec = 10
 
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.cfg = &cfg
 	m.showStartupQuote = false
 	m.startupQuoteVisible = false
@@ -682,7 +682,7 @@ func TestRepoSelectorModel_SyncRuntimeFromConfig_ToggleOnReshowsAndSchedulesTick
 }
 
 func TestRepoSelectorModel_QuoteVisibleHelper(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = true
 	m.startupQuoteVisible = true
 	m.currentStartupQuote = "A light in the dark provides hope."
@@ -697,7 +697,7 @@ func TestRepoSelectorModel_QuoteVisibleHelper(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_HidesQuoteBannerWhenNotVisible(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = true
 	m.startupQuoteVisible = false
 	m.currentStartupQuote = "A light in the dark provides hope."
@@ -709,7 +709,7 @@ func TestRepoSelectorModel_View_HidesQuoteBannerWhenNotVisible(t *testing.T) {
 }
 
 func TestRepoSelectorModel_View_ShowsQuoteBannerWhenVisible(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showStartupQuote = true
 	m.startupQuoteVisible = true
 	m.currentStartupQuote = "A light in the dark provides hope."
@@ -721,7 +721,7 @@ func TestRepoSelectorModel_View_ShowsQuoteBannerWhenVisible(t *testing.T) {
 }
 
 func TestRepoSelectorModel_FKeyTogglesShowFire(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.windowHeight = 40 // large enough that auto-suppress doesn't interfere
 
 	if !m.showFire {
@@ -740,7 +740,7 @@ func TestRepoSelectorModel_FKeyTogglesShowFire(t *testing.T) {
 }
 
 func TestRepoSelectorModel_FKeyNoOpInIgnoredView(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.view = repoViewIgnored
 	m.showFire = true
 
@@ -754,7 +754,7 @@ func TestRepoSelectorModel_FKeyPersistsToConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.UI.ShowFireAnimation = true
 
-	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "")
+	m := NewRepoSelectorModelStream(nil, nil, true, false, &cfg, "", nil, "", "")
 	m.windowHeight = 40
 
 	m = updateMain(t, m, press('f'))
@@ -768,7 +768,7 @@ func TestRepoSelectorModel_FKeyPersistsToConfig(t *testing.T) {
 }
 
 func TestRepoSelectorModel_ViewShowsFireWhenEnabled(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showFire = true
 	m.windowWidth = 80
 	m.windowHeight = 40 // above threshold
@@ -792,7 +792,7 @@ func TestRepoSelectorModel_ViewShowsFireWhenEnabled(t *testing.T) {
 }
 
 func TestRepoSelectorModel_ViewHidesFireWhenDisabled(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showFire = false
 	m.windowWidth = 80
 	m.windowHeight = 40
@@ -808,7 +808,7 @@ func TestRepoSelectorModel_ViewHidesFireWhenDisabled(t *testing.T) {
 }
 
 func TestRepoSelectorModel_ViewSuppressesFireOnSmallTerminal(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showFire = true // user preference is on, but terminal is too short
 	m.windowWidth = 80
 	m.windowHeight = fireHeightThreshold - 1 // below threshold
@@ -825,7 +825,7 @@ func TestRepoSelectorModel_ViewSuppressesFireOnSmallTerminal(t *testing.T) {
 }
 
 func TestRepoSelectorModel_FireVisibleThreshold(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.showFire = true
 
 	m.windowHeight = fireHeightThreshold
@@ -840,7 +840,7 @@ func TestRepoSelectorModel_FireVisibleThreshold(t *testing.T) {
 }
 
 func TestRepoSelectorModel_IgnoredListVisibleCount_FireOverhead(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.windowWidth = 80
 	m.windowHeight = 25
 	m.fireBg = NewFireBackground(70, 5)
@@ -869,13 +869,13 @@ func TestRepoSelectorModel_IgnoredListVisibleCount_FireOverhead(t *testing.T) {
 }
 
 func TestRepoSelectorModel_IgnoredListVisibleCount_NarrowWidthMoreChrome(t *testing.T) {
-	wide := NewRepoSelectorModel(sampleRepos(), nil, "")
+	wide := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	wide.windowWidth = 120
 	wide.windowHeight = 40
 	wide.fireBg = NewFireBackground(70, 5)
 	wide.showFire = false
 
-	narrow := NewRepoSelectorModel(sampleRepos(), nil, "")
+	narrow := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	narrow.windowWidth = 32
 	narrow.windowHeight = 40
 	narrow.fireBg = NewFireBackground(70, 5)
@@ -891,7 +891,7 @@ func TestRepoSelectorModel_IgnoredListVisibleCount_NarrowWidthMoreChrome(t *test
 }
 
 func TestRepoSelectorModel_QuoteWrappingAffectsMeasuredHeights(t *testing.T) {
-	m := NewRepoSelectorModel(sampleRepos(), nil, "")
+	m := NewRepoSelectorModel(sampleRepos(), nil, "", "")
 	m.windowWidth = 40
 	m.windowHeight = 40
 	m.showFire = false
