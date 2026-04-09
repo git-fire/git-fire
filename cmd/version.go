@@ -19,6 +19,12 @@ func resolvedCLIVersion(linked string) string {
 	return pickCLIVersion(linked, mainMod)
 }
 
+// CLIVersion returns the same version string shown by --version (release tag,
+// go install pseudo-version, or dev).
+func CLIVersion() string {
+	return resolvedCLIVersion(Version)
+}
+
 func pickCLIVersion(ldflags, mainMod string) string {
 	if ldflags != "dev" && !isBareGitHash(ldflags) {
 		return ldflags
