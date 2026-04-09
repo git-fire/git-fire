@@ -28,11 +28,12 @@ func DefaultConfig() Config {
 			ColorProfile:            UIColorProfileClassic,
 		},
 		Global: GlobalConfig{
-			DefaultMode:      "push-known-branches",
-			ConflictStrategy: "new-branch",
-			AutoCommitDirty:  true,
-			BlockOnSecrets:   true,
-			ScanPath:         ".",
+			DefaultMode:          "push-known-branches",
+			ConflictStrategy:     "new-branch",
+			AutoCommitDirty:      true,
+			BlockOnSecrets:       true,
+			FireRiskAcknowledged: false,
+			ScanPath:             ".",
 			ScanExclude: []string{
 				".cache",
 				"node_modules",
@@ -82,6 +83,10 @@ auto_commit_dirty = true
 # Block auto-commit/push when suspicious secrets are detected
 # Set false only if you explicitly accept the risk.
 block_on_secrets = true
+
+# One-time acknowledgement for --fire mode's explicit risk prompt.
+# Leave false to require entering "OK" before the first --fire run.
+fire_risk_acknowledged = false
 
 # Directory to scan for git repos
 scan_path = "."

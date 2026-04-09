@@ -34,6 +34,9 @@ type GlobalConfig struct {
 	// Block auto-commit/push when suspicious secrets are detected.
 	BlockOnSecrets bool `mapstructure:"block_on_secrets" toml:"block_on_secrets"`
 
+	// Persisted one-time acknowledgement for --fire live mode risk prompt.
+	FireRiskAcknowledged bool `mapstructure:"fire_risk_acknowledged" toml:"fire_risk_acknowledged"`
+
 	// Scan configuration
 	ScanPath    string        `mapstructure:"scan_path"    toml:"scan_path"`
 	ScanExclude []string      `mapstructure:"scan_exclude" toml:"scan_exclude"`

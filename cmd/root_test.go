@@ -692,6 +692,213 @@ func TestRunGitFire_SecurityNotice(t *testing.T) {
 	}
 }
 
+func TestConfirmFireRiskAcknowledgement_AcceptsOKAndPersists(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	resetFlags()
+	cfg := config.DefaultConfig()
+	cfgPath := config.DefaultConfigPath()
+
+	if err := confirmFireRiskAcknowledgement(&cfg, strings.NewReader("OK\n")); err != nil {
+		t.Fatalf("confirmFireRiskAcknowledgement() error = %v", err)
+	}
+	if !cfg.Global.FireRiskAcknowledged {
+		t.Fatal("expected FireRiskAcknowledged=true after OK confirmation")
+	}
+
+	loaded, err := config.LoadWithOptions(config.LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() error = %v", err)
+	}
+	if !loaded.Global.FireRiskAcknowledged {
+		t.Fatal("expected persisted fire_risk_acknowledged=true in config")
+	}
+}
+
+func TestConfirmFireRiskAcknowledgement_RejectsNonOK(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	resetFlags()
+	cfg := config.DefaultConfig()
+	cfgPath := config.DefaultConfigPath()
+
+	err := confirmFireRiskAcknowledgement(&cfg, strings.NewReader("no\n"))
+	if !errors.Is(err, errRunAborted) {
+		t.Fatalf("expected errRunAborted, got: %v", err)
+	}
+	if cfg.Global.FireRiskAcknowledged {
+		t.Fatal("did not expect FireRiskAcknowledged to change on rejection")
+	}
+	if _, statErr := os.Stat(cfgPath); !os.IsNotExist(statErr) {
+		t.Fatalf("did not expect config file to be created on rejection, stat err=%v", statErr)
+	}
+}
+
+func TestMaybeConfirmFireRiskAcknowledgement_NonInteractiveWhenRequired(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	resetFlags()
+	fireMode = true
+	cfg := config.DefaultConfig()
+	cfg.Global.FireRiskAcknowledged = false
+	oldIsInteractive := stdinIsInteractive
+	stdinIsInteractive = func() bool { return false }
+	defer func() { stdinIsInteractive = oldIsInteractive }()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	w.Close()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() {
+		os.Stdin = oldStdin
+		r.Close()
+	}()
+
+	err = maybeConfirmFireRiskAcknowledgement(&cfg)
+	if err == nil {
+		t.Fatal("expected non-interactive fire acknowledgment error")
+	}
+	if !strings.Contains(err.Error(), "fire mode requires an interactive risk acknowledgment") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunGitFire_FireModeAbortsWhenRiskNotAcknowledged(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	cfgPath := config.DefaultConfigPath()
+	cfgText := `
+[global]
+default_mode = "push-known-branches"
+conflict_strategy = "new-branch"
+auto_commit_dirty = true
+block_on_secrets = true
+fire_risk_acknowledged = false
+scan_path = "."
+scan_exclude = []
+scan_depth = 1
+scan_workers = 1
+push_workers = 1
+cache_ttl = "1h"
+rescan_submodules = false
+disable_scan = false
+`
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(cfgText), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	resetFlags()
+	fireMode = true
+	scanPath = tmpHome
+	oldIsInteractive := stdinIsInteractive
+	stdinIsInteractive = func() bool { return true }
+	defer func() { stdinIsInteractive = oldIsInteractive }()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() {
+		os.Stdin = oldStdin
+		r.Close()
+	}()
+
+	// Ensure the prompt receives a rejection, then close the writer.
+	writeDone := make(chan error, 1)
+	go func() {
+		_, writeErr := io.WriteString(w, "no\n")
+		closeErr := w.Close()
+		writeDone <- errors.Join(writeErr, closeErr)
+	}()
+
+	err = runGitFire(rootCmd, []string{})
+	if err != nil {
+		t.Fatalf("runGitFire() should return nil after user abort, got: %v", err)
+	}
+	if writeErr := <-writeDone; writeErr != nil {
+		t.Fatalf("stdin write failed: %v", writeErr)
+	}
+
+	loaded, err := config.LoadWithOptions(config.LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() error = %v", err)
+	}
+	if loaded.Global.FireRiskAcknowledged {
+		t.Fatal("did not expect fire_risk_acknowledged to be persisted on abort")
+	}
+}
+
+func TestMaybeConfirmFireRiskAcknowledgement_AcknowledgesOnceThenSkipsPrompt(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	resetFlags()
+	fireMode = true
+	cfg := config.DefaultConfig()
+	cfgPath := config.DefaultConfigPath()
+	oldIsInteractive := stdinIsInteractive
+	stdinIsInteractive = func() bool { return true }
+	defer func() { stdinIsInteractive = oldIsInteractive }()
+
+	rOK, wOK, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = rOK
+	writeDone := make(chan error, 1)
+	go func() {
+		_, writeErr := io.WriteString(wOK, "OK\n")
+		closeErr := wOK.Close()
+		writeDone <- errors.Join(writeErr, closeErr)
+	}()
+	if err := maybeConfirmFireRiskAcknowledgement(&cfg); err != nil {
+		t.Fatalf("first maybeConfirmFireRiskAcknowledgement() failed: %v", err)
+	}
+	os.Stdin = oldStdin
+	rOK.Close()
+	if writeErr := <-writeDone; writeErr != nil {
+		t.Fatalf("stdin write failed: %v", writeErr)
+	}
+
+	loaded, err := config.LoadWithOptions(config.LoadOptions{ConfigFile: cfgPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions() after first acknowledgment: %v", err)
+	}
+	if !loaded.Global.FireRiskAcknowledged {
+		t.Fatal("expected first acknowledgment to persist fire_risk_acknowledged=true")
+	}
+
+	// Second call should skip prompt entirely since it's now acknowledged.
+	// Simulate non-interactive stdin; this would fail if a prompt were still required.
+	rClosed, wClosed, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	wClosed.Close()
+	oldStdin = os.Stdin
+	os.Stdin = rClosed
+	defer func() {
+		os.Stdin = oldStdin
+		rClosed.Close()
+	}()
+	if err := maybeConfirmFireRiskAcknowledgement(&cfg); err != nil {
+		t.Fatalf("second maybeConfirmFireRiskAcknowledgement() should skip prompt after persisted ack, got: %v", err)
+	}
+}
+
 func TestUpsertRepoIntoRegistry_AppliesDefaultModeForNewRepo(t *testing.T) {
 	reg := &registry.Registry{}
 	now := time.Now()
