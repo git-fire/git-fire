@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -269,6 +270,7 @@ func TestCreateFireBranch(t *testing.T) {
 				if !strings.HasPrefix(branchName, tt.wantPrefix) {
 					t.Errorf("CreateFireBranch() = %v, want prefix %v", branchName, tt.wantPrefix)
 				}
+				assertBranchNameHasHexSuffix(t, branchName)
 
 				// Verify branch exists
 				branches := testutil.GetBranches(t, repo)
@@ -284,6 +286,57 @@ func TestCreateFireBranch(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBackupBranchName_UniqueAndFormatted(t *testing.T) {
+	branchA, err := backupBranchName("git-fire-backup", "main", "20260101-120000", "abcdef1")
+	if err != nil {
+		t.Fatalf("backupBranchName() error = %v", err)
+	}
+	branchB, err := backupBranchName("git-fire-backup", "main", "20260101-120000", "abcdef1")
+	if err != nil {
+		t.Fatalf("backupBranchName() error = %v", err)
+	}
+
+	if branchA == branchB {
+		t.Fatalf("expected unique branch names, got duplicates: %q", branchA)
+	}
+	if !strings.HasPrefix(branchA, "git-fire-backup-main-20260101-120000-abcdef1-") {
+		t.Fatalf("unexpected branchA format: %q", branchA)
+	}
+	if !strings.HasPrefix(branchB, "git-fire-backup-main-20260101-120000-abcdef1-") {
+		t.Fatalf("unexpected branchB format: %q", branchB)
+	}
+	assertBranchNameHasHexSuffix(t, branchA)
+	assertBranchNameHasHexSuffix(t, branchB)
+}
+
+func TestRandomHexSuffix_LengthAndValidation(t *testing.T) {
+	suffix, err := randomHexSuffix(4)
+	if err != nil {
+		t.Fatalf("randomHexSuffix() error = %v", err)
+	}
+	if len(suffix) != 8 {
+		t.Fatalf("expected 8 hex chars, got %d (%q)", len(suffix), suffix)
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{8}$`).MatchString(suffix) {
+		t.Fatalf("expected lowercase hex suffix, got %q", suffix)
+	}
+	if _, err := randomHexSuffix(0); err == nil {
+		t.Fatal("expected error for zero byte request")
+	}
+}
+
+func assertBranchNameHasHexSuffix(t *testing.T, branchName string) {
+	t.Helper()
+	parts := strings.Split(branchName, "-")
+	if len(parts) < 2 {
+		t.Fatalf("invalid branch name (missing suffix): %q", branchName)
+	}
+	last := parts[len(parts)-1]
+	if !regexp.MustCompile(`^[0-9a-f]{8}$`).MatchString(last) {
+		t.Fatalf("expected 8-char lowercase hex suffix in %q, got %q", branchName, last)
 	}
 }
 

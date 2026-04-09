@@ -2,6 +2,8 @@ package git
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -166,15 +168,18 @@ func getMergeBaseSHA(repoPath, leftRef, rightRef string) (string, bool, error) {
 // CreateFireBranch creates a new fire backup branch
 // Returns the new branch name
 func CreateFireBranch(repoPath, originalBranch, localSHA string) (string, error) {
-	// Generate unique branch name
-	// Format: git-fire-backup-{branch}-{timestamp}-{short-sha}
+	// Generate unique branch name with a crypto-random suffix.
+	// Format: git-fire-backup-{branch}-{timestamp}-{short-sha}-{rand8hex}
 	timestamp := time.Now().Format("20060102-150405")
 	shortSHA := localSHA
 	if len(shortSHA) > 7 {
 		shortSHA = shortSHA[:7]
 	}
 
-	branchName := fmt.Sprintf("git-fire-backup-%s-%s-%s", originalBranch, timestamp, shortSHA)
+	branchName, err := backupBranchName("git-fire-backup", originalBranch, timestamp, shortSHA)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate fire branch name: %w", err)
+	}
 
 	// Create branch
 	cmd := exec.Command("git", "branch", branchName)
@@ -525,7 +530,10 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 			shortSHA = shortSHA[:7]
 		}
 
-		branchName := fmt.Sprintf("git-fire-staged-%s-%s-%s", currentBranch, timestamp, shortSHA)
+		branchName, err := backupBranchName("git-fire-staged", currentBranch, timestamp, shortSHA)
+		if err != nil {
+			return returnResultOnError(result, fmt.Errorf("failed to generate staged backup branch name: %w", err))
+		}
 		if err := createBranch(repoPath, branchName); err != nil {
 			return returnResultOnError(result, fmt.Errorf("failed to create staged branch: %w", err))
 		}
@@ -556,7 +564,10 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 			shortSHA = shortSHA[:7]
 		}
 
-		branchName := fmt.Sprintf("git-fire-full-%s-%s-%s", currentBranch, timestamp, shortSHA)
+		branchName, err := backupBranchName("git-fire-full", currentBranch, timestamp, shortSHA)
+		if err != nil {
+			return returnResultOnError(result, fmt.Errorf("failed to generate full backup branch name: %w", err))
+		}
 		if err := createBranch(repoPath, branchName); err != nil {
 			return returnResultOnError(result, fmt.Errorf("failed to create full branch: %w", err))
 		}
@@ -587,7 +598,10 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 			shortSHA1 = shortSHA1[:7]
 		}
 
-		stagedBranchName := fmt.Sprintf("git-fire-staged-%s-%s-%s", currentBranch, timestamp, shortSHA1)
+		stagedBranchName, err := backupBranchName("git-fire-staged", currentBranch, timestamp, shortSHA1)
+		if err != nil {
+			return returnResultOnError(result, fmt.Errorf("failed to generate staged backup branch name: %w", err))
+		}
 		if err := createBranch(repoPath, stagedBranchName); err != nil {
 			return returnResultOnError(result, fmt.Errorf("failed to create staged branch: %w", err))
 		}
@@ -614,7 +628,10 @@ func AutoCommitDirtyWithStrategy(repoPath string, opts CommitOptions) (result *A
 			shortSHA2 = shortSHA2[:7]
 		}
 
-		fullBranchName := fmt.Sprintf("git-fire-full-%s-%s-%s", currentBranch, timestamp, shortSHA2)
+		fullBranchName, err := backupBranchName("git-fire-full", currentBranch, timestamp, shortSHA2)
+		if err != nil {
+			return returnResultOnError(result, fmt.Errorf("failed to generate full backup branch name: %w", err))
+		}
 		if err := createBranch(repoPath, fullBranchName); err != nil {
 			return returnResultOnError(result, fmt.Errorf("failed to create full branch: %w", err))
 		}
@@ -795,6 +812,25 @@ func createBranch(repoPath, branchName string) error {
 		return commandError("git branch "+branchName, err, output)
 	}
 	return nil
+}
+
+func backupBranchName(prefix, branch, timestamp, shortSHA string) (string, error) {
+	suffix, err := randomHexSuffix(4) // 4 bytes => 8 hex chars
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s-%s-%s-%s-%s", prefix, branch, timestamp, shortSHA, suffix), nil
+}
+
+func randomHexSuffix(numBytes int) (string, error) {
+	if numBytes <= 0 {
+		return "", fmt.Errorf("numBytes must be positive")
+	}
+	buf := make([]byte, numBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("read crypto random bytes: %w", err)
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 func commandError(action string, err error, output []byte) error {
