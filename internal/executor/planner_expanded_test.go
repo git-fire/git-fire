@@ -7,6 +7,7 @@ import (
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/plugins"
 	testutil "github.com/git-fire/git-testkit"
 )
 
@@ -410,6 +411,64 @@ func TestBuildRepoPlan_ConflictStrategyNewBranch(t *testing.T) {
 	}
 	if plan.FireBranch != fireBranchPlaceholder {
 		t.Fatalf("Expected fire branch placeholder to be set, got %q", plan.FireBranch)
+	}
+}
+
+type mockConflictResolver struct {
+	t        *testing.T
+	name     string
+	resolved bool
+	err      error
+}
+
+func (m *mockConflictResolver) Name() string {
+	return m.name
+}
+
+func (m *mockConflictResolver) ResolveConflict(ctx plugins.ConflictContext) (plugins.ConflictResolutionResult, error) {
+	if m.err != nil {
+		return plugins.ConflictResolutionResult{}, m.err
+	}
+	if !m.resolved {
+		return plugins.ConflictResolutionResult{Resolved: false}, nil
+	}
+	// Simulate automated resolution: align local branch to the remote tip (refs
+	// are fresh from conflict detection's fetch).
+	testutil.RunGitCmd(m.t, ctx.RepoPath, "reset", "--hard", ctx.Remote+"/"+ctx.Branch)
+	return plugins.ConflictResolutionResult{Resolved: true}, nil
+}
+
+func TestBuildRepoPlan_MergeConflictPluginResolvesDivergence(t *testing.T) {
+	_, repo, _ := testutil.CreateConflictScenario(t)
+
+	cfg := config.DefaultConfig()
+	cfg.Global.ConflictStrategy = "new-branch"
+	planner := NewPlannerWithConflictResolvers(&cfg, []plugins.ConflictResolver{
+		&mockConflictResolver{t: t, name: "mock", resolved: true},
+	})
+
+	plan, err := planner.BuildRepoPlan(git.Repository{
+		Path:     repo.Path(),
+		Name:     "local",
+		Selected: true,
+		Mode:     git.ModePushCurrentBranch,
+		Remotes:  []git.Remote{{Name: "origin", URL: "unused"}},
+	})
+	if err != nil {
+		t.Fatalf("BuildRepoPlan() error = %v", err)
+	}
+	if plan.HasConflict {
+		t.Fatal("expected conflict cleared after resolver")
+	}
+	var pushBranch string
+	for _, a := range plan.Actions {
+		if a.Type == ActionPushBranch {
+			pushBranch = a.Branch
+			break
+		}
+	}
+	if pushBranch == "" || pushBranch == fireBranchPlaceholder {
+		t.Fatalf("expected normal branch push after resolution, got actions %#v", plan.Actions)
 	}
 }
 

@@ -171,6 +171,30 @@ func TestDetectConflict(t *testing.T) {
 	}
 }
 
+func TestDetectConflictAfterFetch_AlignedWithDetectConflict(t *testing.T) {
+	_, local, remote := testutil.CreateConflictScenario(t)
+	branch, err := GetCurrentBranch(local.Path())
+	if err != nil {
+		t.Fatalf("GetCurrentBranch: %v", err)
+	}
+	has1, loc1, rem1, err := DetectConflict(local.Path(), branch, "origin")
+	if err != nil {
+		t.Fatalf("DetectConflict: %v", err)
+	}
+	if !has1 {
+		t.Fatal("expected divergence in scenario")
+	}
+	has2, loc2, rem2, err := DetectConflictAfterFetch(local.Path(), branch, "origin")
+	if err != nil {
+		t.Fatalf("DetectConflictAfterFetch: %v", err)
+	}
+	if has1 != has2 || loc1 != loc2 || rem1 != rem2 {
+		t.Fatalf("mismatch: DetectConflict(%v,%q,%q) vs AfterFetch(%v,%q,%q)",
+			has1, loc1, rem1, has2, loc2, rem2)
+	}
+	_ = remote
+}
+
 func TestAutoCommitDirtyWithStrategy_FailureCleansUpUnbornHead(t *testing.T) {
 	repo := t.TempDir()
 	testutil.RunGitCmd(t, repo, "init")

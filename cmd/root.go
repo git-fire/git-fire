@@ -399,7 +399,7 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	fmt.Println()
 
 	// Build and validate plan
-	planner := executor.NewPlanner(cfg)
+	planner := plannerForConfig(cfg)
 	plan, err := planner.BuildPlan(repos, dryRun)
 	if err != nil {
 		return fmt.Errorf("failed to build plan: %w", err)
@@ -558,7 +558,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	fmt.Println()
 
 	// Build and execute plan
-	planner := executor.NewPlanner(cfg)
+	planner := plannerForConfig(cfg)
 	plan, err := planner.BuildPlan(selected, false)
 	if err != nil {
 		return fmt.Errorf("failed to build plan: %w", err)
@@ -716,7 +716,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	}
 	defer func() { _ = logger.Close() }()
 
-	planner := executor.NewPlanner(cfg)
+	planner := plannerForConfig(cfg)
 	runner := executor.NewRunner(cfg)
 	defer runner.Close()
 
@@ -1042,6 +1042,15 @@ func (l *cmdPluginLogger) Debug(_ string) {}
 
 func shouldRunPostRunPlugins(isDryRun bool, runErr error) bool {
 	return !isDryRun && !errors.Is(runErr, errRunAborted) && !errors.Is(runErr, errRunNoop)
+}
+
+func plannerForConfig(cfg *config.Config) *executor.Planner {
+	resolvers, err := plugins.GetEnabledConflictResolvers(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not resolve merge-conflict plugins: %s\n", safety.SanitizeText(err.Error()))
+		return executor.NewPlannerWithConflictResolvers(cfg, nil)
+	}
+	return executor.NewPlannerWithConflictResolvers(cfg, resolvers)
 }
 
 func buildPostRunPluginContext(cfg *config.Config, isDryRun, isEmergency bool) plugins.Context {
