@@ -4,8 +4,6 @@ package plugins
 import (
 	"errors"
 	"time"
-
-	"github.com/git-fire/git-fire/internal/executor"
 )
 
 // Plugin is the core interface all plugins must implement
@@ -55,8 +53,8 @@ type Context struct {
 	Logger Logger
 	Config map[string]interface{} // Plugin-specific config
 
-	// Results from previous steps
-	PushResult *executor.RepoResult
+	// Results from previous steps (opaque; set by the runner when wired)
+	PushResult any
 }
 
 // Logger interface for plugin logging
@@ -85,6 +83,8 @@ const (
 	TriggerOnSuccess  Trigger = "on-success"
 	TriggerOnFailure  Trigger = "on-failure"
 	TriggerAlways     Trigger = "always"
+	// TriggerMergeConflict runs only during planning when local and remote have diverged.
+	TriggerMergeConflict Trigger = "on-merge-conflict"
 )
 
 // PluginConfig represents plugin configuration from config file

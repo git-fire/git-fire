@@ -131,6 +131,34 @@ func DetectConflict(repoPath, branch, remote string) (bool, string, string, erro
 	return hasConflict, localSHA, remoteSHA, nil
 }
 
+// DetectConflictAfterFetch checks whether the local branch has diverged from the
+// remote tracking branch using refs already present in the repo (no fetch).
+// Call this only after refs for the remote are up to date (for example after
+// DetectConflict or a prior fetch).
+func DetectConflictAfterFetch(repoPath, branch, remote string) (bool, string, string, error) {
+	localSHA, err := getCommitSHA(repoPath, branch)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get local SHA: %w", err)
+	}
+
+	remoteBranch := fmt.Sprintf("%s/%s", remote, branch)
+	remoteSHA, err := getCommitSHA(repoPath, remoteBranch)
+	if err != nil {
+		return false, localSHA, "", nil
+	}
+
+	mergeBaseSHA, hasMergeBase, err := getMergeBaseSHA(repoPath, branch, remoteBranch)
+	if err != nil {
+		return false, "", "", fmt.Errorf("failed to get merge-base: %w", err)
+	}
+	if !hasMergeBase {
+		return true, localSHA, remoteSHA, nil
+	}
+	hasConflict := mergeBaseSHA != remoteSHA && mergeBaseSHA != localSHA
+
+	return hasConflict, localSHA, remoteSHA, nil
+}
+
 // getCommitSHA returns the SHA of a commit ref
 func getCommitSHA(repoPath, ref string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", ref)

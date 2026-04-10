@@ -10,8 +10,10 @@ import (
 func resetPluginRegistry(t *testing.T) {
 	t.Helper()
 	globalRegistry.Clear()
+	ClearConflictResolvers()
 	t.Cleanup(func() {
 		globalRegistry.Clear()
+		ClearConflictResolvers()
 	})
 }
 
@@ -25,6 +27,7 @@ func TestParseTrigger(t *testing.T) {
 		{"on-success", TriggerOnSuccess},
 		{"on-failure", TriggerOnFailure},
 		{"always", TriggerAlways},
+		{"on-merge-conflict", TriggerMergeConflict},
 		{"unknown", TriggerOnSuccess},
 	}
 
@@ -85,6 +88,18 @@ func TestFilterPluginsByTrigger_ProgrammaticBeforePushMatchesOnSuccess(t *testin
 	filtered := FilterPluginsByTrigger([]Plugin{plugin}, TriggerOnSuccess)
 	if len(filtered) != 1 || filtered[0].Name() != "programmatic-before" {
 		t.Fatalf("expected TriggerBeforePush to match on-success dispatch, got %d plugins", len(filtered))
+	}
+}
+
+func TestFilterPluginsByTrigger_ExcludesMergeConflict(t *testing.T) {
+	mc := NewCommandPlugin("mc", "echo", []string{"x"})
+	mc.SetTrigger(TriggerMergeConflict)
+	normal := NewCommandPlugin("ok", "echo", []string{"y"})
+	normal.SetTrigger(TriggerOnSuccess)
+
+	filtered := FilterPluginsByTrigger([]Plugin{mc, normal}, TriggerOnSuccess)
+	if len(filtered) != 1 || filtered[0].Name() != "ok" {
+		t.Fatalf("expected only non-merge-conflict plugin, got %#v", filtered)
 	}
 }
 

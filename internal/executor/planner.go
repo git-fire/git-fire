@@ -7,23 +7,33 @@ import (
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-fire/internal/plugins"
 )
 
 const fireBranchPlaceholder = "__git_fire_created_branch__"
 
 // Planner creates execution plans
 type Planner struct {
-	config *config.Config
+	config             *config.Config
+	conflictResolvers  []plugins.ConflictResolver
 }
 
 type RepoPlanOptions struct {
 	DetectConflicts bool
 }
 
-// NewPlanner creates a new planner
+// NewPlanner creates a new planner.
 func NewPlanner(cfg *config.Config) *Planner {
+	return NewPlannerWithConflictResolvers(cfg, nil)
+}
+
+// NewPlannerWithConflictResolvers creates a planner that invokes conflictResolvers
+// when local and remote have diverged. A resolver returning Resolved=true causes
+// a re-check; if divergence is gone, the normal push path is used.
+func NewPlannerWithConflictResolvers(cfg *config.Config, conflictResolvers []plugins.ConflictResolver) *Planner {
 	return &Planner{
-		config: cfg,
+		config:            cfg,
+		conflictResolvers: conflictResolvers,
 	}
 }
 
@@ -193,9 +203,44 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 		case git.ModePushCurrentBranch:
 			strategy := normalizeConflictStrategy(p.config)
 			if opts.DetectConflicts && (strategy == "new-branch" || strategy == "abort") {
-				hasConflict, _, _, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
+				hasConflict, localSHA, remoteSHA, conflictErr := git.DetectConflict(repo.Path, currentBranch, remote.Name)
 				if conflictErr != nil {
 					return repoPlan, fmt.Errorf("failed to detect conflict for %s (%s): %w", repo.Name, remote.Name, conflictErr)
+				}
+				if hasConflict && len(p.conflictResolvers) > 0 {
+					cctx := plugins.ConflictContext{
+						RepoPath:  repo.Path,
+						RepoName:  repo.Name,
+						Branch:    currentBranch,
+						Remote:    remote.Name,
+						LocalSHA:  localSHA,
+						RemoteSHA: remoteSHA,
+						Timestamp: time.Now(),
+						DryRun:    false,
+						Logger:    plugins.DiscardLogger,
+					}
+					for _, resolver := range p.conflictResolvers {
+						if resolver == nil {
+							continue
+						}
+						res, resErr := resolver.ResolveConflict(cctx)
+						if resErr != nil {
+							return repoPlan, fmt.Errorf("merge-conflict plugin %s failed for %s (%s): %w",
+								resolver.Name(), repo.Name, remote.Name, resErr)
+						}
+						if !res.Resolved {
+							continue
+						}
+						stillConflict, _, _, recheckErr := git.DetectConflictAfterFetch(repo.Path, currentBranch, remote.Name)
+						if recheckErr != nil {
+							return repoPlan, fmt.Errorf("failed to re-check conflict for %s (%s) after merge-conflict plugin: %w",
+								repo.Name, remote.Name, recheckErr)
+						}
+						hasConflict = stillConflict
+						if !hasConflict {
+							break
+						}
+					}
 				}
 				if hasConflict {
 					repoPlan.HasConflict = true

@@ -10,6 +10,7 @@ import (
 func TestLoadFromConfig(t *testing.T) {
 	// Clear registry before test
 	globalRegistry.Clear()
+	ClearConflictResolvers()
 
 	cfg := &config.Config{
 		Plugins: config.PluginsConfig{
@@ -58,8 +59,37 @@ func TestLoadFromConfig(t *testing.T) {
 	}
 }
 
+func TestLoadFromConfig_OnMergeConflictRegistersResolver(t *testing.T) {
+	globalRegistry.Clear()
+	ClearConflictResolvers()
+
+	cfg := &config.Config{
+		Plugins: config.PluginsConfig{
+			Command: []config.CommandPluginConfig{
+				{
+					Name:    "resolve-divergence",
+					Command: "echo",
+					Args:    []string{"false"},
+					When:    "on-merge-conflict",
+				},
+			},
+		},
+	}
+	if err := LoadFromConfig(cfg); err != nil {
+		t.Fatalf("LoadFromConfig: %v", err)
+	}
+	if _, err := Get("resolve-divergence"); err != nil {
+		t.Fatalf("expected plugin in global registry: %v", err)
+	}
+	resolvers := ListConflictResolvers()
+	if len(resolvers) != 1 || resolvers[0].Name() != "resolve-divergence" {
+		t.Fatalf("expected one conflict resolver, got %#v", resolvers)
+	}
+}
+
 func TestLoadFromConfig_InvalidPlugin(t *testing.T) {
 	globalRegistry.Clear()
+	ClearConflictResolvers()
 
 	cfg := &config.Config{
 		Plugins: config.PluginsConfig{
@@ -152,6 +182,7 @@ func TestCreateCommandPlugin_DefaultTriggerOnSuccess(t *testing.T) {
 
 func TestGetEnabledPlugins(t *testing.T) {
 	globalRegistry.Clear()
+	ClearConflictResolvers()
 
 	// Register some plugins
 	_ = Register(NewCommandPlugin("plugin1", "echo", []string{"1"}))

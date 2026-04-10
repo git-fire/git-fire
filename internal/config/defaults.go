@@ -182,5 +182,18 @@ use_ssh_agent = true
 # [[repos]]
 # remote = "github.com/company/*"
 # mode = "push-known-branches"
+
+# [plugins]
+# enabled = ["my-resolver"]
+#
+# Merge-conflict plugins run during planning when the current branch has diverged
+# from a remote (after fetch). Print "true" or "false" on the first line of stdout
+# to report whether the divergence was resolved (e.g. after an automated merge).
+# Template args: {repo_path} {repo_name} {branch} {remote} {local_sha} {remote_sha}
+# [[plugins.command]]
+# name = "my-resolver"
+# command = "sh"
+# args = ["-c", "your-tool; echo true"]
+# when = "on-merge-conflict"
 `
 }
