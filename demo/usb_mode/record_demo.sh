@@ -54,7 +54,7 @@ xfce4-terminal \
 TERMINAL_PID=$!
 
 # Wait for the spawned terminal process to complete
-wait "$TERMINAL_PID" 2>/dev/null || true
+wait "$TERMINAL_PID" 2>/dev/null
 sleep 2
 
 kill -INT "$FFPID" 2>/dev/null || true
