@@ -19,13 +19,29 @@ MP4_OUT="$ART/usb_mode_demo_full.mp4"
 PAL="$ART/palette.png"
 
 rm -f "$MP4_OUT" "$PAL" "$ART"/usb_demo_part*.gif "$ART"/usb_mode_demo_full.gif "$ART/ffmpeg.log"
-rm -rf "$DEMO_HOME"
+
+# Validate DEMO_HOME before rm -rf to prevent accidental destructive deletes
+RESOLVED_DEMO_HOME="$(realpath --no-symlinks "$DEMO_HOME" 2>/dev/null || readlink -f "$DEMO_HOME" 2>/dev/null || echo "$DEMO_HOME")"
+if [[ -z "$RESOLVED_DEMO_HOME" ]] || [[ "$RESOLVED_DEMO_HOME" == "/" ]] || [[ "$RESOLVED_DEMO_HOME" == "." ]]; then
+  echo "ERROR: DEMO_HOME is unsafe for deletion: '$DEMO_HOME' (resolved: '$RESOLVED_DEMO_HOME')" >&2
+  exit 1
+fi
+rm -rf -- "$DEMO_HOME"
 
 ffmpeg -y -f x11grab -video_size "${CAP_W}x${CAP_H}" -framerate "$FPS" \
   -draw_mouse 0 -i "${DISPLAY}.0+${CAP_X},${CAP_Y}" \
   -codec:v libx264 -pix_fmt yuv420p -preset veryfast -crf 22 \
   "$MP4_OUT" 2>"$ART/ffmpeg.log" &
 FFPID=$!
+
+# Cleanup trap to ensure ffmpeg is signaled and waited for on exit or error
+cleanup_ffmpeg() {
+  if [[ -n "${FFPID:-}" ]]; then
+    kill -INT "$FFPID" 2>/dev/null || true
+    wait "$FFPID" 2>/dev/null || true
+  fi
+}
+trap cleanup_ffmpeg EXIT ERR INT TERM
 
 sleep 1.2
 
@@ -35,16 +51,10 @@ xfce4-terminal \
   --font="Monospace 10" \
   -T "git-fire USB mode demo" \
   -x bash "$ART/wrap_demo.sh" &
+TERMINAL_PID=$!
 
-for _ in $(seq 1 400); do
-  if pgrep -f "usb_mode_demo_run.sh" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.2
-done
-while pgrep -f "usb_mode_demo_run.sh" >/dev/null 2>&1; do
-  sleep 0.4
-done
+# Wait for the spawned terminal process to complete
+wait "$TERMINAL_PID" 2>/dev/null || true
 sleep 2
 
 kill -INT "$FFPID" 2>/dev/null || true

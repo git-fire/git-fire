@@ -84,6 +84,10 @@ set +e
 "$GIT_FIRE_BIN" --config "$CONFIG" --path "$(dirname "$PROJECT")" --usb "$VIRTUAL_USB" 2>&1
 EC=$?
 set -e
+if [[ $EC -eq 0 ]]; then
+  echo "ERROR: git-fire succeeded but was expected to fail (exit code 0)" >&2
+  exit 1
+fi
 echo "(exit code $EC — expected non-zero)"
 PAUSE 1.5
 
