@@ -1,0 +1,11 @@
+USB mode screen-recording demo (reproducible).
+
+Prerequisites: git, bash, built ./git-fire at repo root (make build).
+Optional recording: X11 display, xfce4-terminal, ffmpeg.
+
+  bash demo/usb_mode/usb_mode_demo_run.sh
+    Uses isolated HOME under /tmp; creates a "virtual USB" folder and runs
+    git-fire with --usb / config [[usb.targets]].
+
+  bash demo/usb_mode/record_demo.sh
+    Records wrap_demo.sh in a terminal window; writes MP4 + GIFs next to this file.
