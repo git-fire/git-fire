@@ -742,48 +742,43 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	// totalFound is updated atomically by the upsert goroutine as repos arrive.
 	result, execErr := runner.ExecuteStream(repoChan, planner, false, &totalFound)
 
-	// If the scan is still running after all backups are done, prompt the user.
+	// If the scan is still running after all backups are done, either prompt the
+	// user (TTY) or cancel the walk (non-interactive: CI / scripts / piped stdin
+	// would otherwise block forever on ReadString).
 	select {
 	case <-scanDone:
 		// Scan already finished — nothing to do.
 	default:
-		// Scan is still walking the tree.
-		if !isatty.IsTerminal(os.Stdin.Fd()) {
-			// CI, scripts, and piped invocations have no TTY stdin; waiting for
-			// Enter would hang forever. Cancel the walk so the process can exit
-			// after backups complete (UAT and automation rely on this).
+		if isatty.IsTerminal(os.Stdin.Fd()) {
+			fmt.Println()
+			fmt.Println("✅ All backups complete. Scan still running.")
+			fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
+
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			inputDone := make(chan struct{})
+			go func() {
+				defer close(inputDone)
+				r := bufio.NewReader(os.Stdin)
+				_, _ = r.ReadString('\n')
+			}()
+
+			select {
+			case <-sigCh:
+				fmt.Println("\nAborting scan...")
+				cancelScan()
+			case <-inputDone:
+				// User pressed Enter — let scan finish normally; just wait below.
+			case <-scanDone:
+				// Scan finished on its own while we were waiting.
+			}
+			signal.Stop(sigCh)
+		} else {
 			fmt.Println()
 			fmt.Println("✅ All backups complete. Scan still running — stopping scan (non-interactive).")
 			cancelScan()
-			<-scanDone
-			break
 		}
-
-		fmt.Println()
-		fmt.Println("✅ All backups complete. Scan still running.")
-		fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
-
-		// Cancel on either Ctrl+C or Enter.
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		inputDone := make(chan struct{})
-		go func() {
-			defer close(inputDone)
-			r := bufio.NewReader(os.Stdin)
-			_, _ = r.ReadString('\n')
-		}()
-
-		select {
-		case <-sigCh:
-			fmt.Println("\nAborting scan...")
-			cancelScan()
-		case <-inputDone:
-			// User pressed Enter — let scan finish normally; just wait below.
-		case <-scanDone:
-			// Scan finished on its own while we were waiting.
-		}
-		signal.Stop(sigCh)
-		<-scanDone // always wait for the goroutine to exit cleanly
+		<-scanDone // always wait for the scan goroutine to exit cleanly
 	}
 
 	// Check scan error (non-fatal: report and continue to show results)
