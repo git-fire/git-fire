@@ -11,7 +11,7 @@ VERSION ?= $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "
 LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
-.PHONY: all build run test test-race lint clean install help
+.PHONY: all build run test test-race lint validate clean install help
 
 all: build
 
@@ -34,6 +34,10 @@ test-race:
 ## lint: vet the code
 lint:
 	cd "$(ROOT)" && go vet ./...
+
+## validate: full local CI parity (build, vet, race tests, plugin contract; optional lint/goreleaser if installed)
+validate:
+	"$(ROOT)scripts/validate.sh"
 
 ## clean: remove the repo-local built binary
 clean:

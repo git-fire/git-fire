@@ -28,6 +28,10 @@ go test -race -count=1 ./...
 
 # Vet
 go vet ./...
+
+# One-shot local parity with CI (build, vet, race tests, plugin contract; optional tools if installed)
+./scripts/validate.sh
+# or: make validate
 ```
 
 All tests must pass before submitting a PR.
@@ -50,9 +54,9 @@ Maintainers are listed on the GitHub repository: `github.com/git-fire/git-fire`.
 | Package | Purpose |
 |---|---|
 | `cmd/` | Cobra CLI entry point and flag handling |
-| `internal/git` | Repository scanning and git operations (commit, push, branch) |
+| `github.com/git-fire/git-harness/git` | Repository scanning and git operations (commit, push, branch); vendored as a module dependency |
 | `internal/executor` | Execution planner, runner, rate limiter, and structured logger |
-| `internal/safety` | Secret detection — pattern matching and filename heuristics |
+| `github.com/git-fire/git-harness/safety` | Secret detection — pattern matching and filename heuristics; module dependency |
 | `internal/auth` | SSH key discovery and ssh-agent management |
 | `internal/config` | TOML config loading, defaults, and validation |
 | `internal/ui` | Bubble Tea TUI (repo selector, fire background animation) |
