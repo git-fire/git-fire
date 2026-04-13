@@ -9,6 +9,10 @@ cd "$ROOT"
 echo "==> go build ./..."
 go build ./...
 
+echo "==> CLI binary + UAT (scripts/uat_test.sh)"
+make build
+bash "$ROOT/scripts/uat_test.sh"
+
 echo "==> go vet ./..."
 go vet ./...
 

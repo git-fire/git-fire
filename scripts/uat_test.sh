@@ -312,10 +312,11 @@ else
 fi
 
 # =============================================================================
-# SCENARIO 2 — Staged + Unstaged + UPSTREAM CONFLICT
-# Expected: AutoCommitDirtyWithStrategy creates backup branches locally and
-# pushes them; main push fails (non-fast-forward); exit non-zero.
-# Backup branches (git-fire-staged-* / git-fire-full-*) SHOULD appear on remote.
+# SCENARIO 2 — Staged + Unstaged + UPSTREAM CONFLICT (main diverged from remote)
+# With default_mode=push-known-branches, auto-commit replaces the plan with
+# pushes of git-fire-staged-* / git-fire-full-* only (no direct main push in
+# this path), so backup pushes succeed and exit 0 even though main is behind
+# origin. Remote main must stay unchanged; backup branches must land on remote.
 # =============================================================================
 log_head "SCENARIO 2: Staged + Unstaged + Upstream Conflict"
 
@@ -356,38 +357,34 @@ S2_OUT=$(HOME="$S2_HOME" "$BINARY" --path "$S2" 2>&1) && S2_RC=0 || S2_RC=$?
 log_info "git-fire output:"
 echo "$S2_OUT" | sed 's/^/    /'
 
-# Expected: push FAILS → exit non-zero
-if [[ "$S2_RC" -ne 0 ]]; then
-    log_pass "S2: exit code non-zero (push correctly failed)"
-else
-    log_fail "S2: exit code 0 — should have failed (upstream conflict)"
-fi
+# Expected: backup-only pushes succeed → exit 0 (no main push in this plan path)
+assert_exit 0 "$S2_RC" "S2: exit code"
 
-# Auto-commit goes to backup branches (not main); check backup branches locally
-S2_LOCAL_STAGED=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
-S2_LOCAL_FULL=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
-if [[ -n "$S2_LOCAL_STAGED" && -n "$S2_LOCAL_FULL" ]]; then
-    log_pass "S2: local backup branch(es) created before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
-else
-    log_fail "S2: expected both local backup branches before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
-fi
-
-# Remote should NOT have local's main changes (push rejected)
+# Remote main unchanged (local diverging commit never pushed to main)
 S2_REMOTE_COMMITS=$(git -C "$S2_REMOTE" log main --oneline 2>/dev/null | wc -l | tr -d ' ')
 log_info "S2: remote main commit count = $S2_REMOTE_COMMITS"
 if [[ "$S2_REMOTE_COMMITS" -eq 2 ]]; then
-    log_pass "S2: remote main unchanged (push correctly rejected)"
+    log_pass "S2: remote main unchanged at 2 commits (initial + remote advance)"
 else
     log_fail "S2: remote has $S2_REMOTE_COMMITS commits on main — expected 2 (initial + remote advance)"
 fi
 
-# Backup branches SHOULD appear on remote (dual-branch backup is pushed before main push fails)
+# Dual-branch backups on remote
 S2_REMOTE_STAGED=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
 S2_REMOTE_FULL=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
 if [[ -n "$S2_REMOTE_STAGED" && -n "$S2_REMOTE_FULL" ]]; then
-    log_pass "S2: backup branch(es) pushed to remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    log_pass "S2: backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    git -C "$S2_REMOTE" show "$S2_REMOTE_STAGED":file_staged.txt > /dev/null 2>&1 && \
+        log_pass "S2: staged file in remote staged backup" || \
+        log_fail "S2: file_staged.txt MISSING from remote staged backup"
+    git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_staged.txt > /dev/null 2>&1 && \
+        log_pass "S2: staged file in remote full backup" || \
+        log_fail "S2: file_staged.txt MISSING from remote full backup"
+    git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_unstaged.txt > /dev/null 2>&1 && \
+        log_pass "S2: unstaged file in remote full backup" || \
+        log_fail "S2: file_unstaged.txt MISSING from remote full backup"
 else
-    log_fail "S2: expected both backup branches on remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    log_fail "S2: expected both backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 fi
 
 # =============================================================================
@@ -834,7 +831,7 @@ fi
 echo ""
 echo -e "${BOLD}Key Behavioral Summary (current post-fix behavior):${NC}"
 echo "  • AutoCommitDirtyWithStrategy (dual-branch): ACTIVE — staged → git-fire-staged-*, all → git-fire-full-*"
-echo "  • Upstream conflict: backup branches pushed before main push attempt; main push rejected safely"
+echo "  • Dirty repo + push-known-branches: dual-branch backups push to remote; diverged main is not auto-pushed in that path (see S2)"
 echo "  • push-known-branches: warns for local-only branches (no longer silent — Bug 3 fixed)"
 echo "  • DefaultMode config: applied via registry upsert (no longer dead code — Bug 4 fixed)"
 echo "  • conflict_strategy='new-branch': evaluated by planner (no longer dead code — Bug 2 fixed)"
@@ -847,3 +844,9 @@ else
     echo -e "${RED}${BOLD}$FAIL check(s) FAILED.${NC}"
 fi
 echo ""
+
+# Non-zero exit so CI and `scripts/validate.sh` can gate on failures
+if [[ "$FAIL" -gt 0 ]]; then
+    exit 1
+fi
+exit 0

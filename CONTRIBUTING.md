@@ -29,9 +29,13 @@ go test -race -count=1 ./...
 # Vet
 go vet ./...
 
-# One-shot local parity with CI (build, vet, race tests, plugin contract; optional tools if installed)
+# One-shot local parity with CI (build, UAT, vet, race tests, plugin contract; optional tools if installed)
 ./scripts/validate.sh
 # or: make validate
+
+# MVP UAT — end-to-end scenarios with local bare remotes (needs ./git-fire from make build)
+bash scripts/uat_test.sh
+# or: make uat  /  ./scripts/uat.sh
 ```
 
 All tests must pass before submitting a PR.
