@@ -36,6 +36,7 @@ go vet ./...
 # MVP UAT — end-to-end scenarios with local bare remotes (needs ./git-fire from make build)
 bash scripts/uat_test.sh
 # or: make uat  /  ./scripts/uat.sh
+# Verbose pre-flight (pwd, CI env, git/git-fire versions): GIT_FIRE_VERBOSE=1 bash scripts/uat_test.sh
 ```
 
 All tests must pass before submitting a PR.
