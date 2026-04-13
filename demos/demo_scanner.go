@@ -40,8 +40,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Show interactive selector
-	selected, err := ui.RunRepoSelector(repos)
+	// Show interactive selector (nil/empty registry: demo-only, no persistence)
+	selected, err := ui.RunRepoSelector(repos, nil, "")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\n%v\n", err)
 		os.Exit(1)
