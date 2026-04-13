@@ -42,6 +42,10 @@ jobs:
       - name: Test
         run: go test -race -count=1 ./...
 
+      - name: Test git-harness (nested module)
+        working-directory: third_party/git-harness
+        run: go test -race -count=1 ./...
+
   plugin-contract:
     runs-on: ubuntu-latest
     steps:

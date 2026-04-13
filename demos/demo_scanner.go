@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/ui"
 )
 

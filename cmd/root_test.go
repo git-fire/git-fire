@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	testutil "github.com/git-fire/git-testkit"
 	"github.com/mattn/go-runewidth"

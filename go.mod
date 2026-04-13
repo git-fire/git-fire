@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/git-fire/git-harness v0.1.0
 	github.com/git-fire/git-testkit v0.2.0
 	github.com/mattn/go-runewidth v0.0.19
 	github.com/pelletier/go-toml/v2 v2.2.4
@@ -44,3 +45,8 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )
+
+// Vendored mirror of github.com/git-fire/git-harness@v0.1.0: the published module
+// is not reachable from every build environment; drop this replace once the
+// tag resolves from the public module proxy.
+replace github.com/git-fire/git-harness => ./third_party/git-harness

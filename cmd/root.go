@@ -23,10 +23,10 @@ import (
 	"github.com/git-fire/git-fire/internal/auth"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/executor"
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/plugins"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 	"github.com/git-fire/git-fire/internal/ui"
 )
 

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // Runner executes push plans

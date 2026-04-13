@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // CommitOptions configures auto-commit behavior

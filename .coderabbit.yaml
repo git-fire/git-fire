@@ -69,7 +69,7 @@ reviews:
         This is an emergency backup tool. Prioritize reliability and data safety above all else.
         A bug here could result in lost work during an incident.
 
-    - path: "internal/safety/**"
+    - path: "third_party/git-harness/safety/**"
       instructions: |
         This package detects secrets before committing. Apply extra scrutiny:
         - Are regex patterns correct and tested against edge cases?
@@ -85,7 +85,7 @@ reviews:
         - Are rollback or recovery paths considered on failure?
         - Is the rate limiter used correctly to prevent hammering remotes?
 
-    - path: "internal/git/**"
+    - path: "third_party/git-harness/git/**"
       instructions: |
         These wrap system git commands. Check:
         - Command injection risks (user-controlled input in shell commands)

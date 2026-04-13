@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // maybeOfferRegistryUnlock handles a leftover repos.toml.lock before registry I/O.
