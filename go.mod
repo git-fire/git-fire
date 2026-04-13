@@ -45,8 +45,3 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )
-
-// Vendored mirror of github.com/git-fire/git-harness@v0.1.0: the published module
-// is not reachable from every build environment; drop this replace once the
-// tag resolves from the public module proxy.
-replace github.com/git-fire/git-harness => ./third_party/git-harness
