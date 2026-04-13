@@ -155,28 +155,28 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 	}
 }
 
-func TestScanPostBackupPromptOK(t *testing.T) {
-	t.Run("CI env disables prompt", func(t *testing.T) {
+func TestStdinInteractiveOK(t *testing.T) {
+	t.Run("CI env disables", func(t *testing.T) {
 		t.Setenv("CI", "true")
 		t.Setenv("GITHUB_ACTIONS", "")
 		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
-		if scanPostBackupPromptOK() {
+		if stdinInteractiveOK() {
 			t.Fatal("expected false when CI is set")
 		}
 	})
-	t.Run("GITHUB_ACTIONS disables prompt", func(t *testing.T) {
+	t.Run("GITHUB_ACTIONS disables", func(t *testing.T) {
 		t.Setenv("CI", "")
 		t.Setenv("GITHUB_ACTIONS", "true")
 		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
-		if scanPostBackupPromptOK() {
+		if stdinInteractiveOK() {
 			t.Fatal("expected false when GITHUB_ACTIONS is set")
 		}
 	})
-	t.Run("GIT_FIRE_NON_INTERACTIVE disables prompt", func(t *testing.T) {
+	t.Run("GIT_FIRE_NON_INTERACTIVE disables", func(t *testing.T) {
 		t.Setenv("CI", "")
 		t.Setenv("GITHUB_ACTIONS", "")
 		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "1")
-		if scanPostBackupPromptOK() {
+		if stdinInteractiveOK() {
 			t.Fatal("expected false when GIT_FIRE_NON_INTERACTIVE is set")
 		}
 	})
@@ -187,7 +187,7 @@ func TestScanPostBackupPromptOK(t *testing.T) {
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			t.Skip("stdin is not a terminal")
 		}
-		if !scanPostBackupPromptOK() {
+		if !stdinInteractiveOK() {
 			t.Fatal("expected true for TTY stdin with no automation env")
 		}
 	})

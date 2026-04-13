@@ -43,6 +43,8 @@ jobs:
         run: go test -race -count=1 ./...
 
       - name: UAT (scripts/uat_test.sh)
+        env:
+          GIT_FIRE_VERBOSE: "1"
         run: |
           make build
           bash scripts/uat_test.sh

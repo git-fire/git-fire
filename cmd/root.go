@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 
@@ -609,19 +608,6 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	return nil
 }
 
-// scanPostBackupPromptOK is true when we should wait for Enter after backups
-// while the filesystem walk is still running. Never prompt in CI/automation:
-// some runners attach a pseudo-TTY to stdin and ReadString would still hang.
-func scanPostBackupPromptOK() bool {
-	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
-		return false
-	}
-	if os.Getenv("GIT_FIRE_NON_INTERACTIVE") != "" {
-		return false
-	}
-	return isatty.IsTerminal(os.Stdin.Fd())
-}
-
 // runStream is the default live-run path. It pipelines scan → registry upsert →
 // backup so that pushing starts as soon as the first repo is discovered, without
 // waiting for the full scan to complete. Workers block when the queue is
@@ -762,7 +748,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	case <-scanDone:
 		// Scan already finished — nothing to do.
 	default:
-		if scanPostBackupPromptOK() {
+		if stdinInteractiveOK() {
 			fmt.Println()
 			fmt.Println("✅ All backups complete. Scan still running.")
 			fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
@@ -955,7 +941,7 @@ func handleInit() error {
 			// In non-interactive environments (CI, piped stdin) fmt.Scanln would
 			// hang or read garbage. Detect a non-terminal and fail fast so the
 			// caller knows to use --force.
-			if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+			if !stdinInteractiveOK() {
 				return fmt.Errorf("config already exists at %s; use --force to overwrite non-interactively", configPath)
 			}
 			fmt.Printf("Configuration file already exists: %s\n", configPath)

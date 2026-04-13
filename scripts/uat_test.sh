@@ -11,11 +11,33 @@
 #
 # GitHub Actions sets CI / GITHUB_ACTIONS; git-fire treats those as non-interactive
 # for the post-backup scan prompt. For other automation, set GIT_FIRE_NON_INTERACTIVE=1.
+#
+# Optional: GIT_FIRE_VERBOSE=1 — print environment + git-fire version to stderr
+# (CI enables this in .github/workflows/ci.yml for easier log triage).
 # =============================================================================
 
 set -euo pipefail
 
 BINARY="$(cd "$(dirname "$0")/.." && pwd)/git-fire"
+
+uat_dbg() {
+	if [[ -n "${GIT_FIRE_VERBOSE:-}" ]]; then
+		echo "[uat] $*" >&2
+	fi
+}
+
+uat_debug_dump() {
+	if [[ -z "${GIT_FIRE_VERBOSE:-}" ]]; then
+		return 0
+	fi
+	uat_dbg "pwd=$(pwd)"
+	uat_dbg "binary=$BINARY"
+	uat_dbg "CI=${CI:-} GITHUB_ACTIONS=${GITHUB_ACTIONS:-} GIT_FIRE_NON_INTERACTIVE=${GIT_FIRE_NON_INTERACTIVE:-}"
+	if [[ -x "$BINARY" ]]; then
+		"$BINARY" --version 2>&1 | while IFS= read -r line; do uat_dbg "git-fire: $line"; done || true
+	fi
+	git --version 2>&1 | while IFS= read -r line; do uat_dbg "git: $line"; done || true
+}
 KEEP_TMP="${1:-}"
 PASS=0
 FAIL=0
@@ -184,6 +206,8 @@ trap cleanup EXIT
 # PRE-FLIGHT
 # =============================================================================
 log_head "PRE-FLIGHT"
+
+uat_debug_dump
 
 if [[ ! -x "$BINARY" ]]; then
     echo -e "${RED}ERROR: binary not found at $BINARY — run 'make build' first${NC}"
