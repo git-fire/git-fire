@@ -24,11 +24,11 @@ import (
 	"github.com/git-fire/git-fire/internal/auth"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/executor"
-	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/plugins"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-harness/safety"
 	"github.com/git-fire/git-fire/internal/ui"
+	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // Version is set at build time via -ldflags "-X github.com/git-fire/git-fire/cmd.Version=vX.Y.Z"
@@ -609,6 +609,19 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	return nil
 }
 
+// scanPostBackupPromptOK is true when we should wait for Enter after backups
+// while the filesystem walk is still running. Never prompt in CI/automation:
+// some runners attach a pseudo-TTY to stdin and ReadString would still hang.
+func scanPostBackupPromptOK() bool {
+	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		return false
+	}
+	if os.Getenv("GIT_FIRE_NON_INTERACTIVE") != "" {
+		return false
+	}
+	return isatty.IsTerminal(os.Stdin.Fd())
+}
+
 // runStream is the default live-run path. It pipelines scan → registry upsert →
 // backup so that pushing starts as soon as the first repo is discovered, without
 // waiting for the full scan to complete. Workers block when the queue is
@@ -749,7 +762,7 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	case <-scanDone:
 		// Scan already finished — nothing to do.
 	default:
-		if isatty.IsTerminal(os.Stdin.Fd()) {
+		if scanPostBackupPromptOK() {
 			fmt.Println()
 			fmt.Println("✅ All backups complete. Scan still running.")
 			fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")

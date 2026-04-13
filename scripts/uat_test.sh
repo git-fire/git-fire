@@ -8,6 +8,9 @@
 #
 # Usage: bash scripts/uat_test.sh [--keep-tmp]
 #        --keep-tmp  Don't delete temp dirs on exit (useful for post-mortem)
+#
+# GitHub Actions sets CI / GITHUB_ACTIONS; git-fire treats those as non-interactive
+# for the post-backup scan prompt. For other automation, set GIT_FIRE_NON_INTERACTIVE=1.
 # =============================================================================
 
 set -euo pipefail
