@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 
@@ -747,6 +748,17 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 		// Scan already finished — nothing to do.
 	default:
 		// Scan is still walking the tree.
+		if !isatty.IsTerminal(os.Stdin.Fd()) {
+			// CI, scripts, and piped invocations have no TTY stdin; waiting for
+			// Enter would hang forever. Cancel the walk so the process can exit
+			// after backups complete (UAT and automation rely on this).
+			fmt.Println()
+			fmt.Println("✅ All backups complete. Scan still running — stopping scan (non-interactive).")
+			cancelScan()
+			<-scanDone
+			break
+		}
+
 		fmt.Println()
 		fmt.Println("✅ All backups complete. Scan still running.")
 		fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
