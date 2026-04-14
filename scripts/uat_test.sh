@@ -24,6 +24,17 @@ set -euo pipefail
 
 BINARY="$(cd "$(dirname "$0")/.." && pwd)/git-fire"
 
+# GitHub Actions (and other CI) export GIT_DIR / GIT_WORK_TREE / GIT_CONFIG_*
+# for the workflow checkout. This script shells out to git in unrelated temp
+# repos; inherited GIT_* breaks those commands and causes cascading UAT failures.
+while IFS= read -r line || [[ -n "$line" ]]; do
+	[[ -z "$line" ]] && continue
+	name="${line%%=*}"
+	[[ "$name" == GIT_* ]] || continue
+	[[ "$name" == GIT_FIRE_* ]] && continue
+	unset "$name" 2>/dev/null || true
+done < <(printenv | grep '^GIT_' || true)
+
 uat_dbg() {
 	if [[ -n "${GIT_FIRE_VERBOSE:-}" ]]; then
 		echo "[uat] $*" >&2
@@ -39,8 +50,10 @@ uat_debug_dump() {
 	uat_dbg "shell=$BASH_VERSION uname=$(uname -a 2>/dev/null || echo '?')"
 	uat_dbg "CI=${CI:-} GITHUB_ACTIONS=${GITHUB_ACTIONS:-} GIT_FIRE_NON_INTERACTIVE=${GIT_FIRE_NON_INTERACTIVE:-}"
 	uat_dbg "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-} XDG_CACHE_HOME=${XDG_CACHE_HOME:-}"
-	if [[ -x "$BINARY" ]]; then
-		"$BINARY" --version 2>&1 | while IFS= read -r line; do uat_dbg "git-fire: $line"; done || true
+	if [[ -x "$BINARY" && -n "${UAT_VERBOSE_HOME:-}" ]]; then
+		# Run with same XDG isolation as scenarios (pipefail-safe subshell).
+		(uat_git_fire_cmd "$UAT_VERBOSE_HOME" "$BINARY" --version 2>&1 || true) \
+			| while IFS= read -r line; do uat_dbg "git-fire: $line"; done || true
 	fi
 	git --version 2>&1 | while IFS= read -r line; do uat_dbg "git: $line"; done || true
 }
@@ -231,6 +244,10 @@ trap cleanup EXIT
 # =============================================================================
 log_head "PRE-FLIGHT"
 
+# Isolated HOME+XDG for verbose dump + version line (matches scenario git-fire env).
+UAT_VERBOSE_HOME=$(make_temp_home)
+TMPDIRS+=("$UAT_VERBOSE_HOME")
+
 uat_debug_dump
 
 if [[ ! -x "$BINARY" ]]; then
@@ -239,7 +256,7 @@ if [[ ! -x "$BINARY" ]]; then
 fi
 log_pass "Binary exists at $BINARY"
 
-VER=$(HOME=/dev/null "$BINARY" --version 2>&1 | head -1)
+VER=$(uat_git_fire_cmd "$UAT_VERBOSE_HOME" "$BINARY" --version 2>&1 | head -1)
 log_info "Version: $VER"
 
 # =============================================================================
