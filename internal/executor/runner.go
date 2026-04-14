@@ -482,7 +482,10 @@ func (r *Runner) ExecuteStream(
 		}
 		sequence++
 
-		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
+		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{
+			DetectConflicts:  !dryRun,
+			PreviewPushKnown: dryRun,
+		})
 		if err != nil {
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.

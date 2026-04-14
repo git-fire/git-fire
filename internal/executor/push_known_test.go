@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-harness/git"
 	testutil "github.com/git-fire/git-testkit"
 )
@@ -128,8 +129,14 @@ func TestExecutePushKnownBranches_DivergedCreatesBackupRef(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.RunGitCmd(t, local, "fetch", "origin")
-	remoteTip, _ := git.GetCommitSHA(local, "origin/topic")
-	peerTip, _ := git.GetCommitSHA(peer, "topic")
+	remoteTip, err := git.GetCommitSHA(local, "origin/topic")
+	if err != nil {
+		t.Fatalf("origin/topic: %v", err)
+	}
+	peerTip, err := git.GetCommitSHA(peer, "topic")
+	if err != nil {
+		t.Fatalf("peer topic: %v", err)
+	}
 	if remoteTip != peerTip {
 		t.Fatalf("shared branch must not move: %s vs %s", remoteTip, peerTip)
 	}
@@ -188,5 +195,73 @@ func TestExecutePushKnownBranches_DivergedAbortNoBackup(t *testing.T) {
 	lsOut := gitOut(t, local, "ls-remote", "origin", "git-fire-backup-dtopic*")
 	if strings.Contains(lsOut, "git-fire-backup-dtopic") {
 		t.Fatalf("abort should not create backup, got %q", lsOut)
+	}
+}
+
+func TestBuildPlan_DryRun_PushKnownPreviewPopulatesDivergedCount(t *testing.T) {
+	remote := testutil.CreateBareRemote(t, "origin")
+	local := testutil.CreateTestRepo(t, testutil.RepoOptions{
+		Name:    "local",
+		Remotes: map[string]string{"origin": remote},
+		Files:   map[string]string{"x.txt": "x"},
+	})
+	main, err := git.GetCurrentBranch(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, local, "push", "-u", "origin", main)
+
+	testutil.RunGitCmd(t, local, "checkout", "-b", "topic")
+	if err := os.WriteFile(filepath.Join(local, "a.txt"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, local, "add", "a.txt")
+	testutil.RunGitCmd(t, local, "commit", "-m", "topic1")
+	testutil.RunGitCmd(t, local, "push", "-u", "origin", "topic")
+
+	peer := filepath.Join(t.TempDir(), "peer-dry")
+	testutil.RunGitCmd(t, filepath.Dir(local), "clone", remote, peer)
+	configureTestGitIdentity(t, peer)
+	testutil.RunGitCmd(t, peer, "checkout", "topic")
+	if err := os.WriteFile(filepath.Join(peer, "r.txt"), []byte("r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, peer, "add", "r.txt")
+	testutil.RunGitCmd(t, peer, "commit", "-m", "remote only")
+	testutil.RunGitCmd(t, peer, "push", "origin", "topic")
+
+	testutil.RunGitCmd(t, local, "fetch", "origin")
+	testutil.RunGitCmd(t, local, "checkout", "topic")
+	if err := os.WriteFile(filepath.Join(local, "l.txt"), []byte("l\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RunGitCmd(t, local, "add", "l.txt")
+	testutil.RunGitCmd(t, local, "commit", "-m", "local only")
+	testutil.RunGitCmd(t, local, "checkout", main)
+
+	cfg := config.DefaultConfig()
+	planner := NewPlanner(&cfg)
+	plan, err := planner.BuildPlan([]git.Repository{{
+		Path:     local,
+		Name:     "r",
+		Selected: true,
+		Mode:     git.ModePushKnownBranches,
+		Remotes:  []git.Remote{{Name: "origin", URL: remote}},
+	}}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Repos) != 1 {
+		t.Fatalf("repos: %d", len(plan.Repos))
+	}
+	rp := plan.Repos[0]
+	if rp.PushKnownFireBackups != 1 {
+		t.Fatalf("PushKnownFireBackups: want 1 got %d", rp.PushKnownFireBackups)
+	}
+	if !rp.HasConflict {
+		t.Fatal("expected HasConflict for diverged push-known branch")
+	}
+	if plan.Conflicts != 1 || plan.FireBranches != 1 {
+		t.Fatalf("plan aggregates: Conflicts=%d FireBranches=%d", plan.Conflicts, plan.FireBranches)
 	}
 }

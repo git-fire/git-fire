@@ -20,6 +20,11 @@ type Planner struct {
 
 type RepoPlanOptions struct {
 	DetectConflicts bool
+	// PreviewPushKnown runs push-known remote classification (fetch + branch
+	// summary) even when DetectConflicts is false. Used for dry-run plans so
+	// PushKnownFireBackups / HasConflict reflect diverged known branches without
+	// enabling full push-current-branch conflict detection.
+	PreviewPushKnown bool
 }
 
 // NewPlanner creates a new planner
@@ -42,7 +47,10 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 			continue // Skip unselected repos
 		}
 
-		repoPlan, err := p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
+		repoPlan, err := p.BuildRepoPlanWithOptions(repo, RepoPlanOptions{
+			DetectConflicts:  !dryRun,
+			PreviewPushKnown: dryRun,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to plan repo %s: %w", repo.Path, err)
 		}
@@ -182,7 +190,7 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 	for _, remote := range repo.Remotes {
 		switch repo.Mode {
 		case git.ModePushKnownBranches:
-			if opts.DetectConflicts && gitDirPresent(repo.Path) {
+			if (opts.DetectConflicts || opts.PreviewPushKnown) && gitDirPresent(repo.Path) {
 				summ, err := summarizePushKnownRemote(repo.Path, remote.Name)
 				if err != nil {
 					// Preview is best-effort: broken remotes or offline hosts should not
