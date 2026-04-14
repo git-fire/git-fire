@@ -7,11 +7,14 @@ USER_BIN := $(abspath $(HOME)/.local/bin)
 INSTALL_BIN := $(USER_BIN)/$(BINARY)
 # Version: nearest tag + distance if tags exist in this clone; else module pseudo-version
 # from go.mod (avoids bare commit hash from `describe --always` when tags are missing).
-VERSION ?= $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "$(ROOT)" && go list -m -f '{{.Version}}' 2>/dev/null) || echo "dev")
+# Never pass an empty -X value: shallow CI checkouts can yield a blank describe/go list
+# line, which makes Cobra omit --version and breaks scripts/uat_test.sh (set -e).
+_VERSION := $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "$(ROOT)" && go list -m -f '{{.Version}}' 2>/dev/null) || echo dev)
+VERSION ?= $(if $(strip $(_VERSION)),$(strip $(_VERSION)),dev)
 LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
-.PHONY: all build run test test-race lint clean install help
+.PHONY: all build run test test-race lint validate uat clean install help
 
 all: build
 
@@ -34,6 +37,14 @@ test-race:
 ## lint: vet the code
 lint:
 	cd "$(ROOT)" && go vet ./...
+
+## validate: full local CI parity (build, UAT script, vet, race tests, plugin contract; optional lint/goreleaser if installed)
+validate:
+	"$(ROOT)scripts/validate.sh"
+
+## uat: build CLI and run MVP UAT against local bare repos (no network)
+uat: build
+	"$(ROOT)scripts/uat_test.sh"
 
 ## clean: remove the repo-local built binary
 clean:

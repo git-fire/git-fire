@@ -23,11 +23,11 @@ import (
 	"github.com/git-fire/git-fire/internal/auth"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/executor"
-	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/plugins"
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/safety"
 	"github.com/git-fire/git-fire/internal/ui"
+	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // Version is set at build time via -ldflags "-X github.com/git-fire/git-fire/cmd.Version=vX.Y.Z"
@@ -741,37 +741,43 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 	// totalFound is updated atomically by the upsert goroutine as repos arrive.
 	result, execErr := runner.ExecuteStream(repoChan, planner, false, &totalFound)
 
-	// If the scan is still running after all backups are done, prompt the user.
+	// If the scan is still running after all backups are done, either prompt the
+	// user (TTY) or cancel the walk (non-interactive: CI / scripts / piped stdin
+	// would otherwise block forever on ReadString).
 	select {
 	case <-scanDone:
 		// Scan already finished — nothing to do.
 	default:
-		// Scan is still walking the tree.
-		fmt.Println()
-		fmt.Println("✅ All backups complete. Scan still running.")
-		fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
+		if stdinInteractiveOK() {
+			fmt.Println()
+			fmt.Println("✅ All backups complete. Scan still running.")
+			fmt.Println("   Press Enter to wait for scan to finish, or Ctrl+C to stop scanning.")
 
-		// Cancel on either Ctrl+C or Enter.
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		inputDone := make(chan struct{})
-		go func() {
-			defer close(inputDone)
-			r := bufio.NewReader(os.Stdin)
-			_, _ = r.ReadString('\n')
-		}()
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			inputDone := make(chan struct{})
+			go func() {
+				defer close(inputDone)
+				r := bufio.NewReader(os.Stdin)
+				_, _ = r.ReadString('\n')
+			}()
 
-		select {
-		case <-sigCh:
-			fmt.Println("\nAborting scan...")
+			select {
+			case <-sigCh:
+				fmt.Println("\nAborting scan...")
+				cancelScan()
+			case <-inputDone:
+				// User pressed Enter — let scan finish normally; just wait below.
+			case <-scanDone:
+				// Scan finished on its own while we were waiting.
+			}
+			signal.Stop(sigCh)
+		} else {
+			fmt.Println()
+			fmt.Println("✅ All backups complete. Scan still running — stopping scan (non-interactive).")
 			cancelScan()
-		case <-inputDone:
-			// User pressed Enter — let scan finish normally; just wait below.
-		case <-scanDone:
-			// Scan finished on its own while we were waiting.
 		}
-		signal.Stop(sigCh)
-		<-scanDone // always wait for the goroutine to exit cleanly
+		<-scanDone // always wait for the scan goroutine to exit cleanly
 	}
 
 	// Check scan error (non-fatal: report and continue to show results)
@@ -935,7 +941,7 @@ func handleInit() error {
 			// In non-interactive environments (CI, piped stdin) fmt.Scanln would
 			// hang or read garbage. Detect a non-terminal and fail fast so the
 			// caller knows to use --force.
-			if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+			if !stdinInteractiveOK() {
 				return fmt.Errorf("config already exists at %s; use --force to overwrite non-interactively", configPath)
 			}
 			fmt.Printf("Configuration file already exists: %s\n", configPath)

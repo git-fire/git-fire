@@ -4,7 +4,7 @@ package executor
 import (
 	"time"
 
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 )
 
 // PushPlan represents the plan of what will be pushed

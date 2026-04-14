@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 )
 
 const fireBranchPlaceholder = "__git_fire_created_branch__"

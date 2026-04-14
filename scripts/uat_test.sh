@@ -8,11 +8,55 @@
 #
 # Usage: bash scripts/uat_test.sh [--keep-tmp]
 #        --keep-tmp  Don't delete temp dirs on exit (useful for post-mortem)
+#
+# GitHub Actions sets CI / GITHUB_ACTIONS; git-fire treats those as non-interactive
+# for the post-backup scan prompt. For other automation, set GIT_FIRE_NON_INTERACTIVE=1.
+#
+# Actions also sets XDG_CONFIG_HOME / XDG_CACHE_HOME under the runner user. This
+# script sets XDG_* under each temp HOME when invoking git-fire so the isolated
+# registry is used (see uat_git_fire_cmd).
+#
+# Optional: GIT_FIRE_VERBOSE=1 — print environment + git-fire version to stderr
+# (CI enables this in .github/workflows/ci.yml for easier log triage).
 # =============================================================================
 
 set -euo pipefail
 
 BINARY="$(cd "$(dirname "$0")/.." && pwd)/git-fire"
+
+# GitHub Actions (and other CI) export GIT_DIR / GIT_WORK_TREE / GIT_CONFIG_*
+# for the workflow checkout. This script shells out to git in unrelated temp
+# repos; inherited GIT_* breaks those commands and causes cascading UAT failures.
+while IFS= read -r line || [[ -n "$line" ]]; do
+	[[ -z "$line" ]] && continue
+	name="${line%%=*}"
+	[[ "$name" == GIT_* ]] || continue
+	[[ "$name" == GIT_FIRE_* ]] && continue
+	unset "$name" 2>/dev/null || true
+done < <(printenv | grep '^GIT_' || true)
+
+uat_dbg() {
+	if [[ -n "${GIT_FIRE_VERBOSE:-}" ]]; then
+		echo "[uat] $*" >&2
+	fi
+}
+
+uat_debug_dump() {
+	if [[ -z "${GIT_FIRE_VERBOSE:-}" ]]; then
+		return 0
+	fi
+	uat_dbg "pwd=$(pwd)"
+	uat_dbg "binary=$BINARY"
+	uat_dbg "shell=$BASH_VERSION uname=$(uname -a 2>/dev/null || echo '?')"
+	uat_dbg "CI=${CI:-} GITHUB_ACTIONS=${GITHUB_ACTIONS:-} GIT_FIRE_NON_INTERACTIVE=${GIT_FIRE_NON_INTERACTIVE:-}"
+	uat_dbg "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-} XDG_CACHE_HOME=${XDG_CACHE_HOME:-}"
+	if [[ -x "$BINARY" && -n "${UAT_VERBOSE_HOME:-}" ]]; then
+		# Run with same XDG isolation as scenarios (pipefail-safe subshell).
+		(uat_git_fire_cmd "$UAT_VERBOSE_HOME" "$BINARY" --version 2>&1 || true) \
+			| while IFS= read -r line; do uat_dbg "git-fire: $line"; done || true
+	fi
+	git --version 2>&1 | while IFS= read -r line; do uat_dbg "git: $line"; done || true
+}
 KEEP_TMP="${1:-}"
 PASS=0
 FAIL=0
@@ -103,7 +147,12 @@ assert_local_commit_count_gt() {
 make_temp_home() {
     local h
     h=$(mktemp -d)
-    mkdir -p "$h/.config/git-fire" "$h/.cache/git-fire/logs"
+    # Full XDG layout: git-fire uses os.UserConfigDir / UserCacheDir, which honor
+    # XDG_* when set. GitHub Actions exports XDG_CONFIG_HOME under /home/runner —
+    # if we only set HOME, the real user registry is still used and every scenario
+    # in this script shares one repos.toml (massive cross-talk / false failures).
+    mkdir -p "$h/.config/git-fire" "$h/.cache/git-fire/logs" \
+        "$h/.local/state" "$h/.local/share"
     cat > "$h/.config/git-fire/config.toml" <<'EOF'
 [global]
 default_mode      = "push-known-branches"
@@ -123,6 +172,19 @@ generate_manifest = true
 use_ssh_agent = false
 EOF
     echo "$h"
+}
+
+# Prefix env for git-fire so config/registry/logs stay under the temp home even
+# when the outer shell inherits CI's XDG_* (see make_temp_home).
+uat_git_fire_cmd() {
+    local h="$1"
+    shift
+    HOME="$h" \
+        XDG_CONFIG_HOME="$h/.config" \
+        XDG_CACHE_HOME="$h/.cache" \
+        XDG_STATE_HOME="$h/.local/state" \
+        XDG_DATA_HOME="$h/.local/share" \
+        "$@"
 }
 
 make_bare_remote() {
@@ -154,14 +216,20 @@ initial_commit_and_push() {
 run_git_fire() {
     # Usage: run_git_fire <home_dir> <scan_path> [extra flags...]
     local home_dir="$1" scan_path="$2"; shift 2
-    HOME="$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1
+    uat_git_fire_cmd "$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1
     return "${PIPESTATUS[0]}"
 }
 
 run_git_fire_rc() {
     # Like run_git_fire but captures exit code in $RC (not propagated via set -e)
     local home_dir="$1" scan_path="$2"; shift 2
-    HOME="$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1 || true
+    local out st
+    set +e
+    out=$(uat_git_fire_cmd "$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1)
+    st=$?
+    set -e
+    RC=$st
+    printf '%s\n' "$out"
 }
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
@@ -182,13 +250,19 @@ trap cleanup EXIT
 # =============================================================================
 log_head "PRE-FLIGHT"
 
+# Isolated HOME+XDG for verbose dump + version line (matches scenario git-fire env).
+UAT_VERBOSE_HOME=$(make_temp_home)
+TMPDIRS+=("$UAT_VERBOSE_HOME")
+
+uat_debug_dump
+
 if [[ ! -x "$BINARY" ]]; then
     echo -e "${RED}ERROR: binary not found at $BINARY — run 'make build' first${NC}"
     exit 1
 fi
 log_pass "Binary exists at $BINARY"
 
-VER=$(HOME=/dev/null "$BINARY" --version 2>&1 | head -1)
+VER=$(uat_git_fire_cmd "$UAT_VERBOSE_HOME" "$BINARY" --version 2>&1 | head -1)
 log_info "Version: $VER"
 
 # =============================================================================
@@ -216,7 +290,7 @@ echo "unstaged change" > "$S1_REPO/file_b.txt"
 log_info "Setup: staged=file_a.txt, unstaged=file_b.txt"
 
 # Capture output + exit code
-S1_OUT=$(HOME="$S1_HOME" "$BINARY" --path "$S1" 2>&1) && S1_RC=0 || S1_RC=$?
+S1_OUT=$(uat_git_fire_cmd "$S1_HOME" "$BINARY" --path "$S1" 2>&1) && S1_RC=0 || S1_RC=$?
 log_info "git-fire output:"
 echo "$S1_OUT" | sed 's/^/    /'
 
@@ -265,7 +339,7 @@ echo "staged only" > "$S1B_REPO/staged_file.txt"
 git -C "$S1B_REPO" add staged_file.txt
 log_info "Setup: staged=staged_file.txt, nothing unstaged"
 
-S1B_OUT=$(HOME="$S1B_HOME" "$BINARY" --path "$S1B" 2>&1) && S1B_RC=0 || S1B_RC=$?
+S1B_OUT=$(uat_git_fire_cmd "$S1B_HOME" "$BINARY" --path "$S1B" 2>&1) && S1B_RC=0 || S1B_RC=$?
 log_info "git-fire output:"
 echo "$S1B_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1B_RC" "S1b: exit code"
@@ -296,7 +370,7 @@ echo "unstaged only" > "$S1C_REPO/unstaged_file.txt"
 # Do NOT stage it
 log_info "Setup: nothing staged, unstaged=unstaged_file.txt"
 
-S1C_OUT=$(HOME="$S1C_HOME" "$BINARY" --path "$S1C" 2>&1) && S1C_RC=0 || S1C_RC=$?
+S1C_OUT=$(uat_git_fire_cmd "$S1C_HOME" "$BINARY" --path "$S1C" 2>&1) && S1C_RC=0 || S1C_RC=$?
 log_info "git-fire output:"
 echo "$S1C_OUT" | sed 's/^/    /'
 assert_exit 0 "$S1C_RC" "S1c: exit code"
@@ -312,10 +386,11 @@ else
 fi
 
 # =============================================================================
-# SCENARIO 2 — Staged + Unstaged + UPSTREAM CONFLICT
-# Expected: AutoCommitDirtyWithStrategy creates backup branches locally and
-# pushes them; main push fails (non-fast-forward); exit non-zero.
-# Backup branches (git-fire-staged-* / git-fire-full-*) SHOULD appear on remote.
+# SCENARIO 2 — Staged + Unstaged + UPSTREAM CONFLICT (main diverged from remote)
+# With default_mode=push-known-branches, auto-commit replaces the plan with
+# pushes of git-fire-staged-* / git-fire-full-* only (no direct main push in
+# this path), so backup pushes succeed and exit 0 even though main is behind
+# origin. Remote main must stay unchanged; backup branches must land on remote.
 # =============================================================================
 log_head "SCENARIO 2: Staged + Unstaged + Upstream Conflict"
 
@@ -352,42 +427,49 @@ log_info "Setup: remote is 1 commit AHEAD of local fork point; local has staged+
 log_info "Remote commit log:"
 git -C "$S2_REMOTE" log --oneline | sed 's/^/    /'
 
-S2_OUT=$(HOME="$S2_HOME" "$BINARY" --path "$S2" 2>&1) && S2_RC=0 || S2_RC=$?
+S2_OUT=$(uat_git_fire_cmd "$S2_HOME" "$BINARY" --path "$S2" 2>&1) && S2_RC=0 || S2_RC=$?
 log_info "git-fire output:"
 echo "$S2_OUT" | sed 's/^/    /'
 
-# Expected: push FAILS → exit non-zero
-if [[ "$S2_RC" -ne 0 ]]; then
-    log_pass "S2: exit code non-zero (push correctly failed)"
-else
-    log_fail "S2: exit code 0 — should have failed (upstream conflict)"
-fi
+# Expected: backup-only pushes succeed → exit 0 (no main push in this plan path)
+assert_exit 0 "$S2_RC" "S2: exit code"
 
-# Auto-commit goes to backup branches (not main); check backup branches locally
-S2_LOCAL_STAGED=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
-S2_LOCAL_FULL=$(git -C "$S2_REPO" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
-if [[ -n "$S2_LOCAL_STAGED" && -n "$S2_LOCAL_FULL" ]]; then
-    log_pass "S2: local backup branch(es) created before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
-else
-    log_fail "S2: expected both local backup branches before push attempt (staged=$S2_LOCAL_STAGED full=$S2_LOCAL_FULL)"
-fi
-
-# Remote should NOT have local's main changes (push rejected)
+# Remote main unchanged (local diverging commit never pushed to main)
 S2_REMOTE_COMMITS=$(git -C "$S2_REMOTE" log main --oneline 2>/dev/null | wc -l | tr -d ' ')
 log_info "S2: remote main commit count = $S2_REMOTE_COMMITS"
 if [[ "$S2_REMOTE_COMMITS" -eq 2 ]]; then
-    log_pass "S2: remote main unchanged (push correctly rejected)"
+    log_pass "S2: remote main unchanged at 2 commits (initial + remote advance)"
 else
     log_fail "S2: remote has $S2_REMOTE_COMMITS commits on main — expected 2 (initial + remote advance)"
 fi
 
-# Backup branches SHOULD appear on remote (dual-branch backup is pushed before main push fails)
+# Dual-branch backups on remote
 S2_REMOTE_STAGED=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-staged-" | head -1 | tr -d ' ' || true)
 S2_REMOTE_FULL=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
 if [[ -n "$S2_REMOTE_STAGED" && -n "$S2_REMOTE_FULL" ]]; then
-    log_pass "S2: backup branch(es) pushed to remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    log_pass "S2: backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_STAGED":file_staged.txt > /dev/null 2>&1; then
+        log_pass "S2: staged file in remote staged backup"
+    else
+        log_fail "S2: file_staged.txt MISSING from remote staged backup"
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_staged.txt > /dev/null 2>&1; then
+        log_pass "S2: staged file in remote full backup"
+    else
+        log_fail "S2: file_staged.txt MISSING from remote full backup"
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_unstaged.txt > /dev/null 2>&1; then
+        log_pass "S2: unstaged file in remote full backup"
+    else
+        log_fail "S2: file_unstaged.txt MISSING from remote full backup"
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":local_change.txt > /dev/null 2>&1; then
+        log_pass "S2: local diverging commit in remote full backup"
+    else
+        log_fail "S2: local_change.txt MISSING from remote full backup"
+    fi
 else
-    log_fail "S2: expected both backup branches on remote despite main conflict (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
+    log_fail "S2: expected both backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 fi
 
 # =============================================================================
@@ -421,7 +503,7 @@ git -C "$S3_REPO" checkout -q main
 log_info "Setup: main pushed; feature-a, feature-b are local-only (never pushed)"
 log_info "Local branches: $(git -C "$S3_REPO" branch --list | tr '\n' ' ')"
 
-S3_OUT=$(HOME="$S3_HOME" "$BINARY" --path "$S3" 2>&1) && S3_RC=0 || S3_RC=$?
+S3_OUT=$(uat_git_fire_cmd "$S3_HOME" "$BINARY" --path "$S3" 2>&1) && S3_RC=0 || S3_RC=$?
 log_info "git-fire output:"
 echo "$S3_OUT" | sed 's/^/    /'
 
@@ -495,7 +577,7 @@ EOF
 log_info "Setup: registry pre-seeded with push-all for $ABS_REPO"
 log_info "Local branches: $(git -C "$S3B_REPO" branch --list | tr '\n' ' ')"
 
-S3B_OUT=$(HOME="$S3B_HOME" "$BINARY" --path "$S3B" 2>&1) && S3B_RC=0 || S3B_RC=$?
+S3B_OUT=$(uat_git_fire_cmd "$S3B_HOME" "$BINARY" --path "$S3B" 2>&1) && S3B_RC=0 || S3B_RC=$?
 log_info "git-fire output:"
 echo "$S3B_OUT" | sed 's/^/    /'
 
@@ -568,7 +650,7 @@ git -C "$S4_REPO" checkout -q main
 
 log_info "Setup: feature-ok (fast-forward ok), feature-conflict (diverged, push will fail)"
 
-S4_OUT=$(HOME="$S4_HOME" "$BINARY" --path "$S4" 2>&1) && S4_RC=0 || S4_RC=$?
+S4_OUT=$(uat_git_fire_cmd "$S4_HOME" "$BINARY" --path "$S4" 2>&1) && S4_RC=0 || S4_RC=$?
 log_info "git-fire output:"
 echo "$S4_OUT" | sed 's/^/    /'
 
@@ -623,7 +705,7 @@ S5_BEFORE_COMMITS=$(git -C "$S5_REPO" log --oneline | wc -l | tr -d ' ')
 
 log_info "Setup: bad remote URL, staged=staged.txt, unstaged=unstaged.txt"
 
-S5_OUT=$(HOME="$S5_HOME" "$BINARY" --path "$S5" 2>&1) && S5_RC=0 || S5_RC=$?
+S5_OUT=$(uat_git_fire_cmd "$S5_HOME" "$BINARY" --path "$S5" 2>&1) && S5_RC=0 || S5_RC=$?
 log_info "git-fire output:"
 echo "$S5_OUT" | sed 's/^/    /'
 
@@ -678,7 +760,7 @@ initial_commit_and_push "$S6_REPO" "$S6_REMOTE" main
 
 log_info "Setup: clean repo, all pushed, nothing dirty"
 
-S6_OUT=$(HOME="$S6_HOME" "$BINARY" --path "$S6" 2>&1) && S6_RC=0 || S6_RC=$?
+S6_OUT=$(uat_git_fire_cmd "$S6_HOME" "$BINARY" --path "$S6" 2>&1) && S6_RC=0 || S6_RC=$?
 log_info "git-fire output:"
 echo "$S6_OUT" | sed 's/^/    /'
 
@@ -704,7 +786,7 @@ echo "dry run unstaged" > "$S7_REPO/dry_unstaged.txt"
 
 log_info "Setup: staged + unstaged changes, running with --dry-run"
 
-S7_OUT=$(HOME="$S7_HOME" "$BINARY" --path "$S7" --dry-run 2>&1) && S7_RC=0 || S7_RC=$?
+S7_OUT=$(uat_git_fire_cmd "$S7_HOME" "$BINARY" --path "$S7" --dry-run 2>&1) && S7_RC=0 || S7_RC=$?
 log_info "git-fire output:"
 echo "$S7_OUT" | sed 's/^/    /'
 
@@ -752,7 +834,7 @@ echo "dirty change" >> "$S8_REPO/file.txt"
 
 log_info "Setup: repo with NO remote, dirty changes"
 
-S8_OUT=$(HOME="$S8_HOME" "$BINARY" --path "$S8" 2>&1) && S8_RC=0 || S8_RC=$?
+S8_OUT=$(uat_git_fire_cmd "$S8_HOME" "$BINARY" --path "$S8" 2>&1) && S8_RC=0 || S8_RC=$?
 log_info "git-fire output:"
 echo "$S8_OUT" | sed 's/^/    /'
 
@@ -787,7 +869,7 @@ git -C "$S9_REPO" add skip.txt
 
 log_info "Setup: staged change, running with --skip-auto-commit"
 
-S9_OUT=$(HOME="$S9_HOME" "$BINARY" --path "$S9" --skip-auto-commit 2>&1) && S9_RC=0 || S9_RC=$?
+S9_OUT=$(uat_git_fire_cmd "$S9_HOME" "$BINARY" --path "$S9" --skip-auto-commit 2>&1) && S9_RC=0 || S9_RC=$?
 log_info "git-fire output:"
 echo "$S9_OUT" | sed 's/^/    /'
 
@@ -834,7 +916,7 @@ fi
 echo ""
 echo -e "${BOLD}Key Behavioral Summary (current post-fix behavior):${NC}"
 echo "  • AutoCommitDirtyWithStrategy (dual-branch): ACTIVE — staged → git-fire-staged-*, all → git-fire-full-*"
-echo "  • Upstream conflict: backup branches pushed before main push attempt; main push rejected safely"
+echo "  • Dirty repo + push-known-branches: dual-branch backups push to remote; diverged main is not auto-pushed in that path (see S2)"
 echo "  • push-known-branches: warns for local-only branches (no longer silent — Bug 3 fixed)"
 echo "  • DefaultMode config: applied via registry upsert (no longer dead code — Bug 4 fixed)"
 echo "  • conflict_strategy='new-branch': evaluated by planner (no longer dead code — Bug 2 fixed)"
@@ -847,3 +929,9 @@ else
     echo -e "${RED}${BOLD}$FAIL check(s) FAILED.${NC}"
 fi
 echo ""
+
+# Non-zero exit so CI and `scripts/validate.sh` can gate on failures
+if [[ "$FAIL" -gt 0 ]]; then
+    exit 1
+fi
+exit 0
