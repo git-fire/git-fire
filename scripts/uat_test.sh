@@ -442,15 +442,26 @@ S2_REMOTE_STAGED=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-staged-
 S2_REMOTE_FULL=$(git -C "$S2_REMOTE" branch --list | grep -E "git-fire-full-" | head -1 | tr -d ' ' || true)
 if [[ -n "$S2_REMOTE_STAGED" && -n "$S2_REMOTE_FULL" ]]; then
     log_pass "S2: backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
-    git -C "$S2_REMOTE" show "$S2_REMOTE_STAGED":file_staged.txt > /dev/null 2>&1 && \
-        log_pass "S2: staged file in remote staged backup" || \
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_STAGED":file_staged.txt > /dev/null 2>&1; then
+        log_pass "S2: staged file in remote staged backup"
+    else
         log_fail "S2: file_staged.txt MISSING from remote staged backup"
-    git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_staged.txt > /dev/null 2>&1 && \
-        log_pass "S2: staged file in remote full backup" || \
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_staged.txt > /dev/null 2>&1; then
+        log_pass "S2: staged file in remote full backup"
+    else
         log_fail "S2: file_staged.txt MISSING from remote full backup"
-    git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_unstaged.txt > /dev/null 2>&1 && \
-        log_pass "S2: unstaged file in remote full backup" || \
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":file_unstaged.txt > /dev/null 2>&1; then
+        log_pass "S2: unstaged file in remote full backup"
+    else
         log_fail "S2: file_unstaged.txt MISSING from remote full backup"
+    fi
+    if git -C "$S2_REMOTE" show "$S2_REMOTE_FULL":local_change.txt > /dev/null 2>&1; then
+        log_pass "S2: local diverging commit in remote full backup"
+    else
+        log_fail "S2: local_change.txt MISSING from remote full backup"
+    fi
 else
     log_fail "S2: expected both backup branches on remote (staged=$S2_REMOTE_STAGED full=$S2_REMOTE_FULL)"
 fi
