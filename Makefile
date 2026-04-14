@@ -7,7 +7,10 @@ USER_BIN := $(abspath $(HOME)/.local/bin)
 INSTALL_BIN := $(USER_BIN)/$(BINARY)
 # Version: nearest tag + distance if tags exist in this clone; else module pseudo-version
 # from go.mod (avoids bare commit hash from `describe --always` when tags are missing).
-VERSION ?= $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "$(ROOT)" && go list -m -f '{{.Version}}' 2>/dev/null) || echo "dev")
+# Never pass an empty -X value: shallow CI checkouts can yield a blank describe/go list
+# line, which makes Cobra omit --version and breaks scripts/uat_test.sh (set -e).
+_VERSION := $(shell git -C "$(ROOT)" describe --tags --dirty 2>/dev/null || (cd "$(ROOT)" && go list -m -f '{{.Version}}' 2>/dev/null) || echo dev)
+VERSION ?= $(if $(strip $(_VERSION)),$(strip $(_VERSION)),dev)
 LDFLAGS := -X github.com/git-fire/git-fire/cmd.Version=$(VERSION)
 LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
