@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/git-fire/git-fire/internal/registry"
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // maybeOfferRegistryUnlock handles a leftover repos.toml.lock before registry I/O.
@@ -65,7 +65,7 @@ func maybeOfferRegistryUnlock(regPath string) error {
 	fmt.Fprintf(os.Stderr, "\nRemoving the lock while another instance is active can corrupt your repo registry.\n")
 	fmt.Fprintf(os.Stderr, "If you are sure no other git-fire is running, you can remove the lock and continue.\n\n")
 
-	if stat, err := os.Stdin.Stat(); err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+	if !stdinInteractiveOK() {
 		return fmt.Errorf("registry is locked; pass --force-unlock-registry to remove %s non-interactively (only if no other git-fire is running)", info.LockPath)
 	}
 

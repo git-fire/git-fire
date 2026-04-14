@@ -44,6 +44,14 @@ jobs:
       - name: Test
         run: go test -race -count=1 ./...
 
+      - name: UAT (scripts/uat_test.sh)
+        env:
+          GIT_FIRE_VERBOSE: "1"
+        run: |
+          bash scripts/ci_uat_preflight.sh
+          make build
+          bash scripts/uat_test.sh
+
   plugin-contract:
     runs-on: ubuntu-latest
     steps:

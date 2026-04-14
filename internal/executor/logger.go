@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // Logger handles structured logging of git-fire operations
