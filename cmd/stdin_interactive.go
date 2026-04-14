@@ -17,9 +17,9 @@ func stdinInteractiveOK() bool {
 	if os.Getenv("GIT_FIRE_NON_INTERACTIVE") != "" {
 		return false
 	}
-	stat, err := os.Stdin.Stat()
-	if err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+	if _, err := os.Stdin.Stat(); err != nil {
 		return false
 	}
-	return isatty.IsTerminal(os.Stdin.Fd())
+	fd := os.Stdin.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }

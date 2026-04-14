@@ -9,10 +9,6 @@ cd "$ROOT"
 echo "==> go build ./..."
 go build ./...
 
-echo "==> CLI binary + UAT (scripts/uat_test.sh)"
-make build
-bash "$ROOT/scripts/uat_test.sh"
-
 echo "==> go vet ./..."
 go vet ./...
 
@@ -22,6 +18,10 @@ go test -race -count=1 ./...
 echo "==> plugin contract tests"
 go test -race -count=1 ./cmd/... ./internal/plugins/... \
   -run 'TestRunGitFire_OnFailurePluginErrorKeepsRunError|TestRunGitFire_OnSuccessPluginFailRunFailsRun|TestRunGitFire_DryRun_SkipsPostRunPlugins|TestParseTrigger|TestFilterPluginsByTrigger_AfterPushAliasesOnSuccess|TestLoadFromConfig_WiresFailRun|TestLoadFromConfig_FailRunDefaultFalse'
+
+echo "==> CLI binary + UAT (scripts/uat_test.sh)"
+make build
+bash "$ROOT/scripts/uat_test.sh"
 
 if command -v golangci-lint >/dev/null 2>&1; then
   echo "==> golangci-lint run"

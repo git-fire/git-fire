@@ -11,8 +11,8 @@ echo "    realpath: $(command -v realpath >/dev/null && realpath --version 2>/de
 echo "    CI=${CI:-} GITHUB_ACTIONS=${GITHUB_ACTIONS:-} GIT_FIRE_NON_INTERACTIVE=${GIT_FIRE_NON_INTERACTIVE:-} GIT_FIRE_VERBOSE=${GIT_FIRE_VERBOSE:-}"
 echo "    XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-} XDG_CACHE_HOME=${XDG_CACHE_HOME:-}"
 if printenv | grep -q '^GIT_'; then
-	echo "    inherited GIT_* (excluding GIT_FIRE_*), first 15 lines:"
-	printenv | grep '^GIT_' | grep -v '^GIT_FIRE_' | head -15 || true
+	echo "    inherited GIT_* names (excluding GIT_FIRE_*), first 15:"
+	printenv | grep '^GIT_' | grep -v '^GIT_FIRE_' | cut -d= -f1 | head -15 || true
 else
 	echo "    no GIT_* vars in environment"
 fi

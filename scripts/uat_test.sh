@@ -223,7 +223,13 @@ run_git_fire() {
 run_git_fire_rc() {
     # Like run_git_fire but captures exit code in $RC (not propagated via set -e)
     local home_dir="$1" scan_path="$2"; shift 2
-    uat_git_fire_cmd "$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1 || true
+    local out st
+    set +e
+    out=$(uat_git_fire_cmd "$home_dir" "$BINARY" --path "$scan_path" "$@" 2>&1)
+    st=$?
+    set -e
+    RC=$st
+    printf '%s\n' "$out"
 }
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────

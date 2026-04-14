@@ -184,7 +184,8 @@ func TestStdinInteractiveOK(t *testing.T) {
 		t.Setenv("CI", "")
 		t.Setenv("GITHUB_ACTIONS", "")
 		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
-		if !isatty.IsTerminal(os.Stdin.Fd()) {
+		fd := os.Stdin.Fd()
+		if !isatty.IsTerminal(fd) && !isatty.IsCygwinTerminal(fd) {
 			t.Skip("stdin is not a terminal")
 		}
 		if !stdinInteractiveOK() {
