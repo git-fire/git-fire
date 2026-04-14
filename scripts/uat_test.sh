@@ -597,10 +597,11 @@ else
 fi
 
 # =============================================================================
-# SCENARIO 4 — Multiple branches WITH upstream conflict
-# push-known-branches: diverged branches fail, clean branches succeed
+# SCENARIO 4 — Multiple branches WITH upstream divergence (push-known + new-branch)
+# Diverged tracked branch: shared name unchanged; git-fire-backup-* pushed.
+# Fast-forward branch: normal push.
 # =============================================================================
-log_head "SCENARIO 4: Multiple branches with upstream conflict (partial failure)"
+log_head "SCENARIO 4: push-known diverged branch gets fire backup (exit 0)"
 
 S4=$(mktemp -d); TMPDIRS+=("$S4")
 S4_HOME=$(make_temp_home); TMPDIRS+=("$S4_HOME")
@@ -648,18 +649,13 @@ git -C "$S4_REPO" commit -q -m "local conflict diverge"
 # Return to main
 git -C "$S4_REPO" checkout -q main
 
-log_info "Setup: feature-ok (fast-forward ok), feature-conflict (diverged, push will fail)"
+log_info "Setup: feature-ok (fast-forward ok), feature-conflict (diverged → backup ref)"
 
 S4_OUT=$(uat_git_fire_cmd "$S4_HOME" "$BINARY" --path "$S4" 2>&1) && S4_RC=0 || S4_RC=$?
 log_info "git-fire output:"
 echo "$S4_OUT" | sed 's/^/    /'
 
-# Should fail overall (some branch failed)
-if [[ "$S4_RC" -ne 0 ]]; then
-    log_pass "S4: exit code non-zero (partial failure expected)"
-else
-    log_fail "S4: exit code 0 — should fail since feature-conflict push rejected"
-fi
+assert_exit 0 "$S4_RC" "S4: exit code (all repos succeed with backup path)"
 
 # feature-ok should be on remote with the extra commit
 S4_OK_COMMITS=$(git -C "$S4_REMOTE" log feature-ok --oneline 2>/dev/null | wc -l | tr -d ' ')
@@ -669,13 +665,62 @@ else
     log_fail "S4: feature-ok has $S4_OK_COMMITS commits on remote, expected >= 2"
 fi
 
-# feature-conflict remote should still have 3 commits:
-# initial + feature-conflict-initial + remote-advance (local diverge was correctly rejected)
+# feature-conflict remote branch tip must NOT be rewritten (still 3 commits on shared branch name)
 S4_CONFLICT_COMMITS=$(git -C "$S4_REMOTE" log feature-conflict --oneline 2>/dev/null | wc -l | tr -d ' ')
 if [[ "$S4_CONFLICT_COMMITS" -eq 3 ]]; then
-    log_pass "S4: feature-conflict remote unchanged at 3 commits (push correctly rejected)"
+    log_pass "S4: feature-conflict remote branch still 3 commits (no force-push)"
 else
     log_fail "S4: feature-conflict has $S4_CONFLICT_COMMITS commits on remote, expected 3"
+fi
+
+assert_remote_has_pattern "$S4_REMOTE" "_" "git-fire-backup-feature-conflict" "S4: fire backup ref exists on bare remote"
+
+# =============================================================================
+# SCENARIO 4b — push-known: local branch only BEHIND remote (non-FF if pushed)
+# Expected: exit 0; shared branch unchanged; warning path (no pointless push)
+# =============================================================================
+log_head "SCENARIO 4b: push-known behind-remote branch (exit 0, no shared ref move)"
+
+S4B=$(mktemp -d); TMPDIRS+=("$S4B")
+S4B_HOME=$(make_temp_home); TMPDIRS+=("$S4B_HOME")
+S4B_REMOTE=$(make_bare_remote "$S4B")
+S4B_REPO="$S4B/repo"
+make_local_repo "$S4B_REPO"
+initial_commit_and_push "$S4B_REPO" "$S4B_REMOTE" main
+
+git -C "$S4B_REPO" checkout -q -b trail
+echo "trail v1" > "$S4B_REPO/trail.txt"
+git -C "$S4B_REPO" add -A
+git -C "$S4B_REPO" commit -q -m "trail initial"
+git -C "$S4B_REPO" push -q origin trail
+git -C "$S4B_REPO" branch --set-upstream-to="origin/trail" trail 2>/dev/null || true
+
+S4B_PEER="$S4B/peer"
+git clone -q "file://$S4B_REMOTE" "$S4B_PEER"
+git -C "$S4B_PEER" config user.email "peer@example.com"
+git -C "$S4B_PEER" config user.name "Peer"
+git -C "$S4B_PEER" checkout -q trail
+echo "peer advance" >> "$S4B_PEER/trail.txt"
+git -C "$S4B_PEER" add -A
+git -C "$S4B_PEER" commit -q -m "peer only on remote"
+git -C "$S4B_PEER" push -q origin trail
+
+git -C "$S4B_REPO" fetch -q origin
+git -C "$S4B_REPO" checkout -q main
+
+log_info "Setup: local trail behind origin/trail; active branch main"
+
+S4B_OUT=$(uat_git_fire_cmd "$S4B_HOME" "$BINARY" --path "$S4B" 2>&1) && S4B_RC=0 || S4B_RC=$?
+log_info "git-fire output:"
+echo "$S4B_OUT" | sed 's/^/    /'
+
+assert_exit 0 "$S4B_RC" "S4b: exit code"
+
+S4B_REMOTE_TRAIL=$(git -C "$S4B_REMOTE" log trail --oneline 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$S4B_REMOTE_TRAIL" -eq 3 ]]; then
+    log_pass "S4b: remote trail still 3 commits (main + trail init + peer advance)"
+else
+    log_fail "S4b: remote trail has $S4B_REMOTE_TRAIL commits, expected 3"
 fi
 
 # =============================================================================
@@ -740,9 +785,9 @@ else
     log_fail "S5: error output missing failure indication — user may not know push failed"
 fi
 
-# Check UX bug: Cobra prints full usage text on error (S5, S2, S4 all trigger this)
+# Check UX bug: Cobra prints full usage text on error (S5, S2 still trigger this)
 if echo "$S5_OUT" | grep -q "Use \"git-fire \[command\] --help\""; then
-    log_bug "[LOW] S5/S2/S4: Cobra prints full usage text + flags on every error exit. In an emergency, this buries the actual error message under 20+ lines of help text. rootCmd.SilenceUsage should be set to true in cmd/root.go."
+    log_bug "[LOW] S5/S2: Cobra prints full usage text + flags on every error exit. In an emergency, this buries the actual error message under 20+ lines of help text. rootCmd.SilenceUsage should be set to true in cmd/root.go."
 fi
 
 # =============================================================================
@@ -918,6 +963,7 @@ echo -e "${BOLD}Key Behavioral Summary (current post-fix behavior):${NC}"
 echo "  • AutoCommitDirtyWithStrategy (dual-branch): ACTIVE — staged → git-fire-staged-*, all → git-fire-full-*"
 echo "  • Dirty repo + push-known-branches: dual-branch backups push to remote; diverged main is not auto-pushed in that path (see S2)"
 echo "  • push-known-branches: warns for local-only branches (no longer silent — Bug 3 fixed)"
+echo "  • push-known + new-branch: diverged shared branch → git-fire-backup-* on remote; behind-remote → skip push, exit 0 (S4, S4b)"
 echo "  • DefaultMode config: applied via registry upsert (no longer dead code — Bug 4 fixed)"
 echo "  • conflict_strategy='new-branch': evaluated by planner (no longer dead code — Bug 2 fixed)"
 echo "  • SilenceUsage: cobra usage suppressed on errors (Bug 5 fixed)"
