@@ -16,6 +16,9 @@ func TestPickCLIVersion(t *testing.T) {
 		{name: "bare hash uppercase", ldflags: "98E0D4F", mainMod: "v1.0.0", want: "v1.0.0"},
 		{name: "dev and devel stays dev", ldflags: "dev", mainMod: "(devel)", want: "dev"},
 		{name: "bare hash no main mod", ldflags: "abc1234", mainMod: "", want: "abc1234"},
+		{name: "empty ldflags uses main module", ldflags: "", mainMod: "v0.3.0", want: "v0.3.0"},
+		{name: "empty ldflags whitespace uses main module", ldflags: "   ", mainMod: "v0.3.1", want: "v0.3.1"},
+		{name: "empty ldflags no main mod is dev", ldflags: "", mainMod: "", want: "dev"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

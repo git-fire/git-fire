@@ -46,6 +46,7 @@ jobs:
         env:
           GIT_FIRE_VERBOSE: "1"
         run: |
+          bash scripts/ci_uat_preflight.sh
           make build
           bash scripts/uat_test.sh
 
