@@ -22,6 +22,15 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	return string(b)
 }
 
+// configureTestGitIdentity sets a local author for repos created via plain `git clone`
+// (e.g. peer worktrees). CI images often have no global user.name/email; testkit only
+// configures repos it creates directly.
+func configureTestGitIdentity(t *testing.T, repo string) {
+	t.Helper()
+	testutil.RunGitCmd(t, repo, "config", "user.email", "git-fire-test@local")
+	testutil.RunGitCmd(t, repo, "config", "user.name", "git-fire test")
+}
+
 func TestExecutePushKnownBranches_BehindRemoteDoesNotFailOrMoveHEAD(t *testing.T) {
 	remote := testutil.CreateBareRemote(t, "origin")
 	local := testutil.CreateTestRepo(t, testutil.RepoOptions{
@@ -45,6 +54,7 @@ func TestExecutePushKnownBranches_BehindRemoteDoesNotFailOrMoveHEAD(t *testing.T
 
 	peer := filepath.Join(t.TempDir(), "peer-behind")
 	testutil.RunGitCmd(t, filepath.Dir(local), "clone", remote, peer)
+	configureTestGitIdentity(t, peer)
 	testutil.RunGitCmd(t, peer, "checkout", "trail")
 	if err := os.WriteFile(filepath.Join(peer, "ahead.txt"), []byte("a\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -92,6 +102,7 @@ func TestExecutePushKnownBranches_DivergedCreatesBackupRef(t *testing.T) {
 
 	peer := filepath.Join(t.TempDir(), "peer-div")
 	testutil.RunGitCmd(t, filepath.Dir(local), "clone", remote, peer)
+	configureTestGitIdentity(t, peer)
 	testutil.RunGitCmd(t, peer, "checkout", "topic")
 	if err := os.WriteFile(filepath.Join(peer, "r.txt"), []byte("r\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -153,6 +164,7 @@ func TestExecutePushKnownBranches_DivergedAbortNoBackup(t *testing.T) {
 	testutil.RunGitCmd(t, local, "push", "-u", "origin", "dtopic")
 	peer := filepath.Join(t.TempDir(), "p2")
 	testutil.RunGitCmd(t, filepath.Dir(local), "clone", remote, peer)
+	configureTestGitIdentity(t, peer)
 	testutil.RunGitCmd(t, peer, "checkout", "dtopic")
 	if err := os.WriteFile(filepath.Join(peer, "r2.txt"), []byte("r\n"), 0o644); err != nil {
 		t.Fatal(err)
