@@ -32,6 +32,7 @@ uat_debug_dump() {
 	fi
 	uat_dbg "pwd=$(pwd)"
 	uat_dbg "binary=$BINARY"
+	uat_dbg "shell=$BASH_VERSION uname=$(uname -a 2>/dev/null || echo '?')"
 	uat_dbg "CI=${CI:-} GITHUB_ACTIONS=${GITHUB_ACTIONS:-} GIT_FIRE_NON_INTERACTIVE=${GIT_FIRE_NON_INTERACTIVE:-}"
 	if [[ -x "$BINARY" ]]; then
 		"$BINARY" --version 2>&1 | while IFS= read -r line; do uat_dbg "git-fire: $line"; done || true
