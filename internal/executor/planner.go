@@ -2,11 +2,13 @@ package executor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-harness/safety"
 )
 
 const fireBranchPlaceholder = "__git_fire_created_branch__"
@@ -57,6 +59,9 @@ func (p *Planner) BuildPlan(repos []git.Repository, dryRun bool) (*PushPlan, err
 		}
 		if repoPlanHasFireCreateAction(repoPlan.Actions) {
 			plan.FireBranches++
+		}
+		if repoPlan.PushKnownFireBackups > 0 {
+			plan.FireBranches += repoPlan.PushKnownFireBackups
 		}
 	}
 
@@ -177,6 +182,22 @@ func (p *Planner) BuildRepoPlanWithOptions(repo git.Repository, opts RepoPlanOpt
 	for _, remote := range repo.Remotes {
 		switch repo.Mode {
 		case git.ModePushKnownBranches:
+			if opts.DetectConflicts && gitDirPresent(repo.Path) {
+				summ, err := summarizePushKnownRemote(repo.Path, remote.Name)
+				if err != nil {
+					// Preview is best-effort: broken remotes or offline hosts should not
+					// abort planning; execution still surfaces push/fetch failures.
+					fmt.Fprintf(os.Stderr, "warning: push-known preview failed for %s (%s): %s\n",
+						repo.Name, remote.Name, safety.SanitizeText(err.Error()))
+				} else {
+					if summ.Diverged > 0 {
+						repoPlan.HasConflict = true
+					}
+					if normalizeConflictStrategy(p.config) != "abort" {
+						repoPlan.PushKnownFireBackups += summ.Diverged
+					}
+				}
+			}
 			repoPlan.Actions = append(repoPlan.Actions, Action{
 				Type:        ActionPushKnown,
 				Description: fmt.Sprintf("Push branches that exist on remote (%s)", remote.Name),
@@ -336,6 +357,8 @@ func (p *PushPlan) Summary() string {
 				summary += fmt.Sprintf("   ⚠️  Conflict: Will create fire branch: %s\n", repo.FireBranch)
 			} else if repoPlanHasFireCreateAction(repo.Actions) {
 				summary += "   ⚠️  Conflict: Will create a fire backup branch at execution time\n"
+			} else if repo.PushKnownFireBackups > 0 {
+				summary += fmt.Sprintf("   ⚠️  Push-known: %d diverged branch(es) will get git-fire-backup pushes\n", repo.PushKnownFireBackups)
 			} else {
 				summary += "   ⚠️  Conflict detected\n"
 			}

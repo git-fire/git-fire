@@ -308,7 +308,7 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 		r.rateLimiter.Acquire(remoteURL)
 		defer r.rateLimiter.Release(remoteURL)
 
-		err = git.PushKnownBranches(repo.Path, action.Remote)
+		err = executePushKnownBranches(repo.Path, action.Remote, normalizeConflictStrategy(r.config))
 
 	case ActionCreateFireBranch:
 		branchForBackup := action.Branch
