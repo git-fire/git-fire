@@ -3,6 +3,7 @@ package cmd
 import (
 	"regexp"
 	"runtime/debug"
+	"strings"
 )
 
 var bareGitHashRe = regexp.MustCompile(`(?i)^[0-9a-f]{7,40}$`)
@@ -20,6 +21,10 @@ func resolvedCLIVersion(linked string) string {
 }
 
 func pickCLIVersion(ldflags, mainMod string) string {
+	// Mis-tuned builds (e.g. empty -X github.com/.../cmd.Version=) must not disable --version.
+	if strings.TrimSpace(ldflags) == "" {
+		ldflags = "dev"
+	}
 	if ldflags != "dev" && !isBareGitHash(ldflags) {
 		return ldflags
 	}

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // Runner executes push plans
@@ -308,7 +308,7 @@ func (r *Runner) executeAction(repo git.Repository, action Action, current, tota
 		r.rateLimiter.Acquire(remoteURL)
 		defer r.rateLimiter.Release(remoteURL)
 
-		err = git.PushKnownBranches(repo.Path, action.Remote)
+		err = executePushKnownBranches(repo.Path, action.Remote, normalizeConflictStrategy(r.config))
 
 	case ActionCreateFireBranch:
 		branchForBackup := action.Branch
@@ -482,7 +482,10 @@ func (r *Runner) ExecuteStream(
 		}
 		sequence++
 
-		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{DetectConflicts: !dryRun})
+		repoPlan, err := planner.BuildRepoPlanWithOptions(repo, RepoPlanOptions{
+			DetectConflicts:  !dryRun,
+			PreviewPushKnown: dryRun,
+		})
 		if err != nil {
 			// Log and skip repos that can't be planned rather than aborting
 			// the whole run — in an emergency, back up as much as possible.

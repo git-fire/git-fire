@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/git-fire/git-fire/internal/safety"
+	"github.com/git-fire/git-harness/safety"
 )
 
 // CommandPlugin executes external commands
