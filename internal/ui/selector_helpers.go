@@ -60,3 +60,36 @@ func selectorGetSelected(repos []git.Repository, selected map[int]bool) []git.Re
 	}
 	return out
 }
+
+// clampListScroll returns a scroll offset that keeps cursor within the rendered
+// item rows, accounting for ↑/↓ indicator lines that consume viewport rows.
+// It iterates to convergence (≤3 passes) because changing the offset can
+// toggle which indicators appear, which in turn changes the item row count.
+func clampListScroll(offset, cursor, visible, total int) int {
+	for range 3 {
+		indicators := 0
+		if offset > 0 {
+			indicators++
+		}
+		if total > offset+visible {
+			indicators++
+		}
+		itemVisible := visible - indicators
+		if itemVisible < 1 {
+			itemVisible = 1
+		}
+		var next int
+		if cursor < offset {
+			next = cursor
+		} else if cursor >= offset+itemVisible {
+			next = cursor - itemVisible + 1
+		} else {
+			next = offset
+		}
+		if next == offset {
+			break
+		}
+		offset = next
+	}
+	return offset
+}
