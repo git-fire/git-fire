@@ -51,9 +51,11 @@ type RepoSelectorLiteModel struct {
 	confirmed        bool
 	reg              *registry.Registry
 	regPath          string
-	lastErr          error
-	windowWidth      int
-	pathScrollOffset int // manual path scroll offset for the focused repo row
+	lastErr               error
+	windowWidth           int
+	windowHeight          int // terminal rows; used for ignored-list viewport in lite mode
+	pathScrollOffset      int  // manual path scroll offset for the focused repo row
+	ignoredScrollOffset   int  // first visible ignored entry when the list is windowed
 }
 
 // NewRepoSelectorLiteModel creates a new lite repo selector
@@ -64,12 +66,13 @@ func NewRepoSelectorLiteModel(repos []git.Repository, reg *registry.Registry, re
 	}
 
 	return RepoSelectorLiteModel{
-		repos:       repos,
-		cursor:      0,
-		selected:    selected,
-		reg:         reg,
-		regPath:     regPath,
-		windowWidth: 80,
+		repos:        repos,
+		cursor:       0,
+		selected:     selected,
+		reg:          reg,
+		regPath:      regPath,
+		windowWidth:  80,
+		windowHeight: 24,
 	}
 }
 
@@ -81,7 +84,13 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
+		if msg.Height > 0 {
+			m.windowHeight = msg.Height
+		}
 		m = m.withClampedPathScroll()
+		if m.view == repoViewIgnored {
+			m = m.syncIgnoredScroll()
+		}
 		return m, nil
 
 	case tea.MouseMsg:
@@ -99,6 +108,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if d > 0 && m.ignoredCursor < len(m.ignoredEntries)-1 {
 					m.ignoredCursor++
 				}
+				m = m.syncIgnoredScroll()
 			} else if len(m.repos) > 0 {
 				if d < 0 && m.cursor > 0 {
 					m.cursor--
@@ -145,10 +155,12 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastErr = nil
 			if m.view == repoViewIgnored {
 				m.view = repoViewMain
+				m.ignoredScrollOffset = 0
 			} else {
 				m.view = repoViewIgnored
 				m.ignoredEntries = IgnoredRegistryEntries(m.reg)
 				m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+				m = m.syncIgnoredScroll()
 			}
 			return m, nil
 
@@ -172,6 +184,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.ignoredCursor > 0 {
 					m.ignoredCursor--
 				}
+				m = m.syncIgnoredScroll()
 			} else if m.cursor > 0 {
 				m.cursor--
 				m = m.withResetPathScroll()
@@ -182,6 +195,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.ignoredCursor < len(m.ignoredEntries)-1 {
 					m.ignoredCursor++
 				}
+				m = m.syncIgnoredScroll()
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
 				m = m.withResetPathScroll()
@@ -192,10 +206,11 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.ignoredEntries) == 0 {
 					return m, nil
 				}
-				step := liteNavPageStep(len(m.ignoredEntries))
+				step := m.liteIgnoredListPageStep()
 				if m.ignoredCursor -= step; m.ignoredCursor < 0 {
 					m.ignoredCursor = 0
 				}
+				m = m.syncIgnoredScroll()
 			} else if len(m.repos) > 0 {
 				step := liteNavPageStep(len(m.repos))
 				if m.cursor -= step; m.cursor < 0 {
@@ -209,11 +224,12 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.ignoredEntries) == 0 {
 					return m, nil
 				}
-				step := liteNavPageStep(len(m.ignoredEntries))
+				step := m.liteIgnoredListPageStep()
 				last := len(m.ignoredEntries) - 1
 				if m.ignoredCursor += step; m.ignoredCursor > last {
 					m.ignoredCursor = last
 				}
+				m = m.syncIgnoredScroll()
 			} else if len(m.repos) > 0 {
 				step := liteNavPageStep(len(m.repos))
 				last := len(m.repos) - 1
@@ -229,6 +245,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.ignoredCursor = 0
+				m = m.syncIgnoredScroll()
 			} else if len(m.repos) > 0 {
 				m.cursor = 0
 				m = m.withResetPathScroll()
@@ -240,6 +257,7 @@ func (m RepoSelectorLiteModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.ignoredCursor = len(m.ignoredEntries) - 1
+				m = m.syncIgnoredScroll()
 			} else if len(m.repos) > 0 {
 				m.cursor = len(m.repos) - 1
 				m = m.withResetPathScroll()
@@ -442,19 +460,81 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 		s.WriteString(liteUnselectedStyle.Render("No ignored repositories."))
 		s.WriteString("\n")
 	} else {
-		for i, e := range m.ignoredEntries {
-			cursor := " "
-			if m.ignoredCursor == i {
-				cursor = ">"
+		cw := m.windowWidth - 6
+		if cw < 0 {
+			cw = 0
+		}
+		visible := m.liteIgnoredListVisibleCount()
+		scrollOffset := clampListScroll(m.ignoredScrollOffset, m.ignoredCursor, visible, len(m.ignoredEntries))
+
+		hasAbove := scrollOffset > 0
+		hasBelow := len(m.ignoredEntries) > scrollOffset+visible
+		indicators := 0
+		if hasAbove {
+			indicators++
+		}
+		if hasBelow {
+			indicators++
+		}
+
+		maxPathCols := cw - 4
+		if maxPathCols < 0 {
+			maxPathCols = 0
+		}
+
+		itemVisible := visible - indicators
+		hadHiddenRows := hasAbove || hasBelow
+		indicatorsSuppressed := false
+		viewportWarning := "  ⚠ More ignored repos exist, but ↑/↓ indicators are hidden in this terminal size."
+		warningRows := viewportWarningRows(cw, viewportWarning)
+		if itemVisible < 1 {
+			hasAbove = false
+			hasBelow = false
+			itemVisible = visible
+			if hadHiddenRows && visible-warningRows >= 1 {
+				indicatorsSuppressed = true
+				itemVisible = visible - warningRows
 			}
-			fmt.Fprintf(&s, "%s %s\n", cursor, AbbreviateUserHome(e.Path))
+			if itemVisible < 1 {
+				itemVisible = 1
+			}
+		}
+		end := scrollOffset + itemVisible
+		if end > len(m.ignoredEntries) {
+			end = len(m.ignoredEntries)
+		}
+
+		if hasAbove {
+			s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↑ %d more", scrollOffset)))
+			s.WriteString("\n")
+		}
+
+		for i := scrollOffset; i < end; i++ {
+			e := m.ignoredEntries[i]
+			cur := " "
+			if m.ignoredCursor == i {
+				cur = ">"
+			}
+			displayPath := AbbreviateUserHome(e.Path)
+			if maxPathCols == 0 {
+				displayPath = ""
+			} else if len([]rune(displayPath)) > maxPathCols {
+				displayPath = string([]rune(displayPath)[:maxPathCols-1]) + "…"
+			}
+			fmt.Fprintf(&s, "%s %s\n", cur, displayPath)
+		}
+
+		if hasBelow {
+			below := len(m.ignoredEntries) - end
+			s.WriteString(unselectedStyle.Render(fmt.Sprintf("  ↓ %d more", below)))
+			s.WriteString("\n")
+		}
+		if indicatorsSuppressed {
+			s.WriteString(viewportWarningStyle.Render(viewportWarning))
+			s.WriteString("\n")
 		}
 	}
-	help := liteHelpStyle.Render(
-		"\n" +
-			"Excluded from backup. Restore with enter or u.\n" +
-			"↑/k ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n",
-	)
+	help := liteHelpStyle.Render(liteIgnoredViewHelpText())
 	s.WriteString(help)
 	if m.lastErr != nil {
 		fmt.Fprintf(&s, "\n\n⚠️  %v", m.lastErr)
@@ -505,6 +585,58 @@ func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteMode
 	}
 	m.ignoredEntries = IgnoredRegistryEntries(m.reg)
 	m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+	m = m.syncIgnoredScroll()
+	return m
+}
+
+// liteIgnoredViewHelpText matches viewIgnoredLite help (used for height measurement).
+func liteIgnoredViewHelpText() string {
+	return "\n" +
+		"Excluded from backup. Restore with enter or u.\n" +
+		"↑/k ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back  |  q  Quit\n"
+}
+
+// liteIgnoredViewNonListHeight is the boxed vertical size of the lite ignored view
+// without list rows, so list viewport matches the real View when the terminal wraps help text.
+func (m RepoSelectorLiteModel) liteIgnoredViewNonListHeight() int {
+	innerW := m.windowWidth - 6
+	if innerW < 0 {
+		innerW = 0
+	}
+	var buf strings.Builder
+	buf.WriteString(liteTitleStyle.Render("🔥 IGNORED REPOSITORIES (NOT TRACKED)"))
+	buf.WriteString("\n\n")
+	buf.WriteString(liteHelpStyle.Render(liteIgnoredViewHelpText()))
+	if m.lastErr != nil {
+		fmt.Fprintf(&buf, "\n\n⚠️  %v", m.lastErr)
+	}
+	return lipgloss.Height(liteBoxStyle.Width(innerW).Render(buf.String()))
+}
+
+func (m RepoSelectorLiteModel) liteIgnoredListVisibleCount() int {
+	overhead := m.liteIgnoredViewNonListHeight()
+	n := m.windowHeight - overhead
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+func (m RepoSelectorLiteModel) liteIgnoredListPageStep() int {
+	v := m.liteIgnoredListVisibleCount()
+	if v <= 2 {
+		return 1
+	}
+	return v - 2
+}
+
+func (m RepoSelectorLiteModel) syncIgnoredScroll() RepoSelectorLiteModel {
+	if len(m.ignoredEntries) == 0 {
+		m.ignoredScrollOffset = 0
+		return m
+	}
+	vis := m.liteIgnoredListVisibleCount()
+	m.ignoredScrollOffset = clampListScroll(m.ignoredScrollOffset, m.ignoredCursor, vis, len(m.ignoredEntries))
 	return m
 }
 
