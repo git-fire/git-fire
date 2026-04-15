@@ -24,7 +24,10 @@ type RepoPlan struct {
 	Actions     []Action
 	HasConflict bool
 	FireBranch  string // New branch name if conflict detected
-	Skip        bool   // Skip this repo
+	// PushKnownFireBackups counts diverged known branches that will receive
+	// git-fire-backup-* pushes when conflict_strategy is new-branch (planning only).
+	PushKnownFireBackups int
+	Skip        bool // Skip this repo
 	SkipReason  string
 }
 
