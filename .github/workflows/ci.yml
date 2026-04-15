@@ -20,7 +20,9 @@ jobs:
           cache: false
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.11.4
+          # golangci-lint v2.9+ declares go 1.25 in its module; pin to a v2
+          # release that still supports the repo's go 1.24.x (go-version-file).
+          version: v2.8.0
           args: --timeout=5m
 
   test:
