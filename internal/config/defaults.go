@@ -26,6 +26,7 @@ func DefaultConfig() Config {
 			StartupQuoteIntervalSec: DefaultUIStartupQuoteIntervalSec,
 			FireTickMS:              DefaultUIFireTickMS,
 			ColorProfile:            UIColorProfileClassic,
+			CustomFireColors:        DefaultCustomFireColors(),
 		},
 		Global: GlobalConfig{
 			DefaultMode:      "push-known-branches",
@@ -141,8 +142,13 @@ startup_quote_interval_sec = 10
 fire_tick_ms = 180
 
 # Built-in color profile for fire + borders/accents in the TUI.
-# Options: "classic", "synthwave", "forest", "arctic"
+# Options: "classic", "synthwave", "forest", "arctic", "custom"
 color_profile = "classic"
+
+# Custom fire palette used when color_profile = "custom".
+# Any length >=1 works; 6-10 colors gives smoother gradients.
+# Each color supports #RRGGBB or #RGB (normalized on load).
+custom_fire_colors = ["#ff0000", "#ff4500", "#ff6600", "#ff8c00", "#ffa500", "#ffb700", "#ffd700", "#ffff00"]
 
 [backup]
 # Backup mode: Push to a different remote (creates repos automatically)

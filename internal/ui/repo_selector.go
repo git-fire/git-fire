@@ -46,7 +46,7 @@ var (
 )
 
 func init() {
-	applyColorProfile(config.UIColorProfileClassic)
+	applyColorProfile(config.UIColorProfileClassic, nil)
 }
 
 // ASCII fire frames for animation
@@ -171,7 +171,7 @@ type RepoSelectorModel struct {
 	scanDisabledRunOnly bool   // true when disabled by --no-scan flag (not persisted config)
 	scanCurrentPath     string // latest folder the scanner is visiting
 	// Streaming scan: repos shown in the TUI list (after registry upsert).
-	scanNewRegistryCount int // first-time registry entries this session
+	scanNewRegistryCount   int // first-time registry entries this session
 	scanKnownRegistryCount int // paths already in registry before upsert
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
@@ -195,7 +195,7 @@ type RepoSelectorModel struct {
 
 // NewRepoSelectorModel creates a new repo selector
 func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath string) RepoSelectorModel {
-	applyColorProfile(config.UIColorProfileClassic)
+	applyColorProfile(config.UIColorProfileClassic, nil)
 	// Initialize all repos as selected by default
 	selected := make(map[int]bool)
 	for i := range repos {
@@ -249,7 +249,11 @@ func NewRepoSelectorModelStream(
 	if cfg != nil && cfg.UI.ColorProfile != "" {
 		profileName = cfg.UI.ColorProfile
 	}
-	applyColorProfile(profileName)
+	customPalette := []string(nil)
+	if cfg != nil {
+		customPalette = cfg.UI.CustomFireColors
+	}
+	applyColorProfile(profileName, customPalette)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot

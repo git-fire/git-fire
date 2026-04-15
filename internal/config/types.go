@@ -120,8 +120,12 @@ type UIConfig struct {
 	FireTickMS int `mapstructure:"fire_tick_ms" toml:"fire_tick_ms"`
 
 	// Color profile for fire and TUI accents.
-	// Options: "classic", "synthwave", "forest", "arctic".
+	// Options: "classic", "synthwave", "forest", "arctic", "custom".
 	ColorProfile string `mapstructure:"color_profile" toml:"color_profile"`
+
+	// Custom fire colors used when color_profile = "custom".
+	// Accepts hex values like "#ff6600" (or short form "#f60").
+	CustomFireColors []string `mapstructure:"custom_fire_colors" toml:"custom_fire_colors"`
 }
 
 const (
@@ -129,6 +133,7 @@ const (
 	UIColorProfileSynthwave = "synthwave"
 	UIColorProfileForest    = "forest"
 	UIColorProfileArctic    = "arctic"
+	UIColorProfileCustom    = "custom"
 
 	UIQuoteBehaviorRefresh = "refresh"
 	UIQuoteBehaviorHide    = "hide"
@@ -141,6 +146,7 @@ func UIColorProfiles() []string {
 		UIColorProfileSynthwave,
 		UIColorProfileForest,
 		UIColorProfileArctic,
+		UIColorProfileCustom,
 	}
 }
 

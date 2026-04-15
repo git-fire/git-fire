@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
 )
 
@@ -240,15 +241,57 @@ func TestRenderFireWave_DifferentFrames(t *testing.T) {
 
 func TestRenderFireWave_UsesActiveColorProfile(t *testing.T) {
 	prevProfile := activeProfileName
-	defer applyColorProfile(prevProfile)
+	defer applyColorProfile(prevProfile, nil)
 
-	applyColorProfile(config.UIColorProfileClassic)
+	applyColorProfile(config.UIColorProfileClassic, nil)
 	classicFirst := activeFireColors[0]
 
-	applyColorProfile(config.UIColorProfileSynthwave)
+	applyColorProfile(config.UIColorProfileSynthwave, nil)
 	synthwaveFirst := activeFireColors[0]
 
 	if classicFirst == synthwaveFirst {
 		t.Error("expected different active fire colors between classic and synthwave profiles")
+	}
+}
+
+func TestRenderFireWave_UsesCustomPaletteWhenSelected(t *testing.T) {
+	prevProfile := activeProfileName
+	prevColors := append([]lipgloss.Color(nil), activeFireColors...)
+	defer func() {
+		activeProfileName = prevProfile
+		activeFireColors = prevColors
+		applyColorProfile(prevProfile, nil)
+	}()
+
+	applyColorProfile(config.UIColorProfileCustom, []string{"#112233", "#445566"})
+	if activeProfileName != config.UIColorProfileCustom {
+		t.Fatalf("activeProfileName = %q, want %q", activeProfileName, config.UIColorProfileCustom)
+	}
+	if len(activeFireColors) != 2 {
+		t.Fatalf("len(activeFireColors) = %d, want 2", len(activeFireColors))
+	}
+	if activeFireColors[0] != lipgloss.Color("#112233") || activeFireColors[1] != lipgloss.Color("#445566") {
+		t.Fatalf("activeFireColors = %v, want [#112233 #445566]", activeFireColors)
+	}
+}
+
+func TestRenderFireWave_CustomPaletteFallbacksToClassic(t *testing.T) {
+	prevProfile := activeProfileName
+	prevColors := append([]lipgloss.Color(nil), activeFireColors...)
+	defer func() {
+		activeProfileName = prevProfile
+		activeFireColors = prevColors
+		applyColorProfile(prevProfile, nil)
+	}()
+
+	applyColorProfile(config.UIColorProfileClassic, nil)
+	classicFirst := activeFireColors[0]
+
+	applyColorProfile(config.UIColorProfileCustom, []string{"not-hex"})
+	if len(activeFireColors) == 0 {
+		t.Fatal("expected fallback palette to be non-empty")
+	}
+	if activeFireColors[0] != classicFirst {
+		t.Fatalf("fallback first color = %q, want classic first color %q", activeFireColors[0], classicFirst)
 	}
 }

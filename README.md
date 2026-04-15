@@ -312,6 +312,7 @@ You can reskin both the fire effect and border/accent colors in `git-fire --fire
 | `synthwave` | 80s neon purple/pink/cyan |
 | `forest` | Green ember palette |
 | `arctic` | Cool cyan/ice palette |
+| `custom` | Your own hex palette from config |
 
 | Method | How |
 |--------|-----|
@@ -324,7 +325,15 @@ show_fire_animation = true
 color_profile = "synthwave"
 ```
 
-Custom hex palettes are planned but not enabled yet.
+You can also set a custom palette in `config.toml`:
+
+```toml
+[ui]
+color_profile = "custom"
+custom_fire_colors = ["#ff0000", "#ff6600", "#ffd700", "#ffff00"]
+```
+
+`custom_fire_colors` accepts `#RRGGBB` and `#RGB` values (normalized on load).
 
 ## Release Roadmap
 
