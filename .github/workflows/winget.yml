@@ -39,6 +39,10 @@ jobs:
             throw "Missing WINGET_PAT secret. Configure it in repo secrets before publishing WinGet manifests."
           }
 
+      # fork-user defaults to repository_owner; for org-owned repos, that is the org (e.g. git-fire),
+      # while WINGET_PAT is often a maintainer's personal classic PAT. Komac then tries to CreateRef on
+      # org/winget-pkgs and fails. Set repo/org Actions variable WINGET_FORK_USER to the GitHub login
+      # that owns both the microsoft/winget-pkgs fork and the PAT.
       - name: Publish to WinGet
         uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e # v2
         with:
@@ -46,3 +50,4 @@ jobs:
           release-tag: ${{ steps.meta.outputs.release_tag }}
           installers-regex: '_windows_(amd64|arm64|386)\.zip$'
           token: ${{ env.WINGET_PAT }}
+          fork-user: ${{ vars.WINGET_FORK_USER || github.repository_owner }}
