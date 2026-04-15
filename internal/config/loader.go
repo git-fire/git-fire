@@ -173,6 +173,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ui.startup_quote_behavior", defaults.UI.StartupQuoteBehavior)
 	v.SetDefault("ui.startup_quote_interval_sec", defaults.UI.StartupQuoteIntervalSec)
 	v.SetDefault("ui.fire_tick_ms", defaults.UI.FireTickMS)
+	v.SetDefault("ui.fire_animation_style", defaults.UI.FireAnimationStyle)
 	v.SetDefault("ui.color_profile", defaults.UI.ColorProfile)
 }
 
@@ -217,6 +218,18 @@ func (c *Config) Validate() error {
 	}
 	if !validProfiles[c.UI.ColorProfile] {
 		return fmt.Errorf("invalid ui.color_profile: %s (must be one of %s)", c.UI.ColorProfile, strings.Join(UIColorProfiles(), ", "))
+	}
+
+	// Validate/normalize fire animation style.
+	if c.UI.FireAnimationStyle == "" {
+		c.UI.FireAnimationStyle = UIFireAnimationStyleClassic
+	}
+	validFireStyles := map[string]bool{}
+	for _, name := range UIFireAnimationStyles() {
+		validFireStyles[name] = true
+	}
+	if !validFireStyles[c.UI.FireAnimationStyle] {
+		return fmt.Errorf("invalid ui.fire_animation_style: %s (must be one of %s)", c.UI.FireAnimationStyle, strings.Join(UIFireAnimationStyles(), ", "))
 	}
 
 	// Validate/normalize startup quote behavior.

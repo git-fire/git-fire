@@ -119,6 +119,10 @@ type UIConfig struct {
 	// Lower values animate faster but can increase terminal CPU usage.
 	FireTickMS int `mapstructure:"fire_tick_ms" toml:"fire_tick_ms"`
 
+	// Built-in fire animation style for the TUI background.
+	// Options: "classic", "ember-storm", "torch".
+	FireAnimationStyle string `mapstructure:"fire_animation_style" toml:"fire_animation_style"`
+
 	// Color profile for fire and TUI accents.
 	// Options: "classic", "synthwave", "forest", "arctic".
 	ColorProfile string `mapstructure:"color_profile" toml:"color_profile"`
@@ -129,6 +133,10 @@ const (
 	UIColorProfileSynthwave = "synthwave"
 	UIColorProfileForest    = "forest"
 	UIColorProfileArctic    = "arctic"
+
+	UIFireAnimationStyleClassic    = "classic"
+	UIFireAnimationStyleEmberStorm = "ember-storm"
+	UIFireAnimationStyleTorch      = "torch"
 
 	UIQuoteBehaviorRefresh = "refresh"
 	UIQuoteBehaviorHide    = "hide"
@@ -141,6 +149,15 @@ func UIColorProfiles() []string {
 		UIColorProfileSynthwave,
 		UIColorProfileForest,
 		UIColorProfileArctic,
+	}
+}
+
+// UIFireAnimationStyles returns valid built-in fire animation style names.
+func UIFireAnimationStyles() []string {
+	return []string{
+		UIFireAnimationStyleClassic,
+		UIFireAnimationStyleEmberStorm,
+		UIFireAnimationStyleTorch,
 	}
 }
 

@@ -171,12 +171,13 @@ type RepoSelectorModel struct {
 	scanDisabledRunOnly bool   // true when disabled by --no-scan flag (not persisted config)
 	scanCurrentPath     string // latest folder the scanner is visiting
 	// Streaming scan: repos shown in the TUI list (after registry upsert).
-	scanNewRegistryCount int // first-time registry entries this session
+	scanNewRegistryCount   int // first-time registry entries this session
 	scanKnownRegistryCount int // paths already in registry before upsert
 
 	// Fire animation toggle (loaded from cfg.UI.ShowFireAnimation; persisted on 'f')
-	showFire bool
-	fireTick time.Duration
+	showFire           bool
+	fireTick           time.Duration
+	fireAnimationStyle string
 
 	// Flavor quote banner in TUI (Settings: "Show flavor quotes").
 	showStartupQuote     bool
@@ -208,7 +209,8 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
 	// Initialize fire background
-	fireBg := NewFireBackground(70, 5)
+	fireAnimationStyle := config.UIFireAnimationStyleClassic
+	fireBg := NewFireBackgroundWithStyle(70, 5, fireAnimationStyle)
 
 	return RepoSelectorModel{
 		repos:                repos,
@@ -223,6 +225,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		pathScrollDir:        1,
 		showFire:             true,
 		fireTick:             time.Duration(config.DefaultUIFireTickMS) * time.Millisecond,
+		fireAnimationStyle:   fireAnimationStyle,
 		showStartupQuote:     true,
 		startupQuoteBehavior: config.UIQuoteBehaviorRefresh,
 		startupQuoteInterval: time.Duration(config.DefaultUIStartupQuoteIntervalSec) * time.Second,
@@ -255,10 +258,9 @@ func NewRepoSelectorModelStream(
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(activeProfile().boxBorder)
 
-	fireBg := NewFireBackground(70, 5)
-
 	showFire := true
 	fireTickMS := config.DefaultUIFireTickMS
+	fireAnimationStyle := config.UIFireAnimationStyleClassic
 	showStartupQuote := true
 	startupQuoteBehavior := config.UIQuoteBehaviorRefresh
 	startupQuoteIntervalSec := config.DefaultUIStartupQuoteIntervalSec
@@ -266,6 +268,9 @@ func NewRepoSelectorModelStream(
 		showFire = cfg.UI.ShowFireAnimation
 		if cfg.UI.FireTickMS > 0 {
 			fireTickMS = cfg.UI.FireTickMS
+		}
+		if cfg.UI.FireAnimationStyle != "" {
+			fireAnimationStyle = cfg.UI.FireAnimationStyle
 		}
 		showStartupQuote = cfg.UI.ShowStartupQuote
 		if cfg.UI.StartupQuoteBehavior != "" {
@@ -275,6 +280,7 @@ func NewRepoSelectorModelStream(
 			startupQuoteIntervalSec = cfg.UI.StartupQuoteIntervalSec
 		}
 	}
+	fireBg := NewFireBackgroundWithStyle(70, 5, fireAnimationStyle)
 
 	return RepoSelectorModel{
 		repos:                nil,
@@ -296,6 +302,7 @@ func NewRepoSelectorModelStream(
 		cfgPath:              cfgPath,
 		showFire:             showFire,
 		fireTick:             time.Duration(fireTickMS) * time.Millisecond,
+		fireAnimationStyle:   fireAnimationStyle,
 		showStartupQuote:     showStartupQuote,
 		startupQuoteBehavior: startupQuoteBehavior,
 		startupQuoteInterval: time.Duration(startupQuoteIntervalSec) * time.Second,
@@ -356,7 +363,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
 		m.windowHeight = msg.Height
-		m.fireBg = NewFireBackground(min(msg.Width-4, 70), 5)
+		m.fireBg = NewFireBackgroundWithStyle(min(msg.Width-4, 70), 5, m.fireAnimationStyle)
 		m = m.withClampedPathScroll()
 		// Re-clamp scroll offsets for new height
 		m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
@@ -563,6 +570,17 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m = m.saveConfig()
 				}
 			}
+		case "t":
+			if m.view == repoViewMain {
+				m.fireAnimationStyle = nextFireAnimationStyle(m.fireAnimationStyle)
+				if m.fireBg != nil {
+					m.fireBg.SetStyle(m.fireAnimationStyle)
+				}
+				if m.cfg != nil {
+					m.cfg.UI.FireAnimationStyle = m.fireAnimationStyle
+					m = m.saveConfig()
+				}
+			}
 		}
 	}
 
@@ -574,6 +592,19 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func nextFireAnimationStyle(current string) string {
+	styles := config.UIFireAnimationStyles()
+	if len(styles) == 0 {
+		return config.UIFireAnimationStyleClassic
+	}
+	for i, style := range styles {
+		if style == current {
+			return styles[(i+1)%len(styles)]
+		}
+	}
+	return styles[0]
 }
 
 // fireHeightThreshold is the minimum terminal height required to show the fire
@@ -726,7 +757,7 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire  |  t  Cycle fire style\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
@@ -929,7 +960,7 @@ func (m RepoSelectorModel) View() string {
 	if m.fireVisible() {
 		s.WriteString(m.fireBg.Render())
 		s.WriteString("\n")
-		s.WriteString(RenderFireWave(fireW, m.frameIndex))
+		s.WriteString(RenderFireWaveStyled(fireW, m.frameIndex, m.fireAnimationStyle))
 		s.WriteString("\n\n")
 	}
 
@@ -1075,7 +1106,7 @@ func (m RepoSelectorModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire  |  t  Cycle fire style\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
@@ -1152,7 +1183,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 	if m.fireVisible() {
 		s.WriteString(m.fireBg.Render())
 		s.WriteString("\n")
-		s.WriteString(RenderFireWave(fireW, m.frameIndex))
+		s.WriteString(RenderFireWaveStyled(fireW, m.frameIndex, m.fireAnimationStyle))
 		s.WriteString("\n\n")
 	}
 

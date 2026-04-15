@@ -35,6 +35,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UI.ColorProfile != UIColorProfileClassic {
 		t.Errorf("Expected ui.color_profile to be %q, got %q", UIColorProfileClassic, cfg.UI.ColorProfile)
 	}
+	if cfg.UI.FireAnimationStyle != UIFireAnimationStyleClassic {
+		t.Errorf("Expected ui.fire_animation_style to be %q, got %q", UIFireAnimationStyleClassic, cfg.UI.FireAnimationStyle)
+	}
 	if cfg.UI.FireTickMS != DefaultUIFireTickMS {
 		t.Errorf("Expected ui.fire_tick_ms to be %d, got %d", DefaultUIFireTickMS, cfg.UI.FireTickMS)
 	}
@@ -206,6 +209,20 @@ func TestValidate(t *testing.T) {
 				},
 				UI: UIConfig{
 					ColorProfile: "not-a-profile",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid ui fire animation style",
+			cfg: Config{
+				Global: GlobalConfig{
+					DefaultMode:      "push-all",
+					ConflictStrategy: "new-branch",
+				},
+				UI: UIConfig{
+					ColorProfile:       UIColorProfileClassic,
+					FireAnimationStyle: "not-a-fire-style",
 				},
 			},
 			wantErr: true,
@@ -542,6 +559,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.ConflictStrategy = "abort"
 	original.Global.PushWorkers = 7
 	original.UI.FireTickMS = 150
+	original.UI.FireAnimationStyle = UIFireAnimationStyleTorch
 	original.UI.ColorProfile = UIColorProfileSynthwave
 
 	loaded := saveConfigAndReload(t, &original)
@@ -566,6 +584,9 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.UI.FireTickMS != 150 {
 		t.Errorf("UIFireTickMS: want 150, got %d", loaded.UI.FireTickMS)
+	}
+	if loaded.UI.FireAnimationStyle != UIFireAnimationStyleTorch {
+		t.Errorf("UIFireAnimationStyle: want %s, got %s", UIFireAnimationStyleTorch, loaded.UI.FireAnimationStyle)
 	}
 }
 
