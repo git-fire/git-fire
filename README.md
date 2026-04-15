@@ -53,6 +53,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
   - [TUI color profiles](#tui-color-profiles)
 - [Release Roadmap](#release-roadmap)
 - [Documentation](#documentation)
+- [git-harness](#git-harness)
 - [Security Notes](#security-notes)
 - [Security Policy](#security-policy)
 - [Contributing](#contributing)
@@ -353,6 +354,17 @@ Start with [docs/README.md](docs/README.md).
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## git-harness
+
+`git-fire` builds on [`git-harness`](https://github.com/git-fire/git-harness), a small Go library of shared primitives (version pinned in [`go.mod`](go.mod); currently `v0.2.0`). Like `git-fire`, it shells out to the system `git` binary rather than embedding a pure-Go Git implementation.
+
+| Import path | Role in `git-fire` |
+|-------------|-------------------|
+| [`github.com/git-fire/git-harness/git`](https://pkg.go.dev/github.com/git-fire/git-harness/git) | Repository discovery and scan helpers, plus git operations (branches, commits, push orchestration) consumed by the CLI, executor, TUI, and demos. |
+| [`github.com/git-fire/git-harness/safety`](https://pkg.go.dev/github.com/git-fire/git-harness/safety) | Secret detection (patterns and filename heuristics) and sanitization helpers used when logging errors and running plugin commands. |
+
+Registry loading, planning, rate-limited execution, plugins, Bubble Tea UI, and user config remain in this repository. If you change behavior at the “how we invoke git” or “what counts as a secret warning” layer, the fix may belong in `git-harness` with a version bump here—see [CONTRIBUTING.md](CONTRIBUTING.md) and open an issue if you are unsure.
+
 ## Security Notes
 
 Before running broad backups:
@@ -372,7 +384,7 @@ Contributions are welcome — and genuinely wanted. See [CONTRIBUTING.md](CONTRI
 
 Your feedback, feature requests, and ideas matter here. No idea is too small or too ambitious to discuss. If you're thinking about forking to add something, open an issue first. The goal is a tool the community actually relies on, and I'd rather build it with you than have it fragment.
 
-Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API. Python and Java interfaces in development.
+Runtime git and safety behavior is shared with [git-harness](#git-harness) above. Tests use [git-testkit](https://github.com/git-fire/git-testkit) (`v0.2.0`) for building git repository fixtures and complex multi-repo scenarios programmatically — a companion library released alongside git-fire with a simple, extensible test API. Python and Java interfaces in development.
 
 ## License
 
