@@ -158,7 +158,7 @@ func executePushKnownBranches(repoPath, remote, conflictStrategy string) error {
 		case knownBranchEqual:
 			continue
 		case knownBranchBehindRemote:
-			fmt.Fprintf(os.Stderr, "warning: branch '%s' is behind %s/%s — skipping push (remote already has your local commits)\n", branch, remote, branch)
+			fmt.Fprintf(os.Stderr, "warning: branch '%s' is behind %s/%s — skipping push (remote is ahead of local; a fetch is needed before this branch can be pushed)\n", branch, remote, branch)
 			continue
 		case knownBranchAheadFastForward:
 			if err := git.PushBranch(repoPath, remote, branch); err != nil {
