@@ -501,6 +501,12 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 
 	userCfgDir, _ := config.UserGitFireDir()
 	var logger *executor.Logger
+	var logSetupErr error
+	logger, logSetupErr = executor.NewLogger(executor.DefaultLogDir())
+	if logSetupErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to setup logger: %s\n", safety.SanitizeText(logSetupErr.Error()))
+		logger = nil
+	}
 	defer func() {
 		if logger != nil {
 			_ = logger.Close()
@@ -542,13 +548,6 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if len(selected) == 0 {
 		fmt.Println("No repositories selected.")
 		return errRunNoop
-	}
-
-	var logSetupErr error
-	logger, logSetupErr = executor.NewLogger(executor.DefaultLogDir())
-	if logSetupErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to setup logger: %s\n", safety.SanitizeText(logSetupErr.Error()))
-		logger = nil
 	}
 
 	if scanErr != nil {
