@@ -198,7 +198,7 @@ type RepoSelectorModel struct {
 	showLogPanel  bool
 	statusLine    string
 	statusIcon    string
-	logEntries    []executor.LogEntry
+	logBuffer     *executor.EventBuffer
 	logExportPath string
 }
 
@@ -240,6 +240,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		quoteTickActive:      true,
 		statusLine:           "selector ready",
 		statusIcon:           "ℹ️",
+		logBuffer:            executor.NewEventBuffer(200),
 	}
 }
 
@@ -315,6 +316,7 @@ func NewRepoSelectorModelStream(
 		quoteTickActive:      showStartupQuote && startupQuoteIntervalSec > 0,
 		statusLine:           "scan starting",
 		statusIcon:           "🔍",
+		logBuffer:            executor.NewEventBuffer(200),
 	}
 }
 
@@ -341,10 +343,7 @@ func (m *RepoSelectorModel) recordStatus(level, action, description string) {
 	}
 	m.statusIcon = statusGlyph(entry)
 	m.statusLine = description
-	m.logEntries = append(m.logEntries, entry)
-	if len(m.logEntries) > 200 {
-		m.logEntries = m.logEntries[len(m.logEntries)-200:]
-	}
+	m.logBuffer.Append(entry)
 	if m.logger != nil {
 		_ = m.logger.Log(entry)
 	}
@@ -536,7 +535,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case "e":
-			path, err := exportLogEntriesText(m.logEntries)
+			path, err := exportLogEntriesText(m.logBuffer.Snapshot())
 			if err != nil {
 				m.recordStatus("error", "log-export-failed", err.Error())
 			} else {
@@ -867,6 +866,67 @@ func clampSelectorCursor(cursor, n int) int {
 	return cursor
 }
 
+// renderMainViewFooter is everything in the main View after the scrollable repo
+// list: help, status strip, optional log panel, and streaming scan-status.
+// repoListVisibleCount measures this string so lipgloss overhead matches View().
+func (m RepoSelectorModel) renderMainViewFooter() string {
+	configHint := ""
+	if m.cfg != nil {
+		configHint = "  c  Settings  |  "
+	}
+	var b strings.Builder
+	help := helpStyle.Render(
+		"\n" +
+			"Controls:\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire  |  l  Toggle log panel  |  e  Export logs\n" +
+			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
+			"Icons:\n" +
+			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
+			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
+	)
+	b.WriteString(help)
+
+	statusStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(activeProfile().scanBorder).
+		Padding(0, 1)
+	statusLine := fmt.Sprintf("%s %s", m.statusIcon, m.statusLine)
+	if m.logExportPath != "" {
+		statusLine += fmt.Sprintf("  |  last export: %s", m.logExportPath)
+	}
+	b.WriteString("\n")
+	b.WriteString(statusStyle.Render(statusLine))
+
+	if m.showLogPanel {
+		snapshot := m.logBuffer.Snapshot()
+		start := 0
+		if len(snapshot) > 8 {
+			start = len(snapshot) - 8
+		}
+		lines := make([]string, 0, len(snapshot)-start)
+		for _, entry := range snapshot[start:] {
+			lines = append(lines, fmt.Sprintf("%s [%s] %s", entry.Timestamp.Format("15:04:05"), entry.Level, entry.Description))
+		}
+		panel := strings.Join(lines, "\n")
+		if panel == "" {
+			panel = "(no events yet)"
+		}
+		logPanelStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(activeProfile().scanBorder).
+			Padding(0, 1)
+		b.WriteString("\n")
+		b.WriteString(logPanelStyle.Render(panel))
+	}
+
+	if m.scanChan != nil || m.scanDisabled {
+		b.WriteString("\n")
+		b.WriteString(m.renderScanStatus())
+	}
+	return b.String()
+}
+
 // repoListVisibleCount returns how many repo lines can be shown given the current
 // window height. The repo list is the flex element: it absorbs all spare vertical
 // space but is always at least 1 line tall.
@@ -898,24 +958,7 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		buf.WriteString(m.renderStartupQuote())
 		buf.WriteString("\n\n")
 	}
-	configHint := ""
-	if m.cfg != nil {
-		configHint = "  c  Settings  |  "
-	}
-	buf.WriteString(helpStyle.Render(
-		"\n" +
-			"Controls:\n" +
-			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
-			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
-			"Icons:\n" +
-			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
-			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
-	))
-	if m.scanChan != nil || m.scanDisabled {
-		buf.WriteString("\n")
-		buf.WriteString(m.renderScanStatus())
-	}
+	buf.WriteString(m.renderMainViewFooter())
 
 	overhead := lipgloss.Height(boxStyle.Width(innerW).Render(buf.String()))
 	n := m.windowHeight - overhead
@@ -1264,60 +1307,7 @@ func (m RepoSelectorModel) View() string {
 		s.WriteString("\n")
 	}
 
-	// Help text
-	configHint := ""
-	if m.cfg != nil {
-		configHint = "  c  Settings  |  "
-	}
-	help := helpStyle.Render(
-		"\n" +
-			"Controls:\n" +
-			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire  |  l  Toggle log panel  |  e  Export logs\n" +
-			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
-			"Icons:\n" +
-			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
-			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
-	)
-	s.WriteString(help)
-
-	statusStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(activeProfile().scanBorder).
-		Padding(0, 1)
-	statusLine := fmt.Sprintf("%s %s", m.statusIcon, m.statusLine)
-	if m.logExportPath != "" {
-		statusLine += fmt.Sprintf("  |  last export: %s", m.logExportPath)
-	}
-	s.WriteString("\n")
-	s.WriteString(statusStyle.Render(statusLine))
-
-	if m.showLogPanel {
-		start := 0
-		if len(m.logEntries) > 8 {
-			start = len(m.logEntries) - 8
-		}
-		lines := make([]string, 0, len(m.logEntries)-start)
-		for _, entry := range m.logEntries[start:] {
-			lines = append(lines, fmt.Sprintf("%s [%s] %s", entry.Timestamp.Format("15:04:05"), entry.Level, entry.Description))
-		}
-		panel := strings.Join(lines, "\n")
-		if panel == "" {
-			panel = "(no events yet)"
-		}
-		logPanelStyle := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(activeProfile().scanBorder).
-			Padding(0, 1)
-		s.WriteString("\n")
-		s.WriteString(logPanelStyle.Render(panel))
-	}
-
-	// Scan-status panel (only in streaming mode)
-	if m.scanChan != nil || m.scanDisabled {
-		s.WriteString("\n")
-		s.WriteString(m.renderScanStatus())
-	}
+	s.WriteString(m.renderMainViewFooter())
 
 	// Wrap in a box sized to the terminal width
 	innerW := m.windowWidth - 6 // border(2) + padding(4)
