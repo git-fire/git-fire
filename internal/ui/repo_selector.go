@@ -526,6 +526,9 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case "l":
+			if m.view != repoViewMain {
+				break
+			}
 			m.showLogPanel = !m.showLogPanel
 			if m.showLogPanel {
 				m.recordStatus("info", "log-panel-open", "log panel opened")
@@ -535,6 +538,9 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case "e":
+			if m.view != repoViewMain {
+				break
+			}
 			path, err := exportLogEntriesText(m.logBuffer.Snapshot())
 			if err != nil {
 				m.recordStatus("error", "log-export-failed", err.Error())

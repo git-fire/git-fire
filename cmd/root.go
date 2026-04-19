@@ -500,11 +500,12 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	}()
 
 	userCfgDir, _ := config.UserGitFireDir()
-	logger, err := executor.NewLogger(executor.DefaultLogDir())
-	if err != nil {
-		return fmt.Errorf("failed to setup logger: %w", err)
-	}
-	defer func() { _ = logger.Close() }()
+	var logger *executor.Logger
+	defer func() {
+		if logger != nil {
+			_ = logger.Close()
+		}
+	}()
 
 	selected, err := ui.RunRepoSelectorStream(
 		tuiRepoChan,
@@ -541,6 +542,13 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	if len(selected) == 0 {
 		fmt.Println("No repositories selected.")
 		return errRunNoop
+	}
+
+	var logSetupErr error
+	logger, logSetupErr = executor.NewLogger(executor.DefaultLogDir())
+	if logSetupErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to setup logger: %s\n", safety.SanitizeText(logSetupErr.Error()))
+		logger = nil
 	}
 
 	if scanErr != nil {
@@ -599,8 +607,14 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		return fmt.Errorf("execution failed: %w", err)
 	}
 
-	logger.LogResult(result)
-	printResult(result, logger.LogPath())
+	if logger != nil {
+		logger.LogResult(result)
+	}
+	logPath := ""
+	if logger != nil {
+		logPath = logger.LogPath()
+	}
+	printResult(result, logPath)
 
 	if result.Failed > 0 {
 		fmt.Println("\n⚠️  Some repositories failed to push. Check the log for details.")
