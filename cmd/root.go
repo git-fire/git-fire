@@ -500,6 +500,12 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 	}()
 
 	userCfgDir, _ := config.UserGitFireDir()
+	logger, err := executor.NewLogger(executor.DefaultLogDir())
+	if err != nil {
+		return fmt.Errorf("failed to setup logger: %w", err)
+	}
+	defer func() { _ = logger.Close() }()
+
 	selected, err := ui.RunRepoSelectorStream(
 		tuiRepoChan,
 		folderProgress,
@@ -509,6 +515,7 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 		filepath.Join(userCfgDir, "config.toml"),
 		reg,
 		regPath,
+		logger,
 	)
 	// Drain both channels BEFORE cancelling so neither the upsert goroutine
 	// (tuiRepoChan) nor the scanner's walk goroutine (folderProgress) can block
@@ -569,12 +576,6 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 
 	fmt.Println(plan.Summary())
 	fmt.Println()
-
-	logger, err := executor.NewLogger(executor.DefaultLogDir())
-	if err != nil {
-		return fmt.Errorf("failed to setup logger: %w", err)
-	}
-	defer func() { _ = logger.Close() }()
 
 	fmt.Println("🔥 Pushing repositories...")
 	fmt.Println()

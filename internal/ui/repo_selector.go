@@ -12,8 +12,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-harness/git"
+	"github.com/git-fire/git-fire/internal/executor"
 	"github.com/git-fire/git-fire/internal/registry"
+	"github.com/git-fire/git-harness/git"
 )
 
 // ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
@@ -191,6 +192,14 @@ type RepoSelectorModel struct {
 	cfgPath       string
 	configCursor  int   // selected row in config view
 	configSaveErr error // last SaveConfig error; cleared on successful save
+
+	// Status/log state shown in TUI and exported on demand.
+	logger        *executor.Logger
+	showLogPanel  bool
+	statusLine    string
+	statusIcon    string
+	logEntries    []executor.LogEntry
+	logExportPath string
 }
 
 // NewRepoSelectorModel creates a new repo selector
@@ -229,6 +238,8 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  true,
 		quoteTickActive:      true,
+		statusLine:           "selector ready",
+		statusIcon:           "ℹ️",
 	}
 }
 
@@ -302,6 +313,8 @@ func NewRepoSelectorModelStream(
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  showStartupQuote,
 		quoteTickActive:      showStartupQuote && startupQuoteIntervalSec > 0,
+		statusLine:           "scan starting",
+		statusIcon:           "🔍",
 	}
 }
 
@@ -317,6 +330,24 @@ func (m RepoSelectorModel) Init() tea.Cmd {
 		cmds = append(cmds, waitForProgress(m.progressChan))
 	}
 	return tea.Batch(cmds...)
+}
+
+func (m *RepoSelectorModel) recordStatus(level, action, description string) {
+	entry := executor.LogEntry{
+		Timestamp:   time.Now(),
+		Level:       level,
+		Action:      action,
+		Description: description,
+	}
+	m.statusIcon = statusGlyph(entry)
+	m.statusLine = description
+	m.logEntries = append(m.logEntries, entry)
+	if len(m.logEntries) > 200 {
+		m.logEntries = m.logEntries[len(m.logEntries)-200:]
+	}
+	if m.logger != nil {
+		_ = m.logger.Log(entry)
+	}
 }
 
 func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -339,15 +370,18 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.scanChan != nil {
 			cmds = append(cmds, waitForRepo(m.scanChan))
 		}
+		m.recordStatus("info", "scan-repo", fmt.Sprintf("discovered %s", repo.Name))
 
 	case scanProgressMsg:
 		m.scanCurrentPath = string(msg)
 		if m.progressChan != nil && !m.progDone {
 			cmds = append(cmds, waitForProgress(m.progressChan))
 		}
+		m.recordStatus("info", "scan-progress", fmt.Sprintf("scanning %s", m.scanCurrentPath))
 
 	case repoChanDoneMsg:
 		m.scanDone = true
+		m.recordStatus("success", "scan-complete", "scan complete")
 
 	case progressChanDoneMsg:
 		m.progDone = true
@@ -489,6 +523,25 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = repoViewIgnored
 				m.ignoredEntries = IgnoredRegistryEntries(m.reg)
 				m.ignoredCursor = clampSelectorCursor(m.ignoredCursor, len(m.ignoredEntries))
+			}
+			return m, tea.Batch(cmds...)
+
+		case "l":
+			m.showLogPanel = !m.showLogPanel
+			if m.showLogPanel {
+				m.recordStatus("info", "log-panel-open", "log panel opened")
+			} else {
+				m.recordStatus("info", "log-panel-close", "log panel closed")
+			}
+			return m, tea.Batch(cmds...)
+
+		case "e":
+			path, err := exportLogEntriesText(m.logEntries)
+			if err != nil {
+				m.recordStatus("error", "log-export-failed", err.Error())
+			} else {
+				m.logExportPath = path
+				m.recordStatus("success", "log-exported", fmt.Sprintf("exported log to %s", path))
 			}
 			return m, tea.Batch(cmds...)
 
@@ -1220,13 +1273,45 @@ func (m RepoSelectorModel) View() string {
 		"\n" +
 			"Controls:\n" +
 			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
-			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
+			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire  |  l  Toggle log panel  |  e  Export logs\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
 			"  💥 = Has uncommitted changes (will auto-commit before push)\n" +
 			"  [✓] = Selected  |  [ ] = Not selected  |  ‹›  = path scrollable",
 	)
 	s.WriteString(help)
+
+	statusStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(activeProfile().scanBorder).
+		Padding(0, 1)
+	statusLine := fmt.Sprintf("%s %s", m.statusIcon, m.statusLine)
+	if m.logExportPath != "" {
+		statusLine += fmt.Sprintf("  |  last export: %s", m.logExportPath)
+	}
+	s.WriteString("\n")
+	s.WriteString(statusStyle.Render(statusLine))
+
+	if m.showLogPanel {
+		start := 0
+		if len(m.logEntries) > 8 {
+			start = len(m.logEntries) - 8
+		}
+		lines := make([]string, 0, len(m.logEntries)-start)
+		for _, entry := range m.logEntries[start:] {
+			lines = append(lines, fmt.Sprintf("%s [%s] %s", entry.Timestamp.Format("15:04:05"), entry.Level, entry.Description))
+		}
+		panel := strings.Join(lines, "\n")
+		if panel == "" {
+			panel = "(no events yet)"
+		}
+		logPanelStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(activeProfile().scanBorder).
+			Padding(0, 1)
+		s.WriteString("\n")
+		s.WriteString(logPanelStyle.Render(panel))
+	}
 
 	// Scan-status panel (only in streaming mode)
 	if m.scanChan != nil || m.scanDisabled {
@@ -1448,8 +1533,10 @@ func RunRepoSelectorStream(
 	cfgPath string,
 	reg *registry.Registry,
 	regPath string,
+	logger *executor.Logger,
 ) ([]git.Repository, error) {
 	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, scanDisabledRunOnly, cfg, cfgPath, reg, regPath)
+	model.logger = logger
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()
