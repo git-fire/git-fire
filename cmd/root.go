@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -49,6 +50,13 @@ var (
 	// forceUnlockRegistry removes repos.toml.lock without prompting (dangerous if another instance runs).
 	forceUnlockRegistry bool
 )
+
+func defaultStdinIsInteractive() bool {
+	stat, err := os.Stdin.Stat()
+	return err == nil && (stat.Mode()&os.ModeCharDevice) != 0
+}
+
+var stdinIsInteractive = defaultStdinIsInteractive
 
 var errRunAborted = errors.New("run aborted")
 var errRunNoop = errors.New("run completed with no backup actions")
@@ -136,6 +144,13 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if cfgErr != nil {
 		return failRun(fmt.Errorf("failed to load config: %s", safety.SanitizeText(cfgErr.Error())))
 	}
+	if err := maybeConfirmFireRiskAcknowledgement(cfg); err != nil {
+		if errors.Is(err, errRunAborted) {
+			fmt.Println("Aborted.")
+			return nil
+		}
+		return failRun(err)
+	}
 
 	// Flavor quotes (see ui.show_startup_quote / Settings → Show flavor quotes).
 	// --fire: quote is printed after the TUI exits (runFireStream) so it is visible
@@ -161,7 +176,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show security notice
-	if !dryRun {
+	if !dryRun && !fireMode {
 		fmt.Println(safety.SecurityNotice())
 	}
 
@@ -913,6 +928,53 @@ func saveRegistry(reg *registry.Registry, regPath string) {
 	if err := registry.Save(reg, regPath); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to save registry: %v\n", err)
 	}
+}
+
+func activeConfigPath() string {
+	if configFile != "" {
+		return configFile
+	}
+	return config.DefaultConfigPath()
+}
+
+func maybeConfirmFireRiskAcknowledgement(cfg *config.Config) error {
+	if cfg == nil || !fireMode || dryRun || cfg.Global.FireRiskAcknowledged {
+		return nil
+	}
+	if !stdinIsInteractive() {
+		return fmt.Errorf(
+			"fire mode requires an interactive risk acknowledgment; run once interactively or set global.fire_risk_acknowledged=true in %s",
+			activeConfigPath(),
+		)
+	}
+	return confirmFireRiskAcknowledgement(cfg, os.Stdin)
+}
+
+func confirmFireRiskAcknowledgement(cfg *config.Config, input io.Reader) error {
+	if cfg == nil || cfg.Global.FireRiskAcknowledged {
+		return nil
+	}
+
+	fmt.Println(safety.SecurityNotice())
+	fmt.Println("Fire mode can immediately execute live backup actions for selected repos.")
+	fmt.Println(`Type "OK" to acknowledge this risk and continue, or press Enter to cancel.`)
+	fmt.Print("Acknowledge and continue? [type OK]: ")
+
+	line, err := bufio.NewReader(input).ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading fire mode acknowledgment: %w", err)
+	}
+	if !strings.EqualFold(strings.TrimSpace(line), "ok") {
+		return errRunAborted
+	}
+
+	cfg.Global.FireRiskAcknowledged = true
+	cfgPath := activeConfigPath()
+	if err := config.SaveConfig(cfg, cfgPath); err != nil {
+		return fmt.Errorf("failed to persist fire mode risk acknowledgment: %w", err)
+	}
+	fmt.Printf("✓ Fire mode acknowledgment saved to %s\n\n", cfgPath)
+	return nil
 }
 
 // printResult prints the final summary after a run.

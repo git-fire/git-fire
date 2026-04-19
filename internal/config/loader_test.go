@@ -25,6 +25,9 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.Global.BlockOnSecrets {
 		t.Error("Expected block_on_secrets to be true")
 	}
+	if cfg.Global.FireRiskAcknowledged {
+		t.Error("Expected fire_risk_acknowledged to be false")
+	}
 
 	if cfg.Global.ScanWorkers != 8 {
 		t.Errorf("Expected scan_workers to be 8, got %d", cfg.Global.ScanWorkers)
@@ -541,6 +544,7 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	original.Global.AutoCommitDirty = false
 	original.Global.ConflictStrategy = "abort"
 	original.Global.PushWorkers = 7
+	original.Global.FireRiskAcknowledged = true
 	original.UI.FireTickMS = 150
 	original.UI.ColorProfile = UIColorProfileSynthwave
 
@@ -560,6 +564,9 @@ func TestSaveConfig_GlobalFieldsRoundTrip(t *testing.T) {
 	}
 	if loaded.Global.PushWorkers != 7 {
 		t.Errorf("PushWorkers: want 7, got %d", loaded.Global.PushWorkers)
+	}
+	if !loaded.Global.FireRiskAcknowledged {
+		t.Error("FireRiskAcknowledged: want true, got false")
 	}
 	if loaded.UI.ColorProfile != UIColorProfileSynthwave {
 		t.Errorf("UIColorProfile: want %s, got %s", UIColorProfileSynthwave, loaded.UI.ColorProfile)

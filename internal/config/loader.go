@@ -150,6 +150,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("global.conflict_strategy", defaults.Global.ConflictStrategy)
 	v.SetDefault("global.auto_commit_dirty", defaults.Global.AutoCommitDirty)
 	v.SetDefault("global.block_on_secrets", defaults.Global.BlockOnSecrets)
+	v.SetDefault("global.fire_risk_acknowledged", defaults.Global.FireRiskAcknowledged)
 	v.SetDefault("global.scan_path", defaults.Global.ScanPath)
 	v.SetDefault("global.scan_exclude", defaults.Global.ScanExclude)
 	v.SetDefault("global.scan_depth", defaults.Global.ScanDepth)
