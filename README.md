@@ -302,6 +302,13 @@ Current `git-fire` TUI: multi-repo selection, per-repo status, and one-screen ch
 
 ![git-fire TUI screenshot showing repository selection and status view](assets/git-fire-tui-screenshot-gh.png)
 
+### TUI status and log panel
+
+- `l`: toggle in-TUI log panel (recent structured events)
+- `e`: export visible TUI log buffer to `~/.cache/git-fire/exports/`
+- Status strip is driven from structured session events
+- After confirming selection, UI exits alt-screen and execution continues in normal CLI output
+
 ### TUI color profiles
 
 You can reskin both the fire effect and border/accent colors in `git-fire --fire`:
