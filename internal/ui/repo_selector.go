@@ -141,7 +141,7 @@ func checkGitHubReleaseCmd(version string) tea.Cmd {
 		defer cancel()
 		_, newer, err := updatecheck.LatestReleaseNewerThan(ctx, version)
 		if err != nil {
-			return updateAvailableMsg{available: false}
+			return nil
 		}
 		return updateAvailableMsg{available: newer}
 	}
