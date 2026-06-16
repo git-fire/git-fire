@@ -12,9 +12,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
+	"github.com/git-fire/git-harness/git"
 	testutil "github.com/git-fire/git-testkit"
+	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -152,6 +153,45 @@ func TestRootCommand_SilenceUsageEnabled(t *testing.T) {
 	if !rootCmd.SilenceUsage {
 		t.Fatal("expected rootCmd.SilenceUsage to be true")
 	}
+}
+
+func TestStdinInteractiveOK(t *testing.T) {
+	t.Run("CI env disables", func(t *testing.T) {
+		t.Setenv("CI", "true")
+		t.Setenv("GITHUB_ACTIONS", "")
+		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
+		if stdinInteractiveOK() {
+			t.Fatal("expected false when CI is set")
+		}
+	})
+	t.Run("GITHUB_ACTIONS disables", func(t *testing.T) {
+		t.Setenv("CI", "")
+		t.Setenv("GITHUB_ACTIONS", "true")
+		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
+		if stdinInteractiveOK() {
+			t.Fatal("expected false when GITHUB_ACTIONS is set")
+		}
+	})
+	t.Run("GIT_FIRE_NON_INTERACTIVE disables", func(t *testing.T) {
+		t.Setenv("CI", "")
+		t.Setenv("GITHUB_ACTIONS", "")
+		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "1")
+		if stdinInteractiveOK() {
+			t.Fatal("expected false when GIT_FIRE_NON_INTERACTIVE is set")
+		}
+	})
+	t.Run("TTY stdin when no automation env", func(t *testing.T) {
+		t.Setenv("CI", "")
+		t.Setenv("GITHUB_ACTIONS", "")
+		t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
+		fd := os.Stdin.Fd()
+		if !isatty.IsTerminal(fd) && !isatty.IsCygwinTerminal(fd) {
+			t.Skip("stdin is not a terminal")
+		}
+		if !stdinInteractiveOK() {
+			t.Fatal("expected true for TTY stdin with no automation env")
+		}
+	})
 }
 
 func TestHandleInit(t *testing.T) {

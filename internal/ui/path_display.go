@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 )
 
 // AbbreviateUserHome formats an absolute path for display: paths under the

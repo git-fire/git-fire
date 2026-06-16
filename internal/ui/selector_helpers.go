@@ -3,7 +3,7 @@ package ui
 import (
 	"path/filepath"
 
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/registry"
 )
 

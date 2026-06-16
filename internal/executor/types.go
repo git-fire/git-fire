@@ -4,7 +4,7 @@ package executor
 import (
 	"time"
 
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 )
 
 // PushPlan represents the plan of what will be pushed
@@ -24,7 +24,10 @@ type RepoPlan struct {
 	Actions     []Action
 	HasConflict bool
 	FireBranch  string // New branch name if conflict detected
-	Skip        bool   // Skip this repo
+	// PushKnownFireBackups counts diverged known branches that will receive
+	// git-fire-backup-* pushes when conflict_strategy is new-branch (planning only).
+	PushKnownFireBackups int
+	Skip        bool // Skip this repo
 	SkipReason  string
 }
 

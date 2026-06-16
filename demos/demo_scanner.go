@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/ui"
+	"github.com/git-fire/git-harness/git"
 )
 
 func main() {
@@ -40,7 +40,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Show interactive selector
+	// Show interactive selector (nil/empty registry: demo-only, no persistence)
 	selected, err := ui.RunRepoSelector(repos, nil, "", "")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\n%v\n", err)

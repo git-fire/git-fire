@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 )
 
 func TestBuildPlan(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-fire/pkg/updatecheck"
+	"github.com/git-fire/git-harness/git"
 )
 
 // ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
@@ -458,6 +458,67 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
 
+	case tea.MouseMsg:
+		ev := tea.MouseEvent(msg)
+		if ev.Action != tea.MouseActionPress || !ev.IsWheel() {
+			break
+		}
+		if m.view == repoViewConfig {
+			return m.updateConfigViewMouse(ev, cmds)
+		}
+		if d := mouseWheelVerticalDelta(ev); d != 0 {
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				if d < 0 && m.ignoredCursor > 0 {
+					m.ignoredCursor--
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+				} else if d > 0 && m.ignoredCursor < len(m.ignoredEntries)-1 {
+					m.ignoredCursor++
+					m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+				}
+			} else if len(m.repos) > 0 {
+				if d < 0 && m.cursor > 0 {
+					m.cursor--
+					m = m.withResetPathScroll()
+					m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+				} else if d > 0 && m.cursor < len(m.repos)-1 {
+					m.cursor++
+					m = m.withResetPathScroll()
+					m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+				}
+			}
+		}
+		if h := mouseWheelHorizontalDelta(ev); h != 0 && m.view == repoViewMain && len(m.repos) > 0 && m.cursor < len(m.repos) {
+			repo := m.repos[m.cursor]
+			parentPath := AbbreviateUserHome(filepath.Dir(repo.Path))
+			pathLen := len([]rune(parentPath))
+			pWidth := PathWidthFor(m.windowWidth, repo)
+			maxOffset := pathLen - pWidth
+			if maxOffset > 0 {
+				if h < 0 {
+					for range horizontalWheelPathSteps {
+						if m.pathScrollOffset <= 0 {
+							break
+						}
+						m.pathScrollOffset--
+					}
+					m.pathScrollDir = -1
+					m.pathScrollPause = 0
+				} else {
+					for range horizontalWheelPathSteps {
+						if m.pathScrollOffset >= maxOffset {
+							break
+						}
+						m.pathScrollOffset++
+					}
+					m.pathScrollDir = 1
+					m.pathScrollPause = 0
+				}
+			}
+		}
+
 	// --- Keyboard ---
 	case tea.KeyMsg:
 		// Config view handles its own keys first.
@@ -521,6 +582,72 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.repos)-1 {
 				m.cursor++
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "pgup":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				step := m.ignoredListPageStep()
+				if m.ignoredCursor -= step; m.ignoredCursor < 0 {
+					m.ignoredCursor = 0
+				}
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				step := m.mainListPageStep()
+				if m.cursor -= step; m.cursor < 0 {
+					m.cursor = 0
+				}
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "pgdown":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				step := m.ignoredListPageStep()
+				last := len(m.ignoredEntries) - 1
+				if m.ignoredCursor += step; m.ignoredCursor > last {
+					m.ignoredCursor = last
+				}
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				step := m.mainListPageStep()
+				last := len(m.repos) - 1
+				if m.cursor += step; m.cursor > last {
+					m.cursor = last
+				}
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "home":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				m.ignoredCursor = 0
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				m.cursor = 0
+				m = m.withResetPathScroll()
+				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
+			}
+
+		case "end":
+			if m.view == repoViewIgnored {
+				if len(m.ignoredEntries) == 0 {
+					break
+				}
+				m.ignoredCursor = len(m.ignoredEntries) - 1
+				m.ignoredScrollOffset = m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, m.ignoredListVisibleCount(), len(m.ignoredEntries))
+			} else if len(m.repos) > 0 {
+				m.cursor = len(m.repos) - 1
 				m = m.withResetPathScroll()
 				m.scrollOffset = m.clampScroll(m.scrollOffset, m.cursor, m.repoListVisibleCount(), len(m.repos))
 			}
@@ -780,7 +907,7 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 	buf.WriteString(helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
@@ -816,7 +943,7 @@ func renderIgnoredViewHelp() string {
 	return helpStyle.Render(
 		"\n" +
 			"These repos are excluded from backup. Restore tracking with enter or u.\n" +
-			"Controls:  ↑/k, ↓/j  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
+			"Controls:  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  enter / u  Track again  |  i  Back to main  |  q  Quit\n",
 	)
 }
 
@@ -886,6 +1013,24 @@ func (m RepoSelectorModel) clampScroll(offset, cursor, visible, total int) int {
 		offset = next
 	}
 	return offset
+}
+
+func (m RepoSelectorModel) mainListPageStep() int {
+	// Reserve two lines for ↑/↓ indicators so PageUp/PageDown stay symmetric even
+	// when the live view toggles between one and two indicator rows.
+	v := m.repoListVisibleCount()
+	if v <= 2 {
+		return 1
+	}
+	return v - 2
+}
+
+func (m RepoSelectorModel) ignoredListPageStep() int {
+	v := m.ignoredListVisibleCount()
+	if v <= 2 {
+		return 1
+	}
+	return v - 2
 }
 
 // contentWidth returns the usable inner width for rendered content (box border+padding = 6 cols).
@@ -1138,7 +1283,7 @@ func (m RepoSelectorModel) View() string {
 	help := helpStyle.Render(
 		"\n" +
 			"Controls:\n" +
-			"  ↑/k, ↓/j  Navigate  |  ←/→  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
+			"  ↑/k, ↓/j / PgUp/PgDn / Home/End / mouse wheel  Navigate  |  ←/→ / wheel‹›  Scroll path when << SCROLL PATH >> shows  |  space  Toggle selection\n" +
 			"  m  Change mode  |  x  Ignore  |  a  Select all  |  n  Select none  |  f  Toggle fire\n" +
 			"  i  View ignored  |  " + configHint + "enter  Confirm  |  q  Quit\n\n" +
 			"Icons:\n" +
@@ -1332,7 +1477,7 @@ func (m RepoSelectorModel) GetSelectedRepos() []git.Repository {
 // ignored repos; pass nil/empty to disable persistence.
 func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath, displayVersion string) ([]git.Repository, error) {
 	model := NewRepoSelectorModel(repos, reg, regPath, displayVersion)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()
 	if err != nil {
@@ -1370,7 +1515,7 @@ func RunRepoSelectorStream(
 	displayVersion string,
 ) ([]git.Repository, error) {
 	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, scanDisabledRunOnly, cfg, cfgPath, reg, regPath, displayVersion)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()
 	if err != nil {

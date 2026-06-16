@@ -12,9 +12,10 @@ This runbook documents the maintainer workflow for publishing `git-fire` to WinG
 ## One-time setup
 
 1. Fork `microsoft/winget-pkgs` under the account that owns the token.
-2. Create a classic GitHub PAT with `public_repo` scope.
+2. Create a classic GitHub PAT with `public_repo` scope. (Fine-grained PATs are not supported by WinGet Releaser; see [vedantmgoyal9/winget-releaser#172](https://github.com/vedantmgoyal9/winget-releaser/issues/172).)
 3. Add that PAT as repository secret `WINGET_PAT` in `git-fire/git-fire`.
-4. Ensure at least one `git-fire.git-fire` version already exists in `microsoft/winget-pkgs` (bootstrap is manual).
+4. If this repository is owned by a **GitHub Organization** but the fork and PAT live on a **personal** GitHub account, add a repository or organization **Actions variable** `WINGET_FORK_USER` set to that personal username. Otherwise WinGet Releaser defaults `fork-user` to the org name and `komac update --submit` fails with `does not have the correct permissions to execute CreateRef`.
+5. Ensure at least one `git-fire.git-fire` version already exists in `microsoft/winget-pkgs` (bootstrap is manual).
 
 ## Normal release flow
 
@@ -44,6 +45,8 @@ Use this when the release event did not trigger or you need a replay:
 
 - `WINGET_PAT` missing/invalid:
   - Replace with a classic PAT that has `public_repo`.
+- `CreateRef` / permission denied (often names the PAT owner, e.g. `user does not have the correct permissions to execute CreateRef`):
+  - For an org-owned upstream repo, set Actions variable `WINGET_FORK_USER` to the GitHub username that owns `microsoft/winget-pkgs` fork and `WINGET_PAT`, then rerun the workflow.
 - Fork not found / permission denied:
   - Confirm fork exists and PAT owner has access.
 - Asset pattern mismatch:

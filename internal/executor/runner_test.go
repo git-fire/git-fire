@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-fire/internal/git"
+	"github.com/git-fire/git-harness/git"
 	testutil "github.com/git-fire/git-testkit"
 )
 

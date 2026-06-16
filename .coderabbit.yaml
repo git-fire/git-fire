@@ -69,14 +69,6 @@ reviews:
         This is an emergency backup tool. Prioritize reliability and data safety above all else.
         A bug here could result in lost work during an incident.
 
-    - path: "internal/safety/**"
-      instructions: |
-        This package detects secrets before committing. Apply extra scrutiny:
-        - Are regex patterns correct and tested against edge cases?
-        - Could any pattern produce false negatives (miss a real secret)?
-        - Are new secret formats (API keys, tokens) covered?
-        A missed secret here could expose credentials in a public commit.
-
     - path: "internal/executor/**"
       instructions: |
         This package runs git operations that modify repositories. Focus on:
@@ -84,13 +76,6 @@ reviews:
         - Is there a risk of partial execution leaving repos in a bad state?
         - Are rollback or recovery paths considered on failure?
         - Is the rate limiter used correctly to prevent hammering remotes?
-
-    - path: "internal/git/**"
-      instructions: |
-        These wrap system git commands. Check:
-        - Command injection risks (user-controlled input in shell commands)
-        - Are exit codes and stderr handled?
-        - Could any operation silently succeed but produce wrong output?
 
     - path: "**/*_test.go"
       instructions: |

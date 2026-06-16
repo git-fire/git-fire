@@ -17,6 +17,7 @@ Use this checklist for every tagged release.
   - `WINGET_PAT` (stable releases)
 - Homebrew tap repo exists and is writable: `git-fire/homebrew-tap`.
 - `microsoft/winget-pkgs` fork exists and is up to date in the account tied to `WINGET_PAT`.
+- For org-owned `git-fire/git-fire`, if `WINGET_PAT` is a personal token: Actions variable `WINGET_FORK_USER` is set to that GitHub username (matches WinGet Releaser `fork-user`).
 
 ## 2) Tag and Trigger
 
