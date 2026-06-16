@@ -895,7 +895,9 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		Background(activeProfile().titleBg).
 		Padding(0, 2).
 		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
-	buf.WriteString("\n\n")
+	buf.WriteString("\n")
+	buf.WriteString(m.renderVersionHeader())
+	buf.WriteString("\n")
 	if m.quoteVisible() {
 		buf.WriteString(m.renderStartupQuote())
 		buf.WriteString("\n\n")
@@ -925,6 +927,19 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		n = 1
 	}
 	return n
+}
+
+// renderVersionHeader returns the version row after the title, including its trailing
+// newline, or empty when displayVersion is unset. Keep in sync with View assembly.
+func (m RepoSelectorModel) renderVersionHeader() string {
+	if m.displayVersion == "" {
+		return ""
+	}
+	verLine := versionStyle.Render(m.displayVersion)
+	if m.updateAvailable {
+		verLine += versionStyle.Render(" · update available")
+	}
+	return verLine + "\n"
 }
 
 // renderIgnoredViewTitle returns the styled title line for the ignored view.
@@ -1142,14 +1157,7 @@ func (m RepoSelectorModel) View() string {
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render(titleText))
 	s.WriteString("\n")
-	if m.displayVersion != "" {
-		verLine := versionStyle.Render(m.displayVersion)
-		if m.updateAvailable {
-			verLine += versionStyle.Render(" · update available")
-		}
-		s.WriteString(verLine)
-		s.WriteString("\n")
-	}
+	s.WriteString(m.renderVersionHeader())
 	s.WriteString("\n")
 	if m.quoteVisible() {
 		s.WriteString(m.renderStartupQuote())
