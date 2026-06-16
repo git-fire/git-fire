@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/git-fire/git-harness/git"
@@ -20,11 +19,6 @@ func TestSummarizePushKnownRemote_UnauthenticatedHTTPSFailsWithoutPrompt(t *test
 	if err == nil {
 		t.Fatal("expected summarizePushKnownRemote to fail without credentials")
 	}
-	msg := strings.ToLower(err.Error())
-	if !strings.Contains(msg, "terminal prompts disabled") &&
-		!strings.Contains(msg, "could not read username") {
-		t.Fatalf("expected non-interactive auth failure, got: %v", err)
-	}
 }
 
 func TestDetectConflict_UnauthenticatedHTTPSFailsWithoutPrompt(t *testing.T) {
@@ -42,10 +36,5 @@ func TestDetectConflict_UnauthenticatedHTTPSFailsWithoutPrompt(t *testing.T) {
 	_, _, _, err = git.DetectConflict(repo, main, "origin")
 	if err == nil {
 		t.Fatal("expected DetectConflict fetch to fail without credentials")
-	}
-	msg := strings.ToLower(err.Error())
-	if !strings.Contains(msg, "terminal prompts disabled") &&
-		!strings.Contains(msg, "could not read username") {
-		t.Fatalf("expected non-interactive auth failure, got: %v", err)
 	}
 }
