@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,8 +13,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
-	"github.com/git-fire/git-harness/git"
 	"github.com/git-fire/git-fire/internal/registry"
+	"github.com/git-fire/git-fire/pkg/updatecheck"
+	"github.com/git-fire/git-harness/git"
 )
 
 // ErrCancelled is returned by RunRepoSelector when the user cancels the TUI.
@@ -30,6 +32,9 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666")).
 			MarginTop(1)
+
+	versionStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#555555"))
 
 	scrollHintStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFD166")).
@@ -83,6 +88,16 @@ type repoChanDoneMsg struct{}
 // progressChanDoneMsg is sent when the folder-progress channel is closed.
 type progressChanDoneMsg struct{}
 
+// updateCheckTickMsg schedules periodic GitHub release checks (fire TUI).
+type updateCheckTickMsg time.Time
+
+// updateAvailableMsg carries the result of a release comparison.
+type updateAvailableMsg struct {
+	available bool
+}
+
+const updateCheckInterval = 24 * time.Hour
+
 type repoSelectorView int
 
 const (
@@ -111,6 +126,25 @@ func pathScrollCmd() tea.Cmd {
 	return tea.Tick(pathScrollInterval, func(t time.Time) tea.Msg {
 		return pathScrollMsg(t)
 	})
+}
+
+func updateCheckTickCmd(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(t time.Time) tea.Msg {
+		return updateCheckTickMsg(t)
+	})
+}
+
+// checkGitHubReleaseCmd compares displayVersion to the latest GitHub release (network).
+func checkGitHubReleaseCmd(version string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		defer cancel()
+		_, newer, err := updatecheck.LatestReleaseNewerThan(ctx, version)
+		if err != nil {
+			return nil
+		}
+		return updateAvailableMsg{available: newer}
+	}
 }
 
 // waitForRepo listens for the next repo on scanChan. Returns repoDiscoveredMsg
@@ -191,10 +225,15 @@ type RepoSelectorModel struct {
 	cfgPath       string
 	configCursor  int   // selected row in config view
 	configSaveErr error // last SaveConfig error; cleared on successful save
+
+	// Version banner and optional "update available" (from GitHub releases API).
+	displayVersion  string
+	updateAvailable bool
 }
 
-// NewRepoSelectorModel creates a new repo selector
-func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath string) RepoSelectorModel {
+// NewRepoSelectorModel creates a new repo selector. displayVersion is shown in the
+// header when non-empty (e.g. from cmd.CLIVersion); release checks run only when set.
+func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPath, displayVersion string) RepoSelectorModel {
 	applyColorProfile(config.UIColorProfileClassic)
 	// Initialize all repos as selected by default
 	selected := make(map[int]bool)
@@ -229,6 +268,7 @@ func NewRepoSelectorModel(repos []git.Repository, reg *registry.Registry, regPat
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  true,
 		quoteTickActive:      true,
+		displayVersion:       displayVersion,
 	}
 }
 
@@ -244,6 +284,7 @@ func NewRepoSelectorModelStream(
 	cfgPath string,
 	reg *registry.Registry,
 	regPath string,
+	displayVersion string,
 ) RepoSelectorModel {
 	profileName := config.UIColorProfileClassic
 	if cfg != nil && cfg.UI.ColorProfile != "" {
@@ -302,6 +343,7 @@ func NewRepoSelectorModelStream(
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  showStartupQuote,
 		quoteTickActive:      showStartupQuote && startupQuoteIntervalSec > 0,
+		displayVersion:       displayVersion,
 	}
 }
 
@@ -315,6 +357,10 @@ func (m RepoSelectorModel) Init() tea.Cmd {
 	}
 	if m.progressChan != nil && !m.progDone {
 		cmds = append(cmds, waitForProgress(m.progressChan))
+	}
+	if m.displayVersion != "" {
+		cmds = append(cmds, checkGitHubReleaseCmd(m.displayVersion))
+		cmds = append(cmds, updateCheckTickCmd(updateCheckInterval))
 	}
 	return tea.Batch(cmds...)
 }
@@ -351,6 +397,15 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case progressChanDoneMsg:
 		m.progDone = true
+
+	case updateAvailableMsg:
+		m.updateAvailable = msg.available
+
+	case updateCheckTickMsg:
+		if m.displayVersion != "" {
+			cmds = append(cmds, checkGitHubReleaseCmd(m.displayVersion))
+			cmds = append(cmds, updateCheckTickCmd(updateCheckInterval))
+		}
 
 	// --- Animation / spinner ---
 	case tea.WindowSizeMsg:
@@ -840,7 +895,9 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		Background(activeProfile().titleBg).
 		Padding(0, 2).
 		Render("🔥 GIT FIRE - SELECT REPOSITORIES 🔥"))
-	buf.WriteString("\n\n")
+	buf.WriteString("\n")
+	buf.WriteString(m.renderVersionHeader())
+	buf.WriteString("\n")
 	if m.quoteVisible() {
 		buf.WriteString(m.renderStartupQuote())
 		buf.WriteString("\n\n")
@@ -870,6 +927,19 @@ func (m RepoSelectorModel) repoListVisibleCount() int {
 		n = 1
 	}
 	return n
+}
+
+// renderVersionHeader returns the version row after the title, including its trailing
+// newline, or empty when displayVersion is unset. Keep in sync with View assembly.
+func (m RepoSelectorModel) renderVersionHeader() string {
+	if m.displayVersion == "" {
+		return ""
+	}
+	verLine := versionStyle.Render(m.displayVersion)
+	if m.updateAvailable {
+		verLine += versionStyle.Render(" · update available")
+	}
+	return verLine + "\n"
 }
 
 // renderIgnoredViewTitle returns the styled title line for the ignored view.
@@ -1086,7 +1156,9 @@ func (m RepoSelectorModel) View() string {
 		Background(activeProfile().titleBg).
 		Padding(0, 2)
 	s.WriteString(titleGradient.Render(titleText))
-	s.WriteString("\n\n")
+	s.WriteString("\n")
+	s.WriteString(m.renderVersionHeader())
+	s.WriteString("\n")
 	if m.quoteVisible() {
 		s.WriteString(m.renderStartupQuote())
 		s.WriteString("\n\n")
@@ -1411,8 +1483,8 @@ func (m RepoSelectorModel) GetSelectedRepos() []git.Repository {
 // RunRepoSelector runs the interactive repo selector and returns selected repos.
 // reg and regPath are used for write-through persistence of mode changes and
 // ignored repos; pass nil/empty to disable persistence.
-func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath string) ([]git.Repository, error) {
-	model := NewRepoSelectorModel(repos, reg, regPath)
+func RunRepoSelector(repos []git.Repository, reg *registry.Registry, regPath, displayVersion string) ([]git.Repository, error) {
+	model := NewRepoSelectorModel(repos, reg, regPath, displayVersion)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()
@@ -1448,8 +1520,9 @@ func RunRepoSelectorStream(
 	cfgPath string,
 	reg *registry.Registry,
 	regPath string,
+	displayVersion string,
 ) ([]git.Repository, error) {
-	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, scanDisabledRunOnly, cfg, cfgPath, reg, regPath)
+	model := NewRepoSelectorModelStream(scanChan, progressChan, scanDisabled, scanDisabledRunOnly, cfg, cfgPath, reg, regPath, displayVersion)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	finalModel, err := p.Run()

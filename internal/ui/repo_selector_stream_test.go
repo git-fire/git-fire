@@ -9,7 +9,7 @@ import (
 
 func TestRepoSelectorModelStream_scanCountsByRegistryNew(t *testing.T) {
 	ch := make(chan git.Repository)
-	m := NewRepoSelectorModelStream(ch, nil, false, false, nil, "", nil, "")
+	m := NewRepoSelectorModelStream(ch, nil, false, false, nil, "", nil, "", "")
 
 	var model tea.Model = m
 	model, _ = model.Update(repoDiscoveredMsg(git.Repository{
