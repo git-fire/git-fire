@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-harness/git"
 )
 
@@ -515,6 +516,49 @@ func TestRepoSelectorLiteModel_PageKeys(t *testing.T) {
 	m = updateLite(t, m, pressSpecial(tea.KeyPgDown))
 	if m.cursor <= 0 {
 		t.Fatalf("PgDown should advance, cursor = %d", m.cursor)
+	}
+}
+
+func manyLiteIgnoredEntries(n int) []registry.RegistryEntry {
+	root := filepath.Join(os.TempDir(), "gitfire-lite-ignored-many")
+	out := make([]registry.RegistryEntry, 0, n)
+	for i := range n {
+		name := fmt.Sprintf("repo%d", i)
+		out = append(out, registry.RegistryEntry{
+			Path:   filepath.Join(root, name, "work"),
+			Name:   name,
+			Status: registry.StatusIgnored,
+		})
+	}
+	return out
+}
+
+func TestRepoSelectorLiteModel_IgnoredView_ShowsScrollIndicatorWhenClipped(t *testing.T) {
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(50)
+	m.windowWidth = 80
+	m.windowHeight = 16
+	m = m.syncIgnoredScroll()
+	view := m.View()
+	if !strings.Contains(view, "↓") || !strings.Contains(view, "more") {
+		t.Fatalf("expected ↓ … more when ignored list exceeds viewport, got:\n%s", view)
+	}
+}
+
+func TestRepoSelectorLiteModel_Ignored_EndKeyScrollsLastRowIntoView(t *testing.T) {
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(30)
+	m.windowWidth = 80
+	m.windowHeight = 14
+	m = updateLite(t, m, pressSpecial(tea.KeyEnd))
+	view := m.View()
+	if !strings.Contains(view, "repo29") {
+		t.Fatalf("expected last ignored repo path visible after End, got:\n%s", view)
+	}
+	if !strings.Contains(view, ">") {
+		t.Fatalf("expected cursor marker on a row, got:\n%s", view)
 	}
 }
 
