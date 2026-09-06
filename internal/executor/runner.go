@@ -680,6 +680,11 @@ func (r *Runner) getRemoteURL(repo git.Repository, remoteName string) string {
 }
 
 // checkSecrets scans uncommitted files for secrets and optionally blocks execution.
+// CheckSecrets scans uncommitted files for secrets and optionally blocks execution.
+func CheckSecrets(repoPath string, block bool) error {
+	return checkSecrets(repoPath, block)
+}
+
 func checkSecrets(repoPath string, block bool) error {
 	uncommitted, scanErr := git.GetUncommittedFiles(repoPath)
 	if scanErr != nil {

@@ -43,7 +43,7 @@ For historical planning context, see docs listed under "Historical / archive" in
 
 - MCP server mode.
 - Restore/replay tooling from structured logs.
-- Additional backup destinations and redundancy layers (including planned USB mode).
+- Additional backup destinations and redundancy layers (including USB mode Beta and further destination work).
 
 ## Ideas / Future Exploration
 

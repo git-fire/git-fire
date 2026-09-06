@@ -1227,4 +1227,11 @@ func resetFlags() {
 	backupTo = ""
 	configFile = ""
 	showStatus = false
+	forceUnlockRegistry = false
+	usbTargets = nil
+	usbInit = false
+	usbWorkers = 0
+	usbStrategy = ""
+	usbResume = false
+	usbVerify = false
 }
