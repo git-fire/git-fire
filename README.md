@@ -61,7 +61,7 @@ Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on 
 
 ## Beta Status
 
-`git-fire` is beta software. Core multi-repo backup flows are usable today. A few roadmap items are intentionally not wired yet (`--backup-to` and USB destination mode).
+`git-fire` is beta software. Core multi-repo backup flows are usable today. USB destination mode is implemented as a **Beta** feature (`--usb`); `--backup-to` remains unwired.
 
 ## Project Snapshot
 
@@ -334,7 +334,7 @@ Custom hex palettes are planned but not enabled yet.
 
 ### Coming Soon
 
-- **USB mode:** planned as a first-class destination for repo backups (git-native incremental updates + destination marker/config).
+- **USB mode (Beta):** first-class local/USB destination for repo backups (git-native incremental updates + `.git-fire` volume marker/manifest).
 - **Integration-first direction:** practical integrations and redundancy layers for high-pressure moments.
 
 Plugin docs:
@@ -350,7 +350,7 @@ Start with [docs/README.md](docs/README.md).
 - Agentic workflows: [docs/agentic-flows.md](docs/agentic-flows.md)
 - Security and operations workflows: [docs/security-ops.md](docs/security-ops.md)
 - Manual smoke fixture scripts: [docs/MANUAL_SMOKE_FIXTURES.md](docs/MANUAL_SMOKE_FIXTURES.md)
-- Planned USB mode scope: [docs/USB_MODE.md](docs/USB_MODE.md)
+- USB mode guide (Beta): [docs/USB_MODE.md](docs/USB_MODE.md)
 - Behavior spec: [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 

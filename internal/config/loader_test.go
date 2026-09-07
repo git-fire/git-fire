@@ -47,6 +47,29 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UI.StartupQuoteIntervalSec != DefaultUIStartupQuoteIntervalSec {
 		t.Errorf("Expected ui.startup_quote_interval_sec to be %d, got %d", DefaultUIStartupQuoteIntervalSec, cfg.UI.StartupQuoteIntervalSec)
 	}
+
+	// USB defaults must be safe even when callers never set [usb].
+	if cfg.USB.Strategy != "git-mirror" {
+		t.Errorf("Expected usb.strategy default git-mirror, got %q", cfg.USB.Strategy)
+	}
+	if cfg.USB.Workers != DefaultUSBWorkers {
+		t.Errorf("Expected usb.workers default %d, got %d", DefaultUSBWorkers, cfg.USB.Workers)
+	}
+	if cfg.USB.TargetWorkers != DefaultUSBTargetWorkers {
+		t.Errorf("Expected usb.target_workers default %d, got %d", DefaultUSBTargetWorkers, cfg.USB.TargetWorkers)
+	}
+	if cfg.USB.SyncPolicy != "keep" {
+		t.Errorf("Expected usb.sync_policy default keep, got %q", cfg.USB.SyncPolicy)
+	}
+	if cfg.USB.CreateOnFirst {
+		t.Error("Expected usb.create_on_first_use default false")
+	}
+	if len(cfg.USB.Targets) != 0 {
+		t.Errorf("Expected empty usb.targets by default, got %d", len(cfg.USB.Targets))
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("DefaultConfig().Validate() must succeed after USB rules: %v", err)
+	}
 }
 
 func TestLoadConfig_NoFile(t *testing.T) {
@@ -117,6 +140,95 @@ platform = "gitlab"
 	}
 }
 
+func TestLoadConfig_PreUSBConfigWithoutUSBSection(t *testing.T) {
+	// Pre-USB configs omit [usb] entirely; load + validate must still succeed
+	// with existing fields unchanged and USB filled from safe defaults.
+	tmpDir := t.TempDir()
+	configContent := `
+[global]
+default_mode = "push-known-branches"
+conflict_strategy = "new-branch"
+auto_commit_dirty = true
+block_on_secrets = true
+scan_path = "/home/user/code"
+scan_exclude = ["node_modules", ".venv"]
+scan_depth = 8
+scan_workers = 6
+push_workers = 4
+rescan_submodules = false
+disable_scan = false
+
+[ui]
+show_fire_animation = true
+show_startup_quote = true
+startup_quote_behavior = "refresh"
+startup_quote_interval_sec = 10
+fire_tick_ms = 180
+color_profile = "classic"
+
+[backup]
+platform = "github"
+repo_template = "backup-{repo}-{date}"
+generate_manifest = true
+
+[plugins]
+enabled = []
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write pre-USB config: %v", err)
+	}
+
+	cfg, err := LoadWithOptions(LoadOptions{ConfigFile: configPath})
+	if err != nil {
+		t.Fatalf("LoadWithOptions(pre-USB config) error = %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate(pre-USB config) error = %v", err)
+	}
+
+	if cfg.Global.ScanPath != "/home/user/code" {
+		t.Fatalf("scan_path changed: got %q", cfg.Global.ScanPath)
+	}
+	if !cfg.Global.AutoCommitDirty {
+		t.Fatal("auto_commit_dirty should remain true")
+	}
+	if cfg.Global.PushWorkers != 4 {
+		t.Fatalf("push_workers changed: got %d", cfg.Global.PushWorkers)
+	}
+	if cfg.Global.ScanWorkers != 6 {
+		t.Fatalf("scan_workers changed: got %d", cfg.Global.ScanWorkers)
+	}
+	if cfg.Global.ScanDepth != 8 {
+		t.Fatalf("scan_depth changed: got %d", cfg.Global.ScanDepth)
+	}
+	if cfg.UI.ColorProfile != UIColorProfileClassic {
+		t.Fatalf("ui.color_profile changed: got %q", cfg.UI.ColorProfile)
+	}
+	if cfg.Backup.Platform != "github" {
+		t.Fatalf("backup.platform changed: got %q", cfg.Backup.Platform)
+	}
+
+	if cfg.USB.Strategy != "git-mirror" {
+		t.Fatalf("expected usb.strategy default git-mirror, got %q", cfg.USB.Strategy)
+	}
+	if cfg.USB.Workers != DefaultUSBWorkers {
+		t.Fatalf("expected usb.workers default %d, got %d", DefaultUSBWorkers, cfg.USB.Workers)
+	}
+	if cfg.USB.TargetWorkers != DefaultUSBTargetWorkers {
+		t.Fatalf("expected usb.target_workers default %d, got %d", DefaultUSBTargetWorkers, cfg.USB.TargetWorkers)
+	}
+	if cfg.USB.SyncPolicy != "keep" {
+		t.Fatalf("expected usb.sync_policy default keep, got %q", cfg.USB.SyncPolicy)
+	}
+	if cfg.USB.CreateOnFirst {
+		t.Fatal("expected usb.create_on_first_use default false")
+	}
+	if len(cfg.USB.Targets) != 0 {
+		t.Fatalf("expected empty usb.targets when [usb] omitted, got %#v", cfg.USB.Targets)
+	}
+}
+
 func TestLoadConfig_DoesNotImplicitlyLoadCWDConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalDir, _ := os.Getwd()
@@ -163,6 +275,55 @@ func TestLoadConfig_EnvironmentVariables(t *testing.T) {
 
 	if cfg.Auth.SSHPassphrase != "test-passphrase" {
 		t.Errorf("Expected SSH passphrase from env var, got '%s'", cfg.Auth.SSHPassphrase)
+	}
+}
+
+
+func TestValidate_USBDefaultsAndStrategy(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.USB.Strategy = ""
+	cfg.USB.Workers = 0
+	cfg.USB.TargetWorkers = 0
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if cfg.USB.Strategy != "git-mirror" {
+		t.Fatalf("expected default usb strategy git-mirror, got %s", cfg.USB.Strategy)
+	}
+	if cfg.USB.Workers != 1 {
+		t.Fatalf("expected default usb workers 1, got %d", cfg.USB.Workers)
+	}
+	if cfg.USB.TargetWorkers != 1 {
+		t.Fatalf("expected default usb target workers 1, got %d", cfg.USB.TargetWorkers)
+	}
+	if cfg.USB.SyncPolicy != "keep" {
+		t.Fatalf("expected default usb sync policy keep, got %s", cfg.USB.SyncPolicy)
+	}
+
+	cfg4 := DefaultConfig()
+	cfg4.USB.Workers = MaxUSBWorkers + 1
+	cfg4.USB.TargetWorkers = MaxUSBTargetWorkers + 1
+	if err := cfg4.Validate(); err != nil {
+		t.Fatalf("Validate() with oversized usb workers error = %v", err)
+	}
+	if cfg4.USB.Workers != MaxUSBWorkers {
+		t.Fatalf("expected usb workers clamp to %d, got %d", MaxUSBWorkers, cfg4.USB.Workers)
+	}
+	if cfg4.USB.TargetWorkers != MaxUSBTargetWorkers {
+		t.Fatalf("expected usb target workers clamp to %d, got %d", MaxUSBTargetWorkers, cfg4.USB.TargetWorkers)
+	}
+
+	cfg2 := DefaultConfig()
+	cfg2.USB.Strategy = "nope"
+	if err := cfg2.Validate(); err == nil {
+		t.Fatal("expected invalid usb strategy error")
+	}
+
+	cfg3 := DefaultConfig()
+	cfg3.USB.SyncPolicy = "drop"
+	if err := cfg3.Validate(); err == nil {
+		t.Fatal("expected invalid usb sync policy error")
 	}
 }
 

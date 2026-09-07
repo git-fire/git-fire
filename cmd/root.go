@@ -48,6 +48,13 @@ var (
 	showStatus bool
 	// forceUnlockRegistry removes repos.toml.lock without prompting (dangerous if another instance runs).
 	forceUnlockRegistry bool
+
+	usbTargets  []string
+	usbInit     bool
+	usbWorkers  int
+	usbStrategy string
+	usbResume   bool
+	usbVerify   bool
 )
 
 var errRunAborted = errors.New("run aborted")
@@ -87,6 +94,12 @@ func init() {
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
 	rootCmd.PersistentFlags().BoolVar(&forceUnlockRegistry, "force-unlock-registry", false, "Remove stale registry lock file without prompting (only if no other git-fire is running)")
+	rootCmd.Flags().StringArrayVar(&usbTargets, "usb", nil, "USB/folder backup target root (repeatable)")
+	rootCmd.Flags().BoolVar(&usbInit, "usb-init", false, "Create missing <target>/.git-fire marker config")
+	rootCmd.Flags().IntVar(&usbWorkers, "usb-workers", 0, "USB mode per-target repo workers (default from config, min 1)")
+	rootCmd.Flags().StringVar(&usbStrategy, "usb-strategy", "", "USB mode strategy override: git-mirror or git-clone")
+	rootCmd.Flags().BoolVar(&usbResume, "usb-resume-last-run", false, "Skip repo-target pairs that succeeded in last USB manifest run")
+	rootCmd.Flags().BoolVar(&usbVerify, "usb-verify", false, "Verify destination shape after USB sync")
 }
 
 func runGitFire(cmd *cobra.Command, args []string) error {
@@ -144,15 +157,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		printStartupFireQuote()
 	}
 
-	// Override config with flags
-	if skipCommit {
-		cfg.Global.AutoCommitDirty = false
-	}
-	if scanPath != "." {
-		cfg.Global.ScanPath = scanPath
-	}
-	if noScan {
-		cfg.Global.DisableScan = true
+	// Override config with flags and re-validate/clamp normalized values.
+	if err := applyFlagOverrides(cfg); err != nil {
+		return failRun(fmt.Errorf("invalid flag overrides: %s", safety.SanitizeText(err.Error())))
 	}
 
 	// Load plugins from config (non-fatal: warn and continue on failure)
@@ -217,11 +224,15 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Routing:
+	//   --usb          → USB/folder backup targets
 	//   --fire         → streaming TUI (repos appear as discovered)
 	//   --dry-run      → batch collect, plan summary, then dry-run execute (no git mutations; secret warnings)
 	//   default        → streaming backup pipeline
 	var runErr error
-	if fireMode {
+	targets := resolveUSBTargets(cfg, usbTargets)
+	if len(targets) > 0 {
+		runErr = runUSB(cfg, reg, regPath, opts, targets)
+	} else if fireMode {
 		runErr = runFireStream(cfg, reg, regPath, opts)
 	} else if dryRun {
 		runErr = runBatch(cfg, reg, regPath, opts)
@@ -303,6 +314,27 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 // list before proceeding, which is necessary for the interactive selector and
 // for showing a complete plan summary. --dry-run then runs the executor dry-run
 // path (e.g. secret scans) without mutating repositories.
+
+func applyFlagOverrides(cfg *config.Config) error {
+	if skipCommit {
+		cfg.Global.AutoCommitDirty = false
+	}
+	if scanPath != "." {
+		cfg.Global.ScanPath = scanPath
+	}
+	if noScan {
+		cfg.Global.DisableScan = true
+	}
+	if usbWorkers > 0 {
+		cfg.USB.Workers = usbWorkers
+	}
+	if strings.TrimSpace(usbStrategy) != "" {
+		cfg.USB.Strategy = strings.TrimSpace(usbStrategy)
+	}
+	return cfg.Validate()
+}
+
+
 func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts git.ScanOptions) error {
 	var (
 		repos     []git.Repository

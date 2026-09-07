@@ -370,6 +370,42 @@ func TestRunGitFire_DryRun(t *testing.T) {
 	}
 }
 
+func TestRunGitFire_DryRun_WithoutUSBTargetsUsesNonUSBPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	setTestUserDirs(t, tmpHome)
+
+	scenario := testutil.NewScenario(t)
+	remote := scenario.CreateBareRepo("remote")
+	repo := scenario.CreateRepo("test").
+		WithRemote("origin", remote).
+		AddFile("test.txt", "content\n").
+		Commit("Initial commit")
+	repo.Push("origin", repo.GetDefaultBranch())
+
+	resetFlags()
+	t.Cleanup(resetFlags)
+	dryRun = true
+	scanPath = filepath.Dir(repo.Path())
+
+	cfg := config.DefaultConfig()
+	if targets := resolveUSBTargets(&cfg, usbTargets); len(targets) != 0 {
+		t.Fatalf("precondition: no USB targets expected for non-USB routing, got %#v", targets)
+	}
+
+	output := captureStdout(t, func() {
+		if err := runGitFire(rootCmd, []string{}); err != nil {
+			t.Errorf("runGitFire() dry-run without USB error = %v", err)
+		}
+	})
+	if strings.Contains(output, "USB mode") {
+		t.Fatalf("expected non-USB dry-run path, but output mentioned USB mode:\n%s", output)
+	}
+	if !strings.Contains(output, "Dry Run") && !strings.Contains(output, "Fire Drill") && !strings.Contains(output, "repositories") {
+		// Soft check: dry-run still produced normal planning output.
+		t.Fatalf("expected normal dry-run output, got:\n%s", output)
+	}
+}
+
 func TestRunGitFire_DryRun_DoesNotPrintWaterMessage(t *testing.T) {
 	// Isolate registry from the user's real one
 	tmpHome := t.TempDir()
@@ -1227,4 +1263,11 @@ func resetFlags() {
 	backupTo = ""
 	configFile = ""
 	showStatus = false
+	forceUnlockRegistry = false
+	usbTargets = nil
+	usbInit = false
+	usbWorkers = 0
+	usbStrategy = ""
+	usbResume = false
+	usbVerify = false
 }
