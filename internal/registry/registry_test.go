@@ -175,6 +175,66 @@ func TestUpsert_OverridesRescanSubmodules_WhenNonNil(t *testing.T) {
 	}
 }
 
+func TestUpsert_PreservesUSBOverrides_WhenEmpty(t *testing.T) {
+	reg := &Registry{
+		Repos: []RegistryEntry{{
+			Path:          "/repos/a",
+			Name:          "a",
+			Status:        StatusActive,
+			USBStrategy:   "git-clone",
+			USBRepoPath:   "custom/backup",
+			USBSyncPolicy: "prune",
+		}},
+	}
+
+	reg.Upsert(RegistryEntry{
+		Path:   "/repos/a",
+		Name:   "a-renamed",
+		Status: StatusActive,
+		// Empty usb_* fields must preserve existing overrides (same pattern as RescanSubmodules).
+	})
+
+	got := reg.Repos[0]
+	if got.Name != "a-renamed" {
+		t.Fatalf("Name not updated: got %q", got.Name)
+	}
+	if got.USBStrategy != "git-clone" {
+		t.Fatalf("USBStrategy should be preserved, got %q", got.USBStrategy)
+	}
+	if got.USBRepoPath != "custom/backup" {
+		t.Fatalf("USBRepoPath should be preserved, got %q", got.USBRepoPath)
+	}
+	if got.USBSyncPolicy != "prune" {
+		t.Fatalf("USBSyncPolicy should be preserved, got %q", got.USBSyncPolicy)
+	}
+}
+
+func TestUpsert_OverridesUSBFields_WhenProvided(t *testing.T) {
+	reg := &Registry{
+		Repos: []RegistryEntry{{
+			Path:          "/repos/a",
+			USBStrategy:   "git-clone",
+			USBRepoPath:   "old/path",
+			USBSyncPolicy: "prune",
+		}},
+	}
+
+	reg.Upsert(RegistryEntry{
+		Path:          "/repos/a",
+		Name:          "a",
+		Status:        StatusActive,
+		USBStrategy:   "git-mirror",
+		USBRepoPath:   "new/path",
+		USBSyncPolicy: "keep",
+	})
+
+	got := reg.Repos[0]
+	if got.USBStrategy != "git-mirror" || got.USBRepoPath != "new/path" || got.USBSyncPolicy != "keep" {
+		t.Fatalf("expected usb_* overrides to update when provided, got strategy=%q path=%q policy=%q",
+			got.USBStrategy, got.USBRepoPath, got.USBSyncPolicy)
+	}
+}
+
 // ---- SetStatus ----
 
 func TestSetStatus_Found(t *testing.T) {

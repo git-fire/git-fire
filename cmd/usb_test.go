@@ -212,3 +212,83 @@ func TestApplyFlagOverrides_InvalidUSBStrategyReturnsError(t *testing.T) {
 		t.Fatalf("expected invalid usb.strategy error, got: %v", err)
 	}
 }
+
+func TestApplyFlagOverrides_NonUSBFlagsWithoutUSBOverrides(t *testing.T) {
+	resetFlags()
+	t.Cleanup(resetFlags)
+
+	cfg := config.DefaultConfig()
+	beforeUSB := cfg.USB
+
+	skipCommit = true
+	scanPath = "/tmp/scan-root"
+	noScan = true
+	// USB flags remain at zero/empty defaults from resetFlags.
+
+	if err := applyFlagOverrides(&cfg); err != nil {
+		t.Fatalf("applyFlagOverrides() unexpected error: %v", err)
+	}
+
+	if cfg.Global.AutoCommitDirty {
+		t.Fatal("skipCommit should set auto_commit_dirty=false")
+	}
+	if cfg.Global.ScanPath != "/tmp/scan-root" {
+		t.Fatalf("scanPath override not applied, got %q", cfg.Global.ScanPath)
+	}
+	if !cfg.Global.DisableScan {
+		t.Fatal("noScan should set disable_scan=true")
+	}
+
+	if cfg.USB.Strategy != beforeUSB.Strategy {
+		t.Fatalf("USB strategy mutated unexpectedly: got %q want %q", cfg.USB.Strategy, beforeUSB.Strategy)
+	}
+	if cfg.USB.Workers != beforeUSB.Workers {
+		t.Fatalf("USB workers mutated unexpectedly: got %d want %d", cfg.USB.Workers, beforeUSB.Workers)
+	}
+	if cfg.USB.TargetWorkers != beforeUSB.TargetWorkers {
+		t.Fatalf("USB target_workers mutated unexpectedly: got %d want %d", cfg.USB.TargetWorkers, beforeUSB.TargetWorkers)
+	}
+	if cfg.USB.SyncPolicy != beforeUSB.SyncPolicy {
+		t.Fatalf("USB sync_policy mutated unexpectedly: got %q want %q", cfg.USB.SyncPolicy, beforeUSB.SyncPolicy)
+	}
+	if cfg.USB.CreateOnFirst != beforeUSB.CreateOnFirst {
+		t.Fatalf("USB create_on_first_use mutated unexpectedly: got %v want %v", cfg.USB.CreateOnFirst, beforeUSB.CreateOnFirst)
+	}
+	if len(cfg.USB.Targets) != 0 {
+		t.Fatalf("USB targets mutated unexpectedly: got %#v", cfg.USB.Targets)
+	}
+}
+
+func TestResolveUSBTargets_EmptyWhenDisabledOrMissing(t *testing.T) {
+	cfg := config.DefaultConfig()
+	if got := resolveUSBTargets(&cfg, nil); len(got) != 0 {
+		t.Fatalf("empty USB config + nil flags should yield no targets (non-USB routing), got %#v", got)
+	}
+
+	cfg.USB.Targets = []config.USBTargetConfig{
+		{Name: "stick", Path: "/media/stick", Enabled: false},
+		{Name: "blank", Path: "", Enabled: true},
+	}
+	if got := resolveUSBTargets(&cfg, nil); len(got) != 0 {
+		t.Fatalf("disabled/blank targets should not activate USB routing, got %#v", got)
+	}
+}
+
+func TestResolveUSBTargets_EnabledConfigTargetsActivateUSB(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.USB.Targets = []config.USBTargetConfig{
+		{Name: "disabled", Path: "/media/off", Enabled: false},
+		{Name: "travel", Path: "/media/travel", Enabled: true},
+	}
+
+	got := resolveUSBTargets(&cfg, nil)
+	if len(got) != 1 || got[0] != "/media/travel" {
+		t.Fatalf("expected enabled config target alone to activate USB, got %#v", got)
+	}
+
+	// CLI flags still win/combine; enabled config targets remain included.
+	got = resolveUSBTargets(&cfg, []string{"/mnt/cli"})
+	if len(got) != 2 || got[0] != "/mnt/cli" || got[1] != "/media/travel" {
+		t.Fatalf("expected CLI + enabled config targets, got %#v", got)
+	}
+}
