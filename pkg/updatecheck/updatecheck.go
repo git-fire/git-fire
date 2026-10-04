@@ -8,11 +8,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 )
+
+// gitDescribeSuffix matches git-describe / dirty suffixes only, not SemVer prereleases.
+// Examples: -5-gabcdef, -5-gabcdef-dirty, -dirty
+var gitDescribeSuffix = regexp.MustCompile(`(?:-\d+-g[0-9a-f]+)?-dirty$|-\d+-g[0-9a-f]+$`)
 
 const defaultAPIURL = "https://api.github.com/repos/git-fire/git-fire/releases/latest"
 
@@ -81,16 +86,14 @@ func canonicalSemverTag(v string) string {
 	if v == "" || strings.EqualFold(v, "dev") {
 		return ""
 	}
-	// Strip git-describe suffixes (e.g. v1.2.3-5-gabc, v1.2.3-dirty) for comparison.
+	// Normalize v-prefix, then strip only git-describe / dirty suffixes so
+	// SemVer prereleases (e.g. v0.1.0-alpha) are preserved for comparison.
 	v = strings.TrimPrefix(v, "v")
 	v = strings.TrimPrefix(v, "V")
-	if i := strings.IndexByte(v, '-'); i >= 0 {
-		v = v[:i]
-	}
 	if v == "" {
 		return ""
 	}
-	candidate := "v" + v
+	candidate := gitDescribeSuffix.ReplaceAllString("v"+v, "")
 	c := semver.Canonical(candidate)
 	if c == "" || !semver.IsValid(c) {
 		return ""

@@ -51,4 +51,38 @@ func TestCanonicalSemverTag_gitDescribe(t *testing.T) {
 	if got := canonicalSemverTag("v1.2.3-dirty"); got != "v1.2.3" {
 		t.Fatalf("got %q want v1.2.3", got)
 	}
+	if got := canonicalSemverTag("v1.2.3-5-gabcdef-dirty"); got != "v1.2.3" {
+		t.Fatalf("got %q want v1.2.3", got)
+	}
+}
+
+func TestCanonicalSemverTag_prereleasePreserved(t *testing.T) {
+	t.Parallel()
+	if got := canonicalSemverTag("v0.1.0-alpha"); got != "v0.1.0-alpha" {
+		t.Fatalf("got %q want v0.1.0-alpha", got)
+	}
+	if got := canonicalSemverTag("v1.2.3-rc.1"); got != "v1.2.3-rc.1" {
+		t.Fatalf("got %q want v1.2.3-rc.1", got)
+	}
+	// git-describe after a prerelease tag should keep the prerelease identifier.
+	if got := canonicalSemverTag("v0.1.0-alpha-5-gabcdef"); got != "v0.1.0-alpha" {
+		t.Fatalf("got %q want v0.1.0-alpha", got)
+	}
+}
+
+func TestLatestReleaseNewerThan_prereleaseToStable(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tag_name":"v0.1.0"}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, newer, err := latestReleaseNewerThan(context.Background(), "v0.1.0-alpha", srv.URL, srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !newer {
+		t.Fatal("stable v0.1.0 should be newer than prerelease v0.1.0-alpha")
+	}
 }
