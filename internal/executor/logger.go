@@ -12,10 +12,14 @@ import (
 
 // Logger handles structured logging of git-fire operations
 type Logger struct {
-	logPath string
-	file    *os.File
-	writes  int
+	logPath     string
+	file        *os.File
+	writes      int
+	subscribers []EventSubscriber
 }
+
+// EventSubscriber receives structured log entries as they are written.
+type EventSubscriber func(LogEntry)
 
 // LogEntry represents a single log entry
 type LogEntry struct {
@@ -71,12 +75,27 @@ func (l *Logger) Log(entry LogEntry) error {
 	if _, err := l.file.Write(append(data, '\n')); err != nil {
 		return fmt.Errorf("failed to write log entry: %w", err)
 	}
+	l.notifySubscribers(entry)
 
 	l.writes++
 	if l.writes%20 == 0 {
 		return l.file.Sync()
 	}
 	return nil
+}
+
+// Subscribe registers an in-process consumer for structured log events.
+func (l *Logger) Subscribe(fn EventSubscriber) {
+	if fn == nil {
+		return
+	}
+	l.subscribers = append(l.subscribers, fn)
+}
+
+func (l *Logger) notifySubscribers(entry LogEntry) {
+	for _, fn := range l.subscribers {
+		fn(entry)
+	}
 }
 
 // Info logs an info message
