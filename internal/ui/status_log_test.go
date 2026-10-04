@@ -38,7 +38,7 @@ func TestRenderLogExportText(t *testing.T) {
 }
 
 func TestExportLogEntriesText(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	setTestUserDirs(t, t.TempDir())
 	path, err := exportLogEntriesText([]executor.LogEntry{
 		{Timestamp: time.Now(), Level: "info", Action: "scan", Description: "ok"},
 	})
@@ -52,6 +52,19 @@ func TestExportLogEntriesText(t *testing.T) {
 	if filepath.Dir(path) != wantDir {
 		t.Fatalf("export dir = %s, want sibling of log dir %s", filepath.Dir(path), wantDir)
 	}
+}
+
+// setTestUserDirs normalizes user-dir environment variables for tests that
+// depend on UserConfigDir/UserCacheDir path resolution (Linux/macOS/Windows).
+func setTestUserDirs(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 }
 
 func TestRepoSelectorModel_ScanProgressIsStatusOnly(t *testing.T) {

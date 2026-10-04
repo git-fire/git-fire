@@ -288,6 +288,13 @@ func NewRepoSelectorModelStream(
 		}
 	}
 
+	statusLine := "scan starting"
+	statusIcon := "🔍"
+	if scanDisabled {
+		statusLine = "scanning disabled"
+		statusIcon = "⚠️"
+	}
+
 	return RepoSelectorModel{
 		repos:                nil,
 		cursor:               0,
@@ -314,8 +321,8 @@ func NewRepoSelectorModelStream(
 		currentStartupQuote:  randomStartupFireQuote(),
 		startupQuoteVisible:  showStartupQuote,
 		quoteTickActive:      showStartupQuote && startupQuoteIntervalSec > 0,
-		statusLine:           "scan starting",
-		statusIcon:           "🔍",
+		statusLine:           statusLine,
+		statusIcon:           statusIcon,
 		logBuffer:            executor.NewEventBuffer(200),
 	}
 }
