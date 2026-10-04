@@ -97,15 +97,16 @@ changelog:
     - title: Other
       order: 999
 
-brews:
+homebrew_casks:
   - name: git-fire
+    binaries:
+      - git-fire
     repository:
       owner: git-fire
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
       pull_request:
         enabled: false
-    directory: Formula
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
@@ -113,8 +114,12 @@ brews:
     homepage: "https://github.com/git-fire/git-fire"
     description: "Emergency git backup - commit and push all repos when disaster strikes"
     license: MIT
-    install: bin.install "git-fire"
-    test: system "#{bin}/git-fire", "--version"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/git-fire"]
+          end
 
 release:
   github:
