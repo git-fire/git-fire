@@ -9,7 +9,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
+	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-harness/git"
 )
 
@@ -515,6 +517,100 @@ func TestRepoSelectorLiteModel_PageKeys(t *testing.T) {
 	m = updateLite(t, m, pressSpecial(tea.KeyPgDown))
 	if m.cursor <= 0 {
 		t.Fatalf("PgDown should advance, cursor = %d", m.cursor)
+	}
+}
+
+func manyLiteIgnoredEntries(n int) []registry.RegistryEntry {
+	root := filepath.Join(os.TempDir(), "gitfire-lite-ignored-many")
+	out := make([]registry.RegistryEntry, 0, n)
+	for i := range n {
+		name := fmt.Sprintf("repo%d", i)
+		out = append(out, registry.RegistryEntry{
+			Path:   filepath.Join(root, name, "work"),
+			Name:   name,
+			Status: registry.StatusIgnored,
+		})
+	}
+	return out
+}
+
+func TestRepoSelectorLiteModel_IgnoredView_ShowsScrollIndicatorWhenClipped(t *testing.T) {
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(50)
+	m.windowWidth = 80
+	m.windowHeight = 16
+	m = m.syncIgnoredScroll()
+	view := m.View()
+	if !strings.Contains(view, "↓") || !strings.Contains(view, "more") {
+		t.Fatalf("expected ↓ … more when ignored list exceeds viewport, got:\n%s", view)
+	}
+}
+
+func TestRepoSelectorLiteModel_Ignored_EndKeyScrollsLastRowIntoView(t *testing.T) {
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(30)
+	m.windowWidth = 80
+	m.windowHeight = 14
+	m = updateLite(t, m, pressSpecial(tea.KeyEnd))
+	view := m.View()
+	if !strings.Contains(view, "repo29") {
+		t.Fatalf("expected last ignored repo path visible after End, got:\n%s", view)
+	}
+	if !strings.Contains(view, ">") {
+		t.Fatalf("expected cursor marker on a row, got:\n%s", view)
+	}
+}
+
+func TestRepoSelectorLiteModel_Ignored_HiddenTailAlwaysIndicated(t *testing.T) {
+	const total = 30
+	last := filepath.Join(fmt.Sprintf("repo%d", total-1), "work")
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(total)
+	m.windowWidth = 80
+	m.windowHeight = 18
+	m = updateLite(t, m, pressSpecial(tea.KeyEnd))
+	for range total {
+		view := m.View()
+		if h := lipgloss.Height(view); h > m.windowHeight {
+			t.Fatalf("cursor=%d: view height %d exceeds terminal height %d:\n%s",
+				m.ignoredCursor, h, m.windowHeight, view)
+		}
+		if w := lipgloss.Width(view); w > m.windowWidth {
+			t.Fatalf("cursor=%d: view width %d exceeds terminal width %d:\n%s",
+				m.ignoredCursor, w, m.windowWidth, view)
+		}
+		if !strings.Contains(view, last) && !strings.Contains(view, " more") {
+			t.Fatalf("cursor=%d offset=%d: last entry hidden without ↓ indicator:\n%s",
+				m.ignoredCursor, m.ignoredScrollOffset, view)
+		}
+		if !strings.Contains(view, fmt.Sprintf("repo%d%c", m.ignoredCursor, filepath.Separator)) {
+			t.Fatalf("cursor=%d not visible:\n%s", m.ignoredCursor, view)
+		}
+		m = updateLite(t, m, pressSpecial(tea.KeyUp))
+	}
+}
+
+func TestClampListScroll_TailIndicatorAccountsForTopIndicator(t *testing.T) {
+	// offset 20, visible 10, total 30: the ↑ row leaves 9 item rows (20..28),
+	// so entry 29 is hidden and must be counted as needing a ↓ row.
+	for cursor := 20; cursor < 30; cursor++ {
+		off := clampListScroll(20, cursor, 10, 30)
+		above := 0
+		if off > 0 {
+			above = 1
+		}
+		items := 10 - above
+		below := 0
+		if 30 > off+items {
+			below = 1
+		}
+		items -= below
+		if cursor < off || cursor >= off+items {
+			t.Fatalf("cursor=%d offset=%d: cursor outside %d rendered rows", cursor, off, items)
+		}
 	}
 }
 
