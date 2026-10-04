@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/registry"
 	"github.com/git-fire/git-harness/git"
@@ -559,6 +560,57 @@ func TestRepoSelectorLiteModel_Ignored_EndKeyScrollsLastRowIntoView(t *testing.T
 	}
 	if !strings.Contains(view, ">") {
 		t.Fatalf("expected cursor marker on a row, got:\n%s", view)
+	}
+}
+
+func TestRepoSelectorLiteModel_Ignored_HiddenTailAlwaysIndicated(t *testing.T) {
+	const total = 30
+	last := filepath.Join(fmt.Sprintf("repo%d", total-1), "work")
+	m := NewRepoSelectorLiteModel(sampleRepos(), nil, "")
+	m.view = repoViewIgnored
+	m.ignoredEntries = manyLiteIgnoredEntries(total)
+	m.windowWidth = 80
+	m.windowHeight = 18
+	m = updateLite(t, m, pressSpecial(tea.KeyEnd))
+	for range total {
+		view := m.View()
+		if h := lipgloss.Height(view); h > m.windowHeight {
+			t.Fatalf("cursor=%d: view height %d exceeds terminal height %d:\n%s",
+				m.ignoredCursor, h, m.windowHeight, view)
+		}
+		if w := lipgloss.Width(view); w > m.windowWidth {
+			t.Fatalf("cursor=%d: view width %d exceeds terminal width %d:\n%s",
+				m.ignoredCursor, w, m.windowWidth, view)
+		}
+		if !strings.Contains(view, last) && !strings.Contains(view, " more") {
+			t.Fatalf("cursor=%d offset=%d: last entry hidden without ↓ indicator:\n%s",
+				m.ignoredCursor, m.ignoredScrollOffset, view)
+		}
+		if !strings.Contains(view, fmt.Sprintf("repo%d%c", m.ignoredCursor, filepath.Separator)) {
+			t.Fatalf("cursor=%d not visible:\n%s", m.ignoredCursor, view)
+		}
+		m = updateLite(t, m, pressSpecial(tea.KeyUp))
+	}
+}
+
+func TestClampListScroll_TailIndicatorAccountsForTopIndicator(t *testing.T) {
+	// offset 20, visible 10, total 30: the ↑ row leaves 9 item rows (20..28),
+	// so entry 29 is hidden and must be counted as needing a ↓ row.
+	for cursor := 20; cursor < 30; cursor++ {
+		off := clampListScroll(20, cursor, 10, 30)
+		above := 0
+		if off > 0 {
+			above = 1
+		}
+		items := 10 - above
+		below := 0
+		if 30 > off+items {
+			below = 1
+		}
+		items -= below
+		if cursor < off || cursor >= off+items {
+			t.Fatalf("cursor=%d offset=%d: cursor outside %d rendered rows", cursor, off, items)
+		}
 	}
 }
 

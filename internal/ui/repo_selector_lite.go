@@ -467,8 +467,7 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 		visible := m.liteIgnoredListVisibleCount()
 		scrollOffset := clampListScroll(m.ignoredScrollOffset, m.ignoredCursor, visible, len(m.ignoredEntries))
 
-		hasAbove := scrollOffset > 0
-		hasBelow := len(m.ignoredEntries) > scrollOffset+visible
+		hasAbove, hasBelow := listScrollIndicators(scrollOffset, visible, len(m.ignoredEntries))
 		indicators := 0
 		if hasAbove {
 			indicators++
@@ -539,7 +538,11 @@ func (m RepoSelectorLiteModel) viewIgnoredLite() string {
 	if m.lastErr != nil {
 		fmt.Fprintf(&s, "\n\n⚠️  %v", m.lastErr)
 	}
-	return liteBoxStyle.Render(s.String())
+	innerW := m.windowWidth - 6
+	if innerW < 0 {
+		innerW = 0
+	}
+	return liteBoxStyle.Width(innerW).Render(s.String())
 }
 
 func (m RepoSelectorLiteModel) restoreIgnoredAtCursorLite() RepoSelectorLiteModel {

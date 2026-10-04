@@ -61,20 +61,33 @@ func selectorGetSelected(repos []git.Repository, selected map[int]bool) []git.Re
 	return out
 }
 
+// listScrollIndicators reports whether a windowed list starting at offset needs
+// ↑/↓ indicator rows. The ↓ check runs after the ↑ row is reserved, because that
+// row pushes the last item that would otherwise fit out of the window.
+func listScrollIndicators(offset, visible, total int) (hasAbove, hasBelow bool) {
+	hasAbove = offset > 0
+	itemRows := visible
+	if hasAbove {
+		itemRows--
+	}
+	hasBelow = total > offset+itemRows
+	return hasAbove, hasBelow
+}
+
 // clampListScroll returns a scroll offset that keeps cursor within the rendered
 // item rows, accounting for ↑/↓ indicator lines that consume viewport rows.
 // It iterates to convergence (≤3 passes) because changing the offset can
 // toggle which indicators appear, which in turn changes the item row count.
 func clampListScroll(offset, cursor, visible, total int) int {
 	for range 3 {
-		indicators := 0
-		if offset > 0 {
-			indicators++
+		hasAbove, hasBelow := listScrollIndicators(offset, visible, total)
+		itemVisible := visible
+		if hasAbove {
+			itemVisible--
 		}
-		if total > offset+visible {
-			indicators++
+		if hasBelow {
+			itemVisible--
 		}
-		itemVisible := visible - indicators
 		if itemVisible < 1 {
 			itemVisible = 1
 		}

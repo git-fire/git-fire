@@ -1075,8 +1075,7 @@ func (m RepoSelectorModel) View() string {
 
 	// Scroll indicators each consume 1 line; subtract them from the viewport
 	// so the box never overflows.
-	hasAbove := scrollOffset > 0
-	hasBelow := len(m.repos) > scrollOffset+visible
+	hasAbove, hasBelow := listScrollIndicators(scrollOffset, visible, len(m.repos))
 	indicators := 0
 	if hasAbove {
 		indicators++
@@ -1286,8 +1285,7 @@ func (m RepoSelectorModel) viewIgnoredMain() string {
 		visible := m.ignoredListVisibleCount()
 		scrollOffset := m.clampScroll(m.ignoredScrollOffset, m.ignoredCursor, visible, len(m.ignoredEntries))
 
-		hasAbove := scrollOffset > 0
-		hasBelow := len(m.ignoredEntries) > scrollOffset+visible
+		hasAbove, hasBelow := listScrollIndicators(scrollOffset, visible, len(m.ignoredEntries))
 		indicators := 0
 		if hasAbove {
 			indicators++
