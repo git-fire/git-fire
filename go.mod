@@ -13,6 +13,8 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	golang.org/x/mod v0.26.0
+	golang.org/x/term v0.35.0
 )
 
 require (

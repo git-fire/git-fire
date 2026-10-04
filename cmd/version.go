@@ -20,6 +20,12 @@ func resolvedCLIVersion(linked string) string {
 	return pickCLIVersion(linked, mainMod)
 }
 
+// CLIVersion returns the same version string shown by --version (release tag,
+// go install pseudo-version, or dev).
+func CLIVersion() string {
+	return resolvedCLIVersion(Version)
+}
+
 func pickCLIVersion(ldflags, mainMod string) string {
 	// Mis-tuned builds (e.g. empty -X github.com/.../cmd.Version=) must not disable --version.
 	if strings.TrimSpace(ldflags) == "" {
