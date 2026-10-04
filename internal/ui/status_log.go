@@ -44,12 +44,14 @@ func renderLogExportText(entries []executor.LogEntry) string {
 	return b.String()
 }
 
+// defaultExportDir places exports beside the session log directory so both
+// share the same cache-dir fallback chain.
+func defaultExportDir() string {
+	return filepath.Join(filepath.Dir(executor.DefaultLogDir()), "exports")
+}
+
 func exportLogEntriesText(entries []executor.LogEntry) (string, error) {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	exportDir := filepath.Join(base, "git-fire", "exports")
+	exportDir := defaultExportDir()
 	if err := os.MkdirAll(exportDir, 0o700); err != nil {
 		return "", fmt.Errorf("create export dir: %w", err)
 	}

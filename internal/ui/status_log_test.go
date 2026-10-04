@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +47,46 @@ func TestExportLogEntriesText(t *testing.T) {
 	}
 	if !strings.Contains(path, "git-fire-ui-log-") {
 		t.Fatalf("unexpected export path: %s", path)
+	}
+	wantDir := filepath.Join(filepath.Dir(executor.DefaultLogDir()), "exports")
+	if filepath.Dir(path) != wantDir {
+		t.Fatalf("export dir = %s, want sibling of log dir %s", filepath.Dir(path), wantDir)
+	}
+}
+
+func TestRepoSelectorModel_ScanProgressIsStatusOnly(t *testing.T) {
+	logger, err := executor.NewLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
+	defer func() { _ = logger.Close() }()
+	var mu sync.Mutex
+	var logged []string
+	logger.Subscribe(func(e executor.LogEntry) {
+		mu.Lock()
+		logged = append(logged, e.Action)
+		mu.Unlock()
+	})
+
+	m := NewRepoSelectorModel(nil, nil, "")
+	m.logger = logger
+	before := len(m.logBuffer.Snapshot())
+
+	updated, _ := m.Update(scanProgressMsg("/tmp/some/dir"))
+	next := updated.(RepoSelectorModel)
+
+	if !strings.Contains(next.statusLine, "/tmp/some/dir") {
+		t.Fatalf("statusLine = %q, want scanned path", next.statusLine)
+	}
+	if got := len(next.logBuffer.Snapshot()); got != before {
+		t.Fatalf("log panel buffer grew from %d to %d on scan progress", before, got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, a := range logged {
+		if a == "scan-progress" {
+			t.Fatal("scan-progress was written to the session log")
+		}
 	}
 }
 

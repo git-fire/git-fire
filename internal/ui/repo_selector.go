@@ -349,6 +349,14 @@ func (m *RepoSelectorModel) recordStatus(level, action, description string) {
 	}
 }
 
+// setTransientStatus updates only the status strip. Used for high-frequency
+// signals (one per scanned directory) that would otherwise flood the session
+// log and evict meaningful entries from the bounded log panel.
+func (m *RepoSelectorModel) setTransientStatus(level, action, description string) {
+	m.statusIcon = statusGlyph(executor.LogEntry{Level: level, Action: action})
+	m.statusLine = description
+}
+
 func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
@@ -376,7 +384,7 @@ func (m RepoSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.progressChan != nil && !m.progDone {
 			cmds = append(cmds, waitForProgress(m.progressChan))
 		}
-		m.recordStatus("info", "scan-progress", fmt.Sprintf("scanning %s", m.scanCurrentPath))
+		m.setTransientStatus("info", "scan-progress", fmt.Sprintf("scanning %s", m.scanCurrentPath))
 
 	case repoChanDoneMsg:
 		m.scanDone = true
