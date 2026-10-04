@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -18,6 +19,33 @@ func TestEventBuffer_AppendsAndTrims(t *testing.T) {
 	}
 	if entries[0].Action != "a-2" || entries[2].Action != "a-4" {
 		t.Fatalf("unexpected entries: %#v", entries)
+	}
+}
+
+func TestEventBuffer_ConcurrentAppendAndSnapshot(t *testing.T) {
+	buf := NewEventBuffer(16)
+	var wg sync.WaitGroup
+	for w := 0; w < 4; w++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				buf.Append(LogEntry{Action: "append"})
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				if n := len(buf.Snapshot()); n > 16 {
+					t.Errorf("snapshot len=%d exceeds max 16", n)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if n := len(buf.Snapshot()); n != 16 {
+		t.Fatalf("final len=%d want 16", n)
 	}
 }
 
