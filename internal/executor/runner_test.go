@@ -1017,6 +1017,13 @@ func TestRunner_ExecuteStream(t *testing.T) {
 		t.Fatalf("ExecuteStream error: %v", err)
 	}
 
+	if result.Plan == nil {
+		t.Fatal("ExecuteStream result.Plan is nil")
+	}
+	if result.Plan.TotalRepos != len(repos) {
+		t.Errorf("plan.TotalRepos = %d, want %d", result.Plan.TotalRepos, len(repos))
+	}
+
 	processed := result.Success + result.Failed + result.Skipped
 	if processed != len(repos) {
 		t.Errorf("want %d repos processed, got %d (success=%d failed=%d skipped=%d)",
