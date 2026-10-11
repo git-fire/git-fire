@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/git-fire/git-fire/internal/config"
 	"github.com/git-fire/git-fire/internal/flavor"
 )
@@ -44,8 +42,8 @@ func printStartupFireQuote() {
 	if quote == "" {
 		return
 	}
-	fmt.Printf("🔥 %s\n", quote)
-	fmt.Println()
+	cliPrintf("🔥 %s\n", quote)
+	cliPrintln()
 }
 
 func printExtinguishWaterMessage() {
@@ -53,7 +51,7 @@ func printExtinguishWaterMessage() {
 	if msg == "" {
 		return
 	}
-	fmt.Printf("💧 %s\n", msg)
+	cliPrintf("💧 %s\n", msg)
 }
 
 func printFailedRunEmberMessage() {
@@ -61,5 +59,5 @@ func printFailedRunEmberMessage() {
 	if msg == "" {
 		return
 	}
-	fmt.Printf("🔥 %s\n", msg)
+	cliPrintf("🔥 %s\n", msg)
 }

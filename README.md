@@ -1,4 +1,6 @@
-# git-fire - Multi-Repo Checkpoint CLI
+# git-fire
+
+**One command to checkpoint many git repos** — discover, optionally auto-commit dirty work, and push backup branches with dry-run preview and structured logs.
 
 <p align="center">
   <img src="assets/git-fire-lockup.svg#gh-light-mode-only" alt="git-fire: commit node, edge, flame, wordmark" width="220" height="80">
@@ -24,6 +26,40 @@
 Manual push loops fail more often than we admit (network drops, auth hiccups, shell mistakes). `git-fire` provides an auditable recovery path when you need one consistent move across many repos.
 
 Invocation note: `git-fire` and `git fire` are equivalent when `git-fire` is on your PATH.
+
+## Install
+
+```bash
+brew install git-fire/tap/git-fire          # macOS / Linuxbrew
+go install github.com/git-fire/git-fire@latest
+```
+
+More options: [Homebrew](#homebrew-macoslinuxbrew), [WinGet](#winget-windows), [Linux script](#linux-quick-install-script), [releases](https://github.com/git-fire/git-fire/releases).
+
+## Quickstart
+
+```bash
+git-fire --dry-run --path .    # preview (safe)
+git-fire --path .              # live checkpoint (commits + pushes)
+git-fire --status              # SSH + repo snapshot
+```
+
+## Using with AI agents
+
+Coding agents should treat git-fire as an **opt-in checkpoint** after human approval:
+
+```bash
+git-fire --dry-run --json --non-interactive --path .
+# review JSON plan, then if approved:
+git-fire --json --non-interactive --path .
+```
+
+- Playbook: [AGENTS.md](AGENTS.md)
+- JSON schema: [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md)
+- llmstxt.org index: [llms.txt](llms.txt)
+- Restore/sync sibling: [git-rain](https://github.com/git-fire/git-rain)
+
+Do **not** run `git-fire --fire` (TUI) from unattended automation.
 
 *Maintainer note: this project is built for high-stress moments and everyday discipline. Keep it simple, keep it safe, keep moving.*
 

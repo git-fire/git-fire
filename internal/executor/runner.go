@@ -383,7 +383,13 @@ func (r *Runner) ExecuteStream(
 	dryRun bool,
 	total *int64,
 ) (*ExecutionResult, error) {
+	plan := &PushPlan{
+		Repos:     make([]RepoPlan, 0),
+		DryRun:    dryRun,
+		CreatedAt: time.Now(),
+	}
 	result := &ExecutionResult{
+		Plan:        plan,
 		StartTime:   time.Now(),
 		RepoResults: make([]RepoResult, 0),
 	}
@@ -523,6 +529,20 @@ func (r *Runner) ExecuteStream(
 			continue
 		}
 		repoPlan.Repo.Selected = true
+		plan.Repos = append(plan.Repos, repoPlan)
+		plan.TotalRepos++
+		if repo.IsDirty {
+			plan.DirtyRepos++
+		}
+		if repoPlan.HasConflict {
+			plan.Conflicts++
+		}
+		if repoPlanHasFireCreateAction(repoPlan.Actions) {
+			plan.FireBranches++
+		}
+		if repoPlan.PushKnownFireBackups > 0 {
+			plan.FireBranches += repoPlan.PushKnownFireBackups
+		}
 		jobs <- streamJob{sequence: sequence, repoPlan: repoPlan}
 	}
 	close(jobs)

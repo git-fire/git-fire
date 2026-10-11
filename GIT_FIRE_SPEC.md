@@ -65,6 +65,9 @@ Defined on the root command in `cmd/root.go` (see also `git-fire repos` subcomma
 | `--force` | With `--init`, overwrite config without prompting. |
 | `--config <file>` | Explicit config file path. |
 | `--status` | SSH / key / agent snapshot and repo-oriented status; no backup run. |
+| `--json` | Machine-readable JSON on stdout for `--status` and run summaries (see `docs/JSON_OUTPUT.md`). |
+| `--non-interactive` / `--yes` | Never prompt on stdin; sets `GIT_FIRE_NON_INTERACTIVE` behavior. |
+| `--force-unlock-registry` | Remove registry lock without prompting (persistent flag; dangerous if another instance runs). |
 | `--backup-to <url>` | **Not implemented** — returns error (planned v0.2+). |
 
 Root invocation: `git-fire` with no subcommand runs the default streamed backup flow.
