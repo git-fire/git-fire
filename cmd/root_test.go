@@ -1227,4 +1227,22 @@ func resetFlags() {
 	backupTo = ""
 	configFile = ""
 	showStatus = false
+	jsonOutput = false
+	nonInteractive = false
+}
+
+func TestRunGitFire_FireRequiresInteractiveTerminal(t *testing.T) {
+	resetFlags()
+	fireMode = true
+	t.Setenv("CI", "true")
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GIT_FIRE_NON_INTERACTIVE", "")
+
+	err := runGitFire(rootCmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --fire is used without interactive stdin")
+	}
+	if !strings.Contains(err.Error(), "--fire requires an interactive terminal") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

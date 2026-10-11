@@ -46,6 +46,10 @@ var (
 	backupTo   string
 	configFile string
 	showStatus bool
+	// jsonOutput emits machine-readable JSON on stdout for --status and run summaries (--json).
+	jsonOutput bool
+	// nonInteractive disables prompts (same as GIT_FIRE_NON_INTERACTIVE=1). --yes is an alias.
+	nonInteractive bool
 	// forceUnlockRegistry removes repos.toml.lock without prompting (dangerous if another instance runs).
 	forceUnlockRegistry bool
 )
@@ -86,7 +90,15 @@ func init() {
 	rootCmd.Flags().StringVar(&backupTo, "backup-to", "", "Backup to specified remote URL (not yet implemented)")
 	rootCmd.Flags().StringVar(&configFile, "config", "", "Use an explicit config file path (default: user config dir, e.g. ~/.config/git-fire/config.toml)")
 	rootCmd.Flags().BoolVar(&showStatus, "status", false, "Show SSH and repo status")
+	rootCmd.Flags().BoolVar(&jsonOutput, "json", false, "Machine-readable JSON on stdout (status and run summaries; see docs/JSON_OUTPUT.md)")
+	rootCmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Never prompt on stdin (same as GIT_FIRE_NON_INTERACTIVE=1)")
+	rootCmd.Flags().BoolVar(&nonInteractive, "yes", false, "Alias for --non-interactive")
 	rootCmd.PersistentFlags().BoolVar(&forceUnlockRegistry, "force-unlock-registry", false, "Remove stale registry lock file without prompting (only if no other git-fire is running)")
+
+	rootCmd.PersistentPreRunE = func(*cobra.Command, []string) error {
+		applyNonInteractiveCLI()
+		return nil
+	}
 }
 
 func runGitFire(cmd *cobra.Command, args []string) error {
@@ -107,6 +119,9 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 	if fireMode && dryRun {
 		return fmt.Errorf("--fire and --dry-run cannot be used together")
 	}
+	if fireMode && !stdinInteractiveOK() {
+		return fmt.Errorf("--fire requires an interactive terminal; use the default backup command or --dry-run --json for agents (see AGENTS.md)")
+	}
 
 	var cfg *config.Config
 	failRun := func(err error) error {
@@ -118,7 +133,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("🔥 Git Fire - Emergency Backup Tool")
+	cliPrintln("🔥 Git Fire - Emergency Backup Tool")
 
 	if backupTo != "" {
 		// TODO(v0.2): implement backup-to remote URL
@@ -162,7 +177,7 @@ func runGitFire(cmd *cobra.Command, args []string) error {
 
 	// Show security notice
 	if !dryRun {
-		fmt.Println(safety.SecurityNotice())
+		cliPrintln(safety.SecurityNotice())
 	}
 
 	// Load persistent registry (best-effort: fall back to empty in-memory registry on failure)
@@ -414,10 +429,17 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 	if dryRun {
 		runner := executor.NewRunner(cfg)
 		defer runner.Close()
-		if _, err := runner.Execute(plan); err != nil {
+		result, err := runner.Execute(plan)
+		if err != nil {
 			return fmt.Errorf("dry run failed: %w", err)
 		}
-		fmt.Println("🔥 Fire Drill Complete - No changes were made")
+		if jsonOutput {
+			if emitErr := emitRunSummaryJSON(true, plan, result, ""); emitErr != nil {
+				return emitErr
+			}
+			return errRunNoop
+		}
+		cliPrintln("🔥 Fire Drill Complete - No changes were made")
 		return errRunNoop
 	}
 
@@ -438,11 +460,11 @@ func runBatch(cfg *config.Config, reg *registry.Registry, regPath string, opts g
 
 	go func() {
 		for progress := range runner.ProgressChan() {
-			fmt.Printf("[%d/%d] %s: %s (%s)\n",
+			cliPrintf("[%d/%d] %s: %s (%s)\n",
 				progress.CurrentRepo, progress.TotalRepos,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
+				cliPrintf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -584,11 +606,11 @@ func runFireStream(cfg *config.Config, reg *registry.Registry, regPath string, o
 
 	go func() {
 		for progress := range runner.ProgressChan() {
-			fmt.Printf("[%d/%d] %s: %s (%s)\n",
+			cliPrintf("[%d/%d] %s: %s (%s)\n",
 				progress.CurrentRepo, progress.TotalRepos,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
+				cliPrintf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -728,11 +750,11 @@ func runStream(cfg *config.Config, reg *registry.Registry, regPath string, opts 
 			if total > 0 {
 				totalStr = fmt.Sprintf("%d", total)
 			}
-			fmt.Printf("[%d/%s] %s: %s (%s)\n",
+			cliPrintf("[%d/%s] %s: %s (%s)\n",
 				progress.CurrentRepo, totalStr,
 				progress.RepoName, progress.Action, progress.Status)
 			if progress.Error != nil {
-				fmt.Printf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
+				cliPrintf("  ❌ Error: %s\n", safety.SanitizeText(progress.Error.Error()))
 			}
 		}
 	}()
@@ -917,6 +939,16 @@ func saveRegistry(reg *registry.Registry, regPath string) {
 
 // printResult prints the final summary after a run.
 func printResult(result *executor.ExecutionResult, logPath string) {
+	if jsonOutput {
+		var plan *executor.PushPlan
+		if result != nil {
+			plan = result.Plan
+		}
+		if err := emitRunSummaryJSON(dryRun, plan, result, logPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to write JSON summary: %v\n", err)
+		}
+		return
+	}
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("🔥 Git Fire Complete!")
 	fmt.Println(strings.Repeat("=", 50))
@@ -974,8 +1006,6 @@ func handleStatus() error {
 		return fmt.Errorf("failed to get SSH status: %w", err)
 	}
 
-	fmt.Println(sshStatus.Summary())
-
 	// Show repositories
 	cfg, err := config.LoadWithOptions(config.LoadOptions{ConfigFile: configFile})
 	if err != nil {
@@ -1005,7 +1035,7 @@ func handleStatus() error {
 	}
 	opts.KnownPaths = buildKnownPaths(reg, cfg.Global.RescanSubmodules)
 
-	if cfg.Global.DisableScan {
+	if cfg.Global.DisableScan && !jsonOutput {
 		if noScan {
 			fmt.Println("⚠️  Scanning Disabled (this run only)")
 		} else {
@@ -1019,6 +1049,11 @@ func handleStatus() error {
 		return fmt.Errorf("repository scan failed: %w", err)
 	}
 
+	if jsonOutput {
+		return emitStatusJSON(sshStatus, cfg.Global.ScanPath, cfg.Global.DisableScan, noScan, repos)
+	}
+
+	fmt.Println(sshStatus.Summary())
 	fmt.Printf("\nRepositories found: %d\n", len(repos))
 	dirtyCount := 0
 	for _, repo := range repos {

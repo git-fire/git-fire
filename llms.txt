@@ -1,0 +1,25 @@
+# git-fire
+
+> One command to discover local git repositories, optionally auto-commit dirty work, and push backup branches to remotes—with dry-run preview and structured logs.
+
+Emergency multi-repo checkpoint CLI. Sibling restore/sync tool: https://github.com/git-fire/git-rain
+
+## Agent entrypoints
+
+- [AGENTS.md](AGENTS.md): when agents should run git-fire, install, commands, exit codes, safety
+- [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md): `--json` schema for status and run summaries
+- [docs/agent-integration.md](docs/agent-integration.md): future MCP/skill wrapper design
+- [docs/agentic-flows.md](docs/agentic-flows.md): stop hooks and session checkpoints
+
+## User docs
+
+- [README.md](README.md): install, quickstart, features
+- [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md): behavior spec aligned with implementation
+- [docs/README.md](docs/README.md): documentation index
+- [docs/REGISTRY.md](docs/REGISTRY.md): persistent repo registry
+- [PLUGINS.md](PLUGINS.md): post-run command plugins
+
+## Development
+
+- [CLAUDE.md](CLAUDE.md): architecture, make targets, testing
+- [CONTRIBUTING.md](CONTRIBUTING.md): contribution guide

@@ -23,6 +23,10 @@ Command forms used throughout docs: `git-fire` and `git fire` are equivalent whe
 
 ## Guides
 
+- AI agent playbook (install, flags, safety): [../AGENTS.md](../AGENTS.md)
+- Machine-readable `--json` output: [JSON_OUTPUT.md](JSON_OUTPUT.md)
+- MCP / skill wrapper design (future): [agent-integration.md](agent-integration.md)
+- llmstxt.org index: [../llms.txt](../llms.txt)
 - Agent workflows and automation patterns: [agentic-flows.md](agentic-flows.md)
 - Security and operations checkpoint workflows: [security-ops.md](security-ops.md)
 - Persistent repository registry internals: [REGISTRY.md](REGISTRY.md)

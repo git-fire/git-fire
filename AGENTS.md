@@ -1,4 +1,8 @@
-# AGENTS.md
+# AGENTS.md — git-fire
+
+Guidance for **AI coding agents** (Cursor, Claude Code, Codex, Cloud Agents, etc.) and humans automating the CLI.
+
+**Sibling project:** [git-rain](https://github.com/git-fire/git-rain) restores/syncs from remotes; use git-fire to **push checkpoints** and git-rain to **pull them back**. Keep automation flags aligned (`--non-interactive`, `--json`, env vars).
 
 <!-- agentic-guardrails:start -->
 ## Agentic guardrails
@@ -27,6 +31,119 @@ These notes apply to humans and to automated agents (including Cloud Agents).
 
 ---
 
+## What git-fire does
+
+`git-fire` scans for git repositories (from a path and/or a persistent registry), optionally **auto-commits dirty work**, and **pushes** backup branches to remotes using configurable modes and conflict strategies. It shells out to the system **`git`** binary (via [git-harness](https://github.com/git-fire/git-harness)); it is not a hosted service.
+
+**Invocation:** `git-fire` and `git fire` are equivalent when the binary is on `PATH`.
+
+## When an agent should use it
+
+| Situation | Recommended command |
+|-----------|---------------------|
+| End of session / before risky refactor | `git-fire --dry-run --json --non-interactive --path <root>` then ask the human before a live run |
+| Push already-committed work only | `git-fire --skip-auto-commit --json --non-interactive --path <root>` |
+| Inspect auth + repo dirtiness | `git-fire --status --json --non-interactive --path <root>` |
+| Human at keyboard choosing repos | `git-fire --fire` (interactive TUI only) |
+
+**Do not** use `git-fire --fire` from unattended agents (requires a real TTY).
+
+**Prefer** scoping with `--path` to the user’s workspace instead of scanning the entire home directory.
+
+## Install
+
+```bash
+# Recommended: latest release
+go install github.com/git-fire/git-fire@latest
+
+# macOS / Linuxbrew
+brew install git-fire/tap/git-fire
+
+# Linux install script
+curl -fsSL https://raw.githubusercontent.com/git-fire/git-fire/main/scripts/install.sh | bash
+```
+
+Ensure `git-fire` is on `PATH` (`go install` → `$HOME/go/bin`). Requires **Go 1.24.2+** and **git** on `PATH`.
+
+Generate default config: `git-fire --init` (use `--force` when overwriting non-interactively).
+
+## Commands (copy-paste)
+
+```bash
+# Preview plan (no git mutations) — default for agents
+git-fire --dry-run --json --non-interactive --path .
+
+# Live checkpoint (COMMITS dirty repos + PUSHES) — needs human approval
+git-fire --json --non-interactive --path .
+
+# Push committed refs only (no auto-commit)
+git-fire --skip-auto-commit --json --non-interactive --path .
+
+# Status: SSH keys/agent + discovered repos
+git-fire --status --json --non-interactive --path .
+
+# Registry-only run (no filesystem walk)
+git-fire --no-scan --dry-run --json --non-interactive
+
+# Registry maintenance
+git-fire repos list
+git-fire repos ignore /absolute/path/to/repo
+git-fire repos scan ~/projects
+
+# Version / help
+git-fire --version
+git-fire --help
+```
+
+Machine-readable schemas: [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+
+## Non-interactive behavior
+
+Set **`--non-interactive`** or **`GIT_FIRE_NON_INTERACTIVE=1`** (also set automatically when `CI` or `GITHUB_ACTIONS` is set):
+
+- No stdin prompts for config overwrite (`--init` needs `--force` if config exists).
+- Stale registry locks are removed automatically; **live** locks require `--force-unlock-registry` (dangerous if another instance is running).
+- After backups finish, a slow scan is **cancelled** instead of waiting for Enter.
+- Git network operations use **`GIT_TERMINAL_PROMPT=0`** (via git-harness) so git does not block on password prompts.
+
+**Aliases:** `--yes` is the same as `--non-interactive`.
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success, user abort (`--fire` cancel), or intentional no-op (e.g. no repos / dry-run complete) |
+| `1` | Error (missing git, config failure, push failures, plugin `fail_run`, invalid flags, etc.) |
+
+The process prints `Error: ...` on stderr and exits `1` on failure (`main.go`).
+
+## Safety notes
+
+| Action | Destructive? | Notes |
+|--------|----------------|-------|
+| `--dry-run` / `--fire-drill` | No | Plans and secret warnings only; no git mutations |
+| `--status` | No | Read-only inspection |
+| Default live `git-fire` | **Yes** | May **create commits** on dirty repos and **push** to remotes |
+| `--skip-auto-commit` | Push only | Does not commit uncommitted changes |
+| `--fire` TUI | **Yes** if user confirms | Interactive selection then same push pipeline |
+| `git-fire repos ignore` | Local registry | Stops future backups for that path |
+| `--init --force` | Overwrites config file | Does not touch git repos |
+| `--force-unlock-registry` | Risky | Can corrupt registry if another process holds the lock |
+
+- Normal flow avoids **force-push**; divergence may create `git-fire-*` backup branches (see [GIT_FIRE_SPEC.md](GIT_FIRE_SPEC.md)).
+- **Auth:** SSH agent / keys for SSH remotes; HTTPS remotes need credentials already configured (no interactive git prompts).
+- **Secrets:** scanner warns on suspected secrets; committing secrets remains the user’s responsibility.
+- **State:** writes `~/.config/git-fire/config.toml`, `repos.toml`, and logs under `~/.cache/git-fire/logs/`.
+
+## Documentation map
+
+- [llms.txt](llms.txt) — llmstxt.org index
+- [README.md](README.md) — human-oriented quickstart
+- [docs/agentic-flows.md](docs/agentic-flows.md) — hooks and workflows
+- [docs/agent-integration.md](docs/agent-integration.md) — future MCP/skill design
+- [CLAUDE.md](CLAUDE.md) — contributor architecture
+
+---
 
 ## Cursor Cloud specific instructions
 
